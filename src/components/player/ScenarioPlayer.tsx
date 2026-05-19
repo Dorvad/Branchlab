@@ -1,13 +1,25 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, RotateCcw, Share2 } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
+
 import { VideoScene } from './VideoScene'
-import { ChoiceButton } from './ChoiceButton'
-import { createSession, advanceSession, getNodeById } from '@/lib/scenario-engine'
-import type { Scenario, ScenarioVersion, PlayerSessionState } from '@/types'
+import { ChoicePanel } from './ChoicePanel'
+import { FeedbackOverlay } from './FeedbackOverlay'
+import { EndingScreen } from './EndingScreen'
+import { PlayerProgress } from './PlayerProgress'
+
+import {
+  createSession,
+  advanceSession,
+  getNodeById,
+  getAvailableChoices,
+  isEndingNode,
+} from '@/lib/scenario-engine'
+
+import type { Scenario, ScenarioVersion, PlayerSessionState, PlayerPhase, ScenarioChoice } from '@/types'
 
 type ScenarioLike = Scenario | ScenarioVersion
 
@@ -19,219 +31,183 @@ interface ScenarioPlayerProps {
 
 export function ScenarioPlayer({ scenario, mode = 'play', backHref }: ScenarioPlayerProps) {
   const [session, setSession] = useState<PlayerSessionState>(() => createSession(scenario))
-  const [showChoices, setShowChoices] = useState(false)
-  const [transitioning, setTransitioning] = useState(false)
+  const [phase, setPhase] = useState<PlayerPhase>('watching')
+  const [pendingChoice, setPendingChoice] = useState<ScenarioChoice | null>(null)
 
-  const currentNode = getNodeById(scenario, session.currentNodeId)
-  const isEnding = currentNode?.type === 'ending'
-  const stepNumber = session.history.length
-  const totalNodes = scenario.nodes.filter(n => n.type !== 'ending').length
+  const currentNode = getNodeById(scenario, session.currentNodeId)!
+  const choices = getAvailableChoices(scenario, session.currentNodeId)
 
-  const handleSceneComplete = useCallback(() => {
-    if (isEnding) return
-    setShowChoices(true)
-  }, [isEnding])
+  // Step count: non-ending nodes visited so far
+  const stepCount = session.history.filter(id => !isEndingNode(scenario, id)).length
 
-  const handleChoice = useCallback((choiceId: string) => {
-    setTransitioning(true)
-    setShowChoices(false)
-    setTimeout(() => {
-      setSession(prev => advanceSession(prev, scenario, choiceId))
-      setTransitioning(false)
-    }, 300)
-  }, [scenario])
+  const scenarioTitle = 'title' in scenario
+    ? (scenario as Scenario).title
+    : 'Scenario'
 
+  // ── Called by VideoScene when the clip finishes ─────────────────────────────
+  const handleVideoComplete = useCallback(() => {
+    if (currentNode.type === 'ending') {
+      setPhase('ending')
+    } else if (choices.length > 0) {
+      setPhase('choices')
+    }
+    // If no choices (incomplete draft node), stay showing the scene
+  }, [currentNode.type, choices.length])
+
+  // ── Called by ChoicePanel when the player picks a choice ────────────────────
+  const handleChoiceSelect = useCallback((choice: ScenarioChoice) => {
+    if (choice.feedback) {
+      setPendingChoice(choice)
+      setPhase('feedback')
+    } else {
+      commitAndAdvance(choice)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, scenario])
+
+  // ── Called by FeedbackOverlay "Continue" button ──────────────────────────────
+  const handleFeedbackContinue = useCallback(() => {
+    if (!pendingChoice) return
+    const choice = pendingChoice
+    setPendingChoice(null)
+    commitAndAdvance(choice)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingChoice, session, scenario])
+
+  // ── Core: apply the choice, update session, trigger node transition ──────────
+  function commitAndAdvance(choice: ScenarioChoice) {
+    const newSession = advanceSession(session, scenario, choice.id)
+    setSession(newSession)
+    setPhase('transitioning')
+    // Short gap so AnimatePresence can exit the old VideoScene before mounting new
+    setTimeout(() => setPhase('watching'), 350)
+  }
+
+  // ── Restart ──────────────────────────────────────────────────────────────────
   const handleRestart = useCallback(() => {
-    setShowChoices(false)
-    setTransitioning(false)
     setSession(createSession(scenario))
+    setPendingChoice(null)
+    setPhase('watching')
   }, [scenario])
 
   if (!currentNode) return null
 
   return (
-    <div className="fixed inset-0 bg-bg-0 flex flex-col overflow-hidden">
-      {/* Background */}
+    <div className="fixed inset-0 bg-bg-0 overflow-hidden">
+      {/* Wide-screen ambient background */}
       <div
-        className="pointer-events-none absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(800px 600px at 50% 30%, rgba(255,255,255,0.02) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,255,255,0.015) 0%, transparent 70%)',
         }}
       />
 
-      {/* Top bar */}
-      <div
-        className="flex items-center justify-between px-5 py-4 shrink-0 z-10"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-      >
-        <div className="flex items-center gap-3">
-          {backHref && (
-            <Link
-              href={backHref}
-              className="flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink-1 transition-colors"
-            >
-              <ArrowLeft size={14} />
-            </Link>
-          )}
-          <div>
-            <p className="text-xs font-mono text-ink-3 tracking-widest uppercase line-clamp-1">
-              {mode === 'preview' ? '⚠ Preview Mode' : 'Now playing'}
-            </p>
-            <p className="text-sm text-ink-1 font-medium leading-tight truncate max-w-[200px]">
-              {'title' in scenario ? (scenario as Scenario).title : 'Scenario'}
-            </p>
-          </div>
-        </div>
+      {/* Content column — centered, phone-width on desktop */}
+      <div className="relative h-full flex flex-col max-w-[520px] mx-auto">
 
-        {/* Progress dots */}
-        {!isEnding && (
-          <div className="flex items-center gap-1.5">
-            {Array.from({ length: Math.min(totalNodes, 8) }).map((_, i) => (
-              <span
-                key={i}
-                className="w-1.5 h-1.5 rounded-full transition-all"
-                style={{
-                  background: i < stepNumber ? 'var(--neon-mint)' : 'rgba(255,255,255,0.12)',
-                  boxShadow: i === stepNumber - 1 ? 'var(--glow-mint)' : undefined,
-                }}
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
+        <header
+          className="flex items-center justify-between px-5 py-4 shrink-0"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            {backHref && (
+              <Link
+                href={backHref}
+                className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-white/5"
+                style={{ color: '#5c6273' }}
+              >
+                <ArrowLeft size={16} />
+              </Link>
+            )}
+            <div className="min-w-0">
+              {mode === 'preview' && (
+                <p className="text-[9px] font-mono text-neon-amber tracking-[0.18em] uppercase mb-0.5">
+                  ⚠ Preview
+                </p>
+              )}
+              <p className="text-sm font-medium text-ink-1 truncate">{scenarioTitle}</p>
+            </div>
+          </div>
+
+          <PlayerProgress step={stepCount} />
+        </header>
+
+        {/* ── Main: video + overlays ──────────────────────────────────────────── */}
+        <main className="relative flex-1 overflow-hidden">
+
+          {/* VideoScene — keyed to currentNodeId so it remounts on transition */}
+          <AnimatePresence mode="wait">
+            {phase !== 'transitioning' && (
+              <motion.div
+                key={session.currentNodeId}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="absolute inset-0"
+              >
+                <VideoScene
+                  node={currentNode}
+                  onComplete={handleVideoComplete}
+                  autoAdvanceSeconds={currentNode.type === 'ending' ? 4 : 5}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* FeedbackOverlay — absolute, sits over the video */}
+          <AnimatePresence>
+            {phase === 'feedback' && pendingChoice?.feedback && (
+              <FeedbackOverlay
+                key="feedback"
+                text={pendingChoice.feedback}
+                scoreDeltas={pendingChoice.scoreEffects}
+                onContinue={handleFeedbackContinue}
               />
-            ))}
-          </div>
-        )}
-      </div>
+            )}
+          </AnimatePresence>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
-        <AnimatePresence mode="wait">
-          {!transitioning && (
+          {/* EndingScreen — absolute full takeover */}
+          <AnimatePresence>
+            {phase === 'ending' && (
+              <EndingScreen
+                key="ending"
+                endingNode={currentNode}
+                session={session}
+                scenario={scenario}
+                onRestart={handleRestart}
+                mode={mode}
+              />
+            )}
+          </AnimatePresence>
+        </main>
+
+        {/* ── ChoicePanel — slides up from below main ─────────────────────────── */}
+        <AnimatePresence>
+          {phase === 'choices' && choices.length > 0 && (
+            <ChoicePanel
+              key="choices"
+              choices={choices}
+              onSelect={handleChoiceSelect}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Dead-end notice (draft node with no choices) */}
+        <AnimatePresence>
+          {phase === 'choices' && choices.length === 0 && (
             <motion.div
-              key={session.currentNodeId}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="flex-1 flex flex-col"
+              className="shrink-0 px-5 pb-8 pt-4 text-center"
             >
-              {/* Video area */}
-              <div className="flex-1 relative">
-                <VideoScene
-                  node={currentNode}
-                  onComplete={handleSceneComplete}
-                  autoPlay={!isEnding}
-                />
-              </div>
-
-              {/* Ending screen */}
-              {isEnding && (
-                <EndingPanel
-                  node={currentNode}
-                  session={session}
-                  scenario={scenario}
-                  onRestart={handleRestart}
-                  mode={mode}
-                />
-              )}
-
-              {/* Choices overlay */}
-              {showChoices && !isEnding && currentNode.choices.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="px-5 pb-8 pt-4 space-y-3 shrink-0"
-                  style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
-                >
-                  <p className="text-xs font-mono text-ink-3 tracking-widest uppercase mb-3">
-                    What do you do?
-                  </p>
-                  {currentNode.choices.map((choice, i) => (
-                    <ChoiceButton key={choice.id} choice={choice} index={i} onSelect={handleChoice} />
-                  ))}
-                </motion.div>
-              )}
-
-              {/* Dead end (no choices, not ending) */}
-              {showChoices && !isEnding && currentNode.choices.length === 0 && (
-                <div className="px-5 pb-8 pt-4 text-center">
-                  <p className="text-sm text-ink-3 font-mono">— scene has no choices yet —</p>
-                </div>
-              )}
+              <p className="text-sm font-mono text-ink-3">— no choices yet —</p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
     </div>
-  )
-}
-
-function EndingPanel({
-  node,
-  session,
-  scenario,
-  onRestart,
-  mode,
-}: {
-  node: ReturnType<typeof getNodeById>
-  session: PlayerSessionState
-  scenario: ScenarioLike
-  onRestart: () => void
-  mode: 'play' | 'preview'
-}) {
-  const historyTitles = session.history.map(id => {
-    const n = getNodeById(scenario, id)
-    return n?.title ?? id
-  })
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5, duration: 0.4 }}
-      className="px-5 pb-8 pt-4 shrink-0"
-      style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}
-    >
-      {/* Path taken */}
-      <div className="mb-5">
-        <p className="text-xs font-mono text-ink-3 tracking-widest uppercase mb-3">Your path</p>
-        <div className="flex flex-wrap gap-2">
-          {historyTitles.map((title, i) => (
-            <span key={i} className="flex items-center gap-1.5 text-xs text-ink-2">
-              {i > 0 && <span className="text-ink-4">→</span>}
-              <span
-                className="px-2 py-0.5 rounded-full"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                {title}
-              </span>
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onRestart}
-          className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-sm font-medium border transition-all hover:bg-white/5"
-          style={{ borderColor: 'rgba(255,255,255,0.12)', color: '#c9cdda' }}
-        >
-          <RotateCcw size={14} />
-          Play again
-        </button>
-        {mode === 'play' && (
-          <button
-            className="flex items-center gap-2 py-3 px-4 rounded-2xl text-sm font-medium border transition-all hover:bg-white/5"
-            style={{ borderColor: 'rgba(255,255,255,0.12)', color: '#8a90a4' }}
-            onClick={() => {
-              navigator.clipboard?.writeText(window.location.href)
-              alert('Link copied!')
-            }}
-          >
-            <Share2 size={14} />
-            Share
-          </button>
-        )}
-      </div>
-    </motion.div>
   )
 }

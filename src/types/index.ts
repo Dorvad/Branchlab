@@ -1,5 +1,6 @@
 export type NodeType = 'start' | 'scene' | 'feedback' | 'ending';
 export type ScenarioStatus = 'draft' | 'published' | 'archived';
+export type PlayerPhase = 'watching' | 'choices' | 'feedback' | 'transitioning' | 'ending';
 
 export interface ScoreEffects {
   [key: string]: number;
@@ -17,6 +18,7 @@ export interface ScenarioChoice {
   label: string;
   targetNodeId: string;
   scoreEffects?: ScoreEffects;
+  feedback?: string; // shown as overlay after selecting this choice
 }
 
 export interface ScenarioNode {
@@ -27,7 +29,7 @@ export interface ScenarioNode {
   clip?: ClipAsset;
   choices: ScenarioChoice[];
   position: { x: number; y: number };
-  scoreEffects?: ScoreEffects;
+  scoreEffects?: ScoreEffects; // applied when this node is entered
 }
 
 export interface ScenarioEdge {
@@ -72,3 +74,15 @@ export interface PlayerSessionState {
   completedAt?: string;
   endingNodeId?: string;
 }
+
+export interface ValidationIssue {
+  nodeId: string;
+  message: string;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  issues: ValidationIssue[];
+}
+
+export type ScenarioLike = Scenario | ScenarioVersion;
