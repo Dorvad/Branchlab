@@ -93,6 +93,21 @@ export default function DashboardPage() {
         }
       />
 
+      {/* Prototype notice */}
+      <div className="relative max-w-7xl mx-auto px-6 pt-4">
+        <div
+          className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-[11px] font-mono"
+          style={{
+            background: 'rgba(255,255,255,0.025)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            color: '#5c6273',
+          }}
+        >
+          <span style={{ color: 'oklch(80% 0.16 60)' }}>⚠</span>
+          Local prototype — all scenarios and published URLs are stored in this browser only. Nothing is shared across devices or persists after clearing site data.
+        </div>
+      </div>
+
       <main className="relative max-w-7xl mx-auto px-6 py-10">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
