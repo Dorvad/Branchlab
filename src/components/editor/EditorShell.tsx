@@ -2,15 +2,18 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save } from 'lucide-react'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ScenarioCanvas } from './ScenarioCanvas'
 import { LeftSidebar } from './LeftSidebar'
 import { NodeInspector } from './NodeInspector'
 import { ValidationPanel } from './ValidationPanel'
+import { AssetLibrary } from './AssetLibrary'
 import { validateScenario } from '@/lib/scenario-engine'
 import { getLocalScenario, saveScenario, publishScenario } from '@/lib/local-store'
+import { getAllClips } from '@/lib/clip-store'
 import { PublishModal } from './PublishModal'
-import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, ValidationResult } from '@/types'
+import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, VideoClip } from '@/types'
 
 interface EditorShellProps {
   scenarioId: string
@@ -33,6 +36,7 @@ export function EditorShell({ scenarioId, initialScenario }: EditorShellProps) {
   })
   const [showValidation, setShowValidation] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
+  const [showAssets, setShowAssets] = useState(false)
 
   if (!scenario) {
     return (
@@ -62,6 +66,8 @@ export function EditorShell({ scenarioId, initialScenario }: EditorShellProps) {
       setShowValidation={setShowValidation}
       showPublish={showPublish}
       setShowPublish={setShowPublish}
+      showAssets={showAssets}
+      setShowAssets={setShowAssets}
     />
   )
 }
@@ -82,6 +88,8 @@ interface EditorUIProps {
   setShowValidation: React.Dispatch<React.SetStateAction<boolean>>
   showPublish: boolean
   setShowPublish: React.Dispatch<React.SetStateAction<boolean>>
+  showAssets: boolean
+  setShowAssets: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 function EditorUI({
@@ -97,6 +105,8 @@ function EditorUI({
   setShowValidation,
   showPublish,
   setShowPublish,
+  showAssets,
+  setShowAssets,
 }: EditorUIProps) {
   const selectedNode = useMemo(
     () => scenario.nodes.find(n => n.id === selectedNodeId) ?? null,
@@ -246,6 +256,22 @@ function EditorUI({
     setIsDirty(false)
   }, [scenario, derivedEdges, setScenario, setSavedAt, setIsDirty])
 
+  // ── Clip management ───────────────────────────────────────────────────────
+  const [clips, setClips] = useState<VideoClip[]>(() => getAllClips())
+
+  const addClip = useCallback((clip: VideoClip) => {
+    setClips(prev => [clip, ...prev])
+  }, [])
+
+  const removeClip = useCallback((id: string) => {
+    setClips(prev => prev.filter(c => c.id !== id))
+  }, [])
+
+  const attachClipToNode = useCallback((clipId: string) => {
+    if (!selectedNodeId) return
+    updateNode(selectedNodeId, { clipId })
+  }, [selectedNodeId, updateNode])
+
   const { errors, warnings } = validationResult
   const errorCount = errors.length
   const warningCount = warnings.length
@@ -303,6 +329,26 @@ function EditorUI({
 
         {/* Right */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAssets(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
+            style={{
+              borderColor: showAssets ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
+              color: showAssets ? '#c9cdda' : '#8a90a4',
+            }}
+          >
+            <Library size={12} />
+            Assets
+            {clips.length > 0 && (
+              <span
+                className="px-1.5 py-px rounded-full font-mono text-[9px]"
+                style={{ background: 'rgba(255,255,255,0.08)', color: '#8a90a4' }}
+              >
+                {clips.length}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setShowValidation(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
@@ -375,11 +421,13 @@ function EditorUI({
           <NodeInspector
             node={selectedNode}
             allNodes={scenario.nodes}
+            clips={clips}
             onUpdateNode={updateNode}
             onAddChoice={addChoice}
             onUpdateChoice={updateChoice}
             onDeleteChoice={deleteChoice}
             onDeleteNode={deleteNode}
+            onOpenLibrary={() => setShowAssets(true)}
             onClose={() => setSelectedNodeId(null)}
           />
         )}
@@ -444,6 +492,20 @@ function EditorUI({
           onClose={() => setShowPublish(false)}
         />
       )}
+
+      <AnimatePresence>
+        {showAssets && (
+          <AssetLibrary
+            clips={clips}
+            selectedNodeTitle={selectedNode?.title ?? null}
+            canAttach={!!selectedNodeId}
+            onAddClip={addClip}
+            onRemoveClip={removeClip}
+            onAttachToNode={attachClipToNode}
+            onClose={() => setShowAssets(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

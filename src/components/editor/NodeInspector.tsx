@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle } from 'lucide-react'
-import type { ScenarioNode, ScenarioChoice, NodeType } from '@/types'
+import type { ScenarioNode, ScenarioChoice, NodeType, VideoClip } from '@/types'
+import { formatDuration } from '@/lib/clip-store'
 
 const NODE_TYPES: NodeType[] = ['start', 'scene', 'feedback', 'ending']
 
@@ -13,37 +14,29 @@ const TYPE_COLOR: Record<NodeType, string> = {
   ending:   'oklch(80% 0.16 60)',
 }
 
-const MOCK_CLIPS = [
-  { id: 'clip-01', label: 'arrive.mp4', duration: 12 },
-  { id: 'clip-02', label: 'walk-over.mp4', duration: 10 },
-  { id: 'clip-03', label: 'hang-back.mp4', duration: 10 },
-  { id: 'clip-04', label: 'bold-joke.mp4', duration: 10 },
-  { id: 'clip-05', label: 'view-convo.mp4', duration: 14 },
-  { id: 'clip-06', label: 'join-group.mp4', duration: 12 },
-  { id: 'clip-07', label: 'ending-connected.mp4', duration: 8 },
-  { id: 'clip-08', label: 'ending-lingering.mp4', duration: 8 },
-  { id: 'clip-09', label: 'ending-missed.mp4', duration: 8 },
-]
-
 interface NodeInspectorProps {
   node: ScenarioNode
   allNodes: ScenarioNode[]
+  clips: VideoClip[]
   onUpdateNode: (nodeId: string, updates: Partial<ScenarioNode>) => void
   onAddChoice: (nodeId: string) => void
   onUpdateChoice: (nodeId: string, choiceId: string, updates: Partial<ScenarioChoice>) => void
   onDeleteChoice: (nodeId: string, choiceId: string) => void
   onDeleteNode: (nodeId: string) => void
+  onOpenLibrary: () => void
   onClose: () => void
 }
 
 export function NodeInspector({
   node,
   allNodes,
+  clips,
   onUpdateNode,
   onAddChoice,
   onUpdateChoice,
   onDeleteChoice,
   onDeleteNode,
+  onOpenLibrary,
   onClose,
 }: NodeInspectorProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -155,40 +148,53 @@ export function NodeInspector({
 
           {/* ── Video clip ─────────────────────────────────────────────────── */}
           <Field label="Video Clip">
-            <div className="relative">
+            {clips.length === 0 ? (
               <div
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: '#5c6273' }}
+                className="px-3 py-2.5 rounded-xl text-[11px] leading-relaxed border border-dashed"
+                style={{ borderColor: 'rgba(255,255,255,0.08)', color: '#5c6273' }}
               >
-                <Film size={12} />
+                No clips in library.{' '}
+                <button
+                  onClick={onOpenLibrary}
+                  className="underline underline-offset-2 transition-colors hover:opacity-80"
+                  style={{ color: '#8a90a4' }}
+                >
+                  Open Asset Library →
+                </button>
               </div>
-              <select
-                className="inspector-input pl-7 appearance-none pr-8"
-                value={node.clip?.id ?? ''}
-                onChange={e => {
-                  const clip = MOCK_CLIPS.find(c => c.id === e.target.value)
-                  if (!clip) {
-                    onUpdateNode(node.id, { clip: undefined })
-                  } else {
-                    onUpdateNode(node.id, {
-                      clip: { id: clip.id, url: `/videos/${clip.label}`, duration: clip.duration },
-                    })
-                  }
-                }}
-              >
-                <option value="">— No clip —</option>
-                {MOCK_CLIPS.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.label} · {c.duration}s
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={12}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: '#5c6273' }}
-              />
-            </div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="relative">
+                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#5c6273' }}>
+                    <Film size={12} />
+                  </div>
+                  <select
+                    className="inspector-input pl-7 appearance-none pr-8"
+                    value={node.clipId ?? ''}
+                    onChange={e => onUpdateNode(node.id, { clipId: e.target.value || undefined })}
+                  >
+                    <option value="">— No clip —</option>
+                    {clips.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name.length > 28 ? c.name.slice(0, 25) + '…' : c.name} · {formatDuration(c.duration)}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={12}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ color: '#5c6273' }}
+                  />
+                </div>
+                <button
+                  onClick={onOpenLibrary}
+                  className="text-[10px] font-mono transition-opacity hover:opacity-80"
+                  style={{ color: '#3a3f4e' }}
+                >
+                  Manage clips →
+                </button>
+              </div>
+            )}
           </Field>
 
           {/* ── Choices ────────────────────────────────────────────────────── */}

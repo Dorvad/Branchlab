@@ -2,6 +2,16 @@ export type NodeType = 'start' | 'scene' | 'feedback' | 'ending';
 export type ScenarioStatus = 'draft' | 'published' | 'archived';
 export type PlayerPhase = 'watching' | 'choices' | 'feedback' | 'transitioning' | 'ending';
 
+export interface VideoClip {
+  id: string;
+  name: string;       // original filename
+  size: number;       // bytes
+  mimeType: string;   // video/mp4, video/webm, video/quicktime
+  objectUrl: string;  // ephemeral — only valid this browser session
+  duration: number;   // seconds
+  addedAt: string;    // ISO timestamp
+}
+
 export interface ScoreEffects {
   [key: string]: number;
 }
@@ -27,6 +37,7 @@ export interface ScenarioNode {
   title: string;
   description?: string;
   clip?: ClipAsset;
+  clipId?: string;
   choices: ScenarioChoice[];
   position: { x: number; y: number };
   scoreEffects?: ScoreEffects; // applied when this node is entered
