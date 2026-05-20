@@ -2,8 +2,8 @@
 
 import { useState, useRef } from 'react'
 import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon } from 'lucide-react'
-import type { ScenarioNode, ScenarioChoice, NodeType, VideoClip } from '@/types'
-import { formatDuration } from '@/lib/clip-store'
+import type { ScenarioNode, ScenarioChoice, NodeType, Clip } from '@/types'
+import { formatDuration } from '@/lib/supabase/clips'
 
 async function compressImage(file: File, maxWidth = 1280, quality = 0.82): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -40,7 +40,7 @@ const TYPE_COLOR: Record<NodeType, string> = {
 interface NodeInspectorProps {
   node: ScenarioNode
   allNodes: ScenarioNode[]
-  clips: VideoClip[]
+  clips: Clip[]
   onUpdateNode: (nodeId: string, updates: Partial<ScenarioNode>) => void
   onAddChoice: (nodeId: string) => void
   onUpdateChoice: (nodeId: string, choiceId: string, updates: Partial<ScenarioChoice>) => void
@@ -193,8 +193,15 @@ export function NodeInspector({
                   </div>
                   <select
                     className="inspector-input pl-7 appearance-none pr-8"
-                    value={node.clipId ?? ''}
-                    onChange={e => onUpdateNode(node.id, { clipId: e.target.value || undefined })}
+                    value={node.clip?.id ?? ''}
+                    onChange={e => {
+                      const clip = clips.find(c => c.id === e.target.value)
+                      if (clip) {
+                        onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration }, clipId: undefined })
+                      } else {
+                        onUpdateNode(node.id, { clip: undefined, clipId: undefined })
+                      }
+                    }}
                   >
                     <option value="">— No clip —</option>
                     {clips.map(c => (
