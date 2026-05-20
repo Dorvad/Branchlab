@@ -2,12 +2,14 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { GitBranch, Eye, ArrowRight, Clock } from 'lucide-react'
+import { GitBranch, Eye, ArrowRight, Clock, Copy, Trash2 } from 'lucide-react'
 import type { Scenario } from '@/types'
 
 interface ScenarioCardProps {
   scenario: Scenario
   index?: number
+  onDuplicate?: () => void
+  onDelete?: () => void
 }
 
 const STATUS_STYLES = {
@@ -34,7 +36,7 @@ const STATUS_STYLES = {
   },
 }
 
-export function ScenarioCard({ scenario, index = 0 }: ScenarioCardProps) {
+export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: ScenarioCardProps) {
   const style = STATUS_STYLES[scenario.status]
   const nodeCount = scenario.nodes.length
   const endingCount = scenario.nodes.filter(n => n.type === 'ending').length
@@ -77,13 +79,41 @@ export function ScenarioCard({ scenario, index = 0 }: ScenarioCardProps) {
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: style.dot }} />
           {style.label}
         </div>
+
+        {/* Hover actions (duplicate / delete) */}
+        {(onDuplicate || onDelete) && (
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {onDuplicate && (
+              <button
+                onClick={e => { e.preventDefault(); onDuplicate() }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
+                style={{ background: 'rgba(0,0,0,0.5)', color: '#8a90a4' }}
+                title="Duplicate"
+              >
+                <Copy size={12} />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={e => { e.preventDefault(); onDelete() }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:text-red-400"
+                style={{ background: 'rgba(0,0,0,0.5)', color: '#8a90a4' }}
+                title="Delete"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Content */}
       <div className="p-5 flex flex-col gap-4 flex-1">
         <div>
           <h3 className="font-semibold text-ink-0 mb-1.5 leading-snug">{scenario.title}</h3>
-          <p className="text-sm text-ink-2 leading-relaxed line-clamp-2">{scenario.description}</p>
+          <p className="text-sm text-ink-2 leading-relaxed line-clamp-2">
+            {scenario.description || <span className="italic text-ink-4">No description</span>}
+          </p>
         </div>
 
         {/* Stats */}

@@ -8,25 +8,94 @@ import { LeftSidebar } from './LeftSidebar'
 import { NodeInspector } from './NodeInspector'
 import { ValidationPanel } from './ValidationPanel'
 import { validatePlayableScenario } from '@/lib/scenario-engine'
+import { getLocalScenario, saveScenario } from '@/lib/local-store'
 import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge } from '@/types'
 
 interface EditorShellProps {
-  scenario: Scenario
+  scenarioId: string
+  initialScenario: Scenario | null
 }
 
-export function EditorShell({ scenario: initialScenario }: EditorShellProps) {
-  const [scenario, setScenario] = useState<Scenario>(initialScenario)
+export function EditorShell({ scenarioId, initialScenario }: EditorShellProps) {
+  // Prefer the locally stored version; fall back to the server-provided initial
+  const [scenario, setScenario] = useState<Scenario | null>(() => {
+    if (typeof window === 'undefined') return initialScenario
+    return getLocalScenario(scenarioId) ?? initialScenario
+  })
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
-  const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [savedAt, setSavedAt] = useState<Date | null>(() => {
+    if (typeof window === 'undefined') return null
+    const local = getLocalScenario(scenarioId)
+    return local ? new Date(local.updatedAt) : null
+  })
   const [showValidation, setShowValidation] = useState(false)
 
+  if (!scenario) {
+    return (
+      <div className="flex h-screen items-center justify-center flex-col gap-4" style={{ background: '#0a0b10' }}>
+        <p className="text-ink-2 text-sm">Scenario not found.</p>
+        <Link
+          href="/dashboard"
+          className="text-xs font-mono text-ink-3 hover:text-ink-1 transition-colors underline underline-offset-4"
+        >
+          Back to dashboard
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <EditorUI
+      scenario={scenario}
+      setScenario={setScenario}
+      selectedNodeId={selectedNodeId}
+      setSelectedNodeId={setSelectedNodeId}
+      isDirty={isDirty}
+      setIsDirty={setIsDirty}
+      savedAt={savedAt}
+      setSavedAt={setSavedAt}
+      showValidation={showValidation}
+      setShowValidation={setShowValidation}
+    />
+  )
+}
+
+// ── EditorUI ───────────────────────────────────────────────────────────────────
+// Separated so that hooks aren't called conditionally above the null-guard.
+
+interface EditorUIProps {
+  scenario: Scenario
+  setScenario: React.Dispatch<React.SetStateAction<Scenario | null>>
+  selectedNodeId: string | null
+  setSelectedNodeId: React.Dispatch<React.SetStateAction<string | null>>
+  isDirty: boolean
+  setIsDirty: React.Dispatch<React.SetStateAction<boolean>>
+  savedAt: Date | null
+  setSavedAt: React.Dispatch<React.SetStateAction<Date | null>>
+  showValidation: boolean
+  setShowValidation: React.Dispatch<React.SetStateAction<boolean>>
+}
+
+function EditorUI({
+  scenario,
+  setScenario,
+  selectedNodeId,
+  setSelectedNodeId,
+  isDirty,
+  setIsDirty,
+  savedAt,
+  setSavedAt,
+  showValidation,
+  setShowValidation,
+}: EditorUIProps) {
   const selectedNode = useMemo(
     () => scenario.nodes.find(n => n.id === selectedNodeId) ?? null,
     [scenario.nodes, selectedNodeId]
   )
 
-  // Edges are derived from choices — no separate edges array needed
+  // Edges derived from choices — no separate edges array needed during editing
   const derivedEdges = useMemo<ScenarioEdge[]>(() => {
     const nodeIds = new Set(scenario.nodes.map(n => n.id))
     const edges: ScenarioEdge[] = []
@@ -53,19 +122,19 @@ export function EditorShell({ scenario: initialScenario }: EditorShellProps) {
   // ── Node mutations ────────────────────────────────────────────────────────
 
   const updateNode = useCallback((nodeId: string, updates: Partial<ScenarioNode>) => {
-    setScenario(prev => ({
+    setScenario(prev => prev ? ({
       ...prev,
       nodes: prev.nodes.map(n => n.id === nodeId ? { ...n, ...updates } : n),
-    }))
+    }) : prev)
     setIsDirty(true)
-  }, [])
+  }, [setScenario, setIsDirty])
 
   const updateNodePosition = useCallback((nodeId: string, position: { x: number; y: number }) => {
-    setScenario(prev => ({
+    setScenario(prev => prev ? ({
       ...prev,
       nodes: prev.nodes.map(n => n.id === nodeId ? { ...n, position } : n),
-    }))
-  }, [])
+    }) : prev)
+  }, [setScenario])
 
   const addNode = useCallback(() => {
     const maxY = scenario.nodes.length
@@ -79,13 +148,13 @@ export function EditorShell({ scenario: initialScenario }: EditorShellProps) {
       choices: [],
       position: { x: 260 + Math.floor(Math.random() * 200), y: maxY },
     }
-    setScenario(prev => ({ ...prev, nodes: [...prev.nodes, newNode] }))
+    setScenario(prev => prev ? ({ ...prev, nodes: [...prev.nodes, newNode] }) : prev)
     setSelectedNodeId(newNode.id)
     setIsDirty(true)
-  }, [scenario.nodes])
+  }, [scenario.nodes, setScenario, setSelectedNodeId, setIsDirty])
 
   const deleteNode = useCallback((nodeId: string) => {
-    setScenario(prev => ({
+    setScenario(prev => prev ? ({
       ...prev,
       nodes: prev.nodes
         .filter(n => n.id !== nodeId)
@@ -95,10 +164,10 @@ export function EditorShell({ scenario: initialScenario }: EditorShellProps) {
             c.targetNodeId === nodeId ? { ...c, targetNodeId: '' } : c
           ),
         })),
-    }))
+    }) : prev)
     setSelectedNodeId(id => id === nodeId ? null : id)
     setIsDirty(true)
-  }, [])
+  }, [setScenario, setSelectedNodeId, setIsDirty])
 
   // ── Choice mutations ──────────────────────────────────────────────────────
 
@@ -108,53 +177,50 @@ export function EditorShell({ scenario: initialScenario }: EditorShellProps) {
       label: 'New choice',
       targetNodeId: '',
     }
-    setScenario(prev => ({
+    setScenario(prev => prev ? ({
       ...prev,
       nodes: prev.nodes.map(n =>
         n.id === nodeId ? { ...n, choices: [...n.choices, newChoice] } : n
       ),
-    }))
+    }) : prev)
     setIsDirty(true)
-  }, [])
+  }, [setScenario, setIsDirty])
 
   const updateChoice = useCallback(
     (nodeId: string, choiceId: string, updates: Partial<ScenarioChoice>) => {
-      setScenario(prev => ({
+      setScenario(prev => prev ? ({
         ...prev,
         nodes: prev.nodes.map(n =>
           n.id === nodeId
-            ? {
-                ...n,
-                choices: n.choices.map(c =>
-                  c.id === choiceId ? { ...c, ...updates } : c
-                ),
-              }
+            ? { ...n, choices: n.choices.map(c => c.id === choiceId ? { ...c, ...updates } : c) }
             : n
         ),
-      }))
+      }) : prev)
       setIsDirty(true)
     },
-    []
+    [setScenario, setIsDirty]
   )
 
   const deleteChoice = useCallback((nodeId: string, choiceId: string) => {
-    setScenario(prev => ({
+    setScenario(prev => prev ? ({
       ...prev,
       nodes: prev.nodes.map(n =>
         n.id === nodeId
           ? { ...n, choices: n.choices.filter(c => c.id !== choiceId) }
           : n
       ),
-    }))
+    }) : prev)
     setIsDirty(true)
-  }, [])
+  }, [setScenario, setIsDirty])
 
-  // ── Top-level actions ─────────────────────────────────────────────────────
+  // ── Save ──────────────────────────────────────────────────────────────────
 
-  const handleSave = () => {
-    setSavedAt(new Date())
+  const handleSave = useCallback(() => {
+    const stored = saveScenario({ ...scenario, edges: derivedEdges })
+    setScenario(stored)
+    setSavedAt(new Date(stored.updatedAt))
     setIsDirty(false)
-  }
+  }, [scenario, derivedEdges, setScenario, setSavedAt, setIsDirty])
 
   const issueCount = validationResult.issues.length
 
@@ -244,7 +310,6 @@ export function EditorShell({ scenario: initialScenario }: EditorShellProps) {
       {/* ── Main body ─────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Left sidebar */}
         <LeftSidebar
           scenario={scenario}
           selectedNodeId={selectedNodeId}
@@ -252,7 +317,6 @@ export function EditorShell({ scenario: initialScenario }: EditorShellProps) {
           onAddNode={addNode}
         />
 
-        {/* Canvas */}
         <div className="flex-1 relative overflow-hidden">
           <ScenarioCanvas
             nodes={scenario.nodes}
@@ -263,7 +327,6 @@ export function EditorShell({ scenario: initialScenario }: EditorShellProps) {
           />
         </div>
 
-        {/* Right inspector */}
         {selectedNode && (
           <NodeInspector
             node={selectedNode}
@@ -316,7 +379,6 @@ export function EditorShell({ scenario: initialScenario }: EditorShellProps) {
         ))}
       </div>
 
-      {/* Validation overlay */}
       {showValidation && (
         <ValidationPanel
           result={validationResult}
