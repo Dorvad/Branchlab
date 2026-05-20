@@ -2,12 +2,14 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { GitBranch, Eye, ArrowRight, Clock } from 'lucide-react'
+import { GitBranch, Eye, ArrowRight, Clock, Copy, Trash2, Globe } from 'lucide-react'
 import type { Scenario } from '@/types'
 
 interface ScenarioCardProps {
   scenario: Scenario
   index?: number
+  onDuplicate?: () => void
+  onDelete?: () => void
 }
 
 const STATUS_STYLES = {
@@ -34,7 +36,7 @@ const STATUS_STYLES = {
   },
 }
 
-export function ScenarioCard({ scenario, index = 0 }: ScenarioCardProps) {
+export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: ScenarioCardProps) {
   const style = STATUS_STYLES[scenario.status]
   const nodeCount = scenario.nodes.length
   const endingCount = scenario.nodes.filter(n => n.type === 'ending').length
@@ -42,6 +44,11 @@ export function ScenarioCard({ scenario, index = 0 }: ScenarioCardProps) {
     month: 'short',
     day: 'numeric',
   })
+  const pub = scenario.publishedVersion
+  const hasDraftChanges = pub && new Date(scenario.updatedAt) > new Date(pub.publishedAt)
+  const publishedDate = pub
+    ? new Date(pub.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null
 
   return (
     <motion.div
@@ -77,13 +84,51 @@ export function ScenarioCard({ scenario, index = 0 }: ScenarioCardProps) {
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: style.dot }} />
           {style.label}
         </div>
+
+        {/* Draft changes badge */}
+        {hasDraftChanges && (
+          <div
+            className="absolute bottom-3 left-3 px-2 py-0.5 rounded-full text-[10px] font-mono tracking-wider"
+            style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.12)', color: '#8a90a4' }}
+          >
+            draft changes
+          </div>
+        )}
+
+        {/* Hover actions (duplicate / delete) */}
+        {(onDuplicate || onDelete) && (
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {onDuplicate && (
+              <button
+                onClick={e => { e.preventDefault(); onDuplicate() }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
+                style={{ background: 'rgba(0,0,0,0.5)', color: '#8a90a4' }}
+                title="Duplicate"
+              >
+                <Copy size={12} />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={e => { e.preventDefault(); onDelete() }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:text-red-400"
+                style={{ background: 'rgba(0,0,0,0.5)', color: '#8a90a4' }}
+                title="Delete"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Content */}
       <div className="p-5 flex flex-col gap-4 flex-1">
         <div>
           <h3 className="font-semibold text-ink-0 mb-1.5 leading-snug">{scenario.title}</h3>
-          <p className="text-sm text-ink-2 leading-relaxed line-clamp-2">{scenario.description}</p>
+          <p className="text-sm text-ink-2 leading-relaxed line-clamp-2">
+            {scenario.description || <span className="italic text-ink-4">No description</span>}
+          </p>
         </div>
 
         {/* Stats */}
@@ -93,10 +138,17 @@ export function ScenarioCard({ scenario, index = 0 }: ScenarioCardProps) {
             {nodeCount} nodes
           </span>
           <span>{endingCount} endings</span>
-          <span className="flex items-center gap-1.5 ml-auto">
-            <Clock size={11} />
-            {updatedDate}
-          </span>
+          {pub ? (
+            <span className="flex items-center gap-1.5 ml-auto" title={`Published ${publishedDate} · v${pub.version}`}>
+              <Globe size={11} />
+              v{pub.version} · {publishedDate}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 ml-auto">
+              <Clock size={11} />
+              {updatedDate}
+            </span>
+          )}
         </div>
 
         {/* Actions */}
@@ -116,9 +168,9 @@ export function ScenarioCard({ scenario, index = 0 }: ScenarioCardProps) {
             <Eye size={13} />
             Preview
           </Link>
-          {scenario.status === 'published' && (
+          {pub && (
             <Link
-              href={`/play/${scenario.slug}`}
+              href={`/play/${pub.slug}`}
               className="flex items-center gap-1.5 py-2 px-3 rounded-xl text-sm font-medium transition-all"
               style={{
                 background: 'oklch(82% 0.18 165 / 0.12)',

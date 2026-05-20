@@ -1,5 +1,16 @@
 export type NodeType = 'start' | 'scene' | 'feedback' | 'ending';
 export type ScenarioStatus = 'draft' | 'published' | 'archived';
+export type PlayerPhase = 'watching' | 'choices' | 'feedback' | 'transitioning' | 'ending';
+
+export interface VideoClip {
+  id: string;
+  name: string;       // original filename
+  size: number;       // bytes
+  mimeType: string;   // video/mp4, video/webm, video/quicktime
+  objectUrl: string;  // ephemeral — only valid this browser session
+  duration: number;   // seconds
+  addedAt: string;    // ISO timestamp
+}
 
 export interface ScoreEffects {
   [key: string]: number;
@@ -17,6 +28,7 @@ export interface ScenarioChoice {
   label: string;
   targetNodeId: string;
   scoreEffects?: ScoreEffects;
+  feedback?: string; // shown as overlay after selecting this choice
 }
 
 export interface ScenarioNode {
@@ -25,9 +37,10 @@ export interface ScenarioNode {
   title: string;
   description?: string;
   clip?: ClipAsset;
+  clipId?: string;
   choices: ScenarioChoice[];
   position: { x: number; y: number };
-  scoreEffects?: ScoreEffects;
+  scoreEffects?: ScoreEffects; // applied when this node is entered
 }
 
 export interface ScenarioEdge {
@@ -41,6 +54,7 @@ export interface ScenarioVersion {
   id: string;
   scenarioId: string;
   version: number;
+  title?: string;
   nodes: ScenarioNode[];
   edges: ScenarioEdge[];
   startNodeId: string;
@@ -72,3 +86,27 @@ export interface PlayerSessionState {
   completedAt?: string;
   endingNodeId?: string;
 }
+
+export type ValidationSeverity = 'error' | 'warning';
+
+export interface ValidationIssue {
+  id: string;
+  severity: ValidationSeverity;
+  nodeId?: string;
+  choiceId?: string;
+  message: string;
+  suggestedFix?: string;
+}
+
+export interface ValidationResult {
+  /** True only when there are zero errors (warnings are allowed). */
+  valid: boolean;
+  errors: ValidationIssue[];
+  warnings: ValidationIssue[];
+  /** errors + warnings in display order */
+  issues: ValidationIssue[];
+  /** nodeId → all issues for that node */
+  nodeIssueMap: Record<string, ValidationIssue[]>;
+}
+
+export type ScenarioLike = Scenario | ScenarioVersion;

@@ -1,11 +1,22 @@
-import type { Scenario, ScenarioNode, ScenarioVersion, PlayerSessionState } from '@/types'
+import type {
+  Scenario,
+  ScenarioNode,
+  ScenarioChoice,
+  ScenarioVersion,
+  ScenarioLike,
+  PlayerSessionState,
+  ScoreEffects,
+} from '@/types'
 
-type ScenarioLike = Scenario | ScenarioVersion
+export type { ScenarioLike }
+export { validateScenario } from './validation'
 
 function getScenarioId(scenario: ScenarioLike): string {
   if ('scenarioId' in scenario) return scenario.scenarioId
   return (scenario as Scenario).id
 }
+
+// ─── Node access ────────────────────────────────────────────────────────────
 
 export function getStartNode(scenario: ScenarioLike): ScenarioNode {
   const node = scenario.nodes.find(n => n.id === scenario.startNodeId)
@@ -17,12 +28,48 @@ export function getNodeById(scenario: ScenarioLike, nodeId: string): ScenarioNod
   return scenario.nodes.find(n => n.id === nodeId)
 }
 
+export function getNodeTitle(scenario: ScenarioLike, nodeId: string): string {
+  return getNodeById(scenario, nodeId)?.title ?? nodeId
+}
+
+// ─── Score helpers ───────────────────────────────────────────────────────────
+
+export function applyScoreEffects(
+  score: Record<string, number>,
+  effects?: ScoreEffects
+): Record<string, number> {
+  if (!effects) return score
+  const next = { ...score }
+  for (const [key, delta] of Object.entries(effects)) {
+    next[key] = (next[key] ?? 0) + delta
+  }
+  return next
+}
+
+// ─── Choice access ───────────────────────────────────────────────────────────
+
+export function getAvailableChoices(scenario: ScenarioLike, nodeId: string): ScenarioChoice[] {
+  return getNodeById(scenario, nodeId)?.choices ?? []
+}
+
+// ─── Node type checks ────────────────────────────────────────────────────────
+
+export function isEndingNode(scenario: ScenarioLike, nodeId: string): boolean {
+  return getNodeById(scenario, nodeId)?.type === 'ending'
+}
+
+// ─── Session management ──────────────────────────────────────────────────────
+
 export function createSession(scenario: ScenarioLike): PlayerSessionState {
+  // Apply the start node's own scoreEffects on entry
+  const startNode = getNodeById(scenario, scenario.startNodeId)
+  const initialScore = applyScoreEffects({}, startNode?.scoreEffects)
+
   return {
     scenarioId: getScenarioId(scenario),
     currentNodeId: scenario.startNodeId,
     history: [scenario.startNodeId],
-    score: {},
+    score: initialScore,
     startedAt: new Date().toISOString(),
   }
 }
@@ -41,12 +88,9 @@ export function advanceSession(
   const nextNode = getNodeById(scenario, choice.targetNodeId)
   if (!nextNode) return session
 
-  const newScore = { ...session.score }
-  if (choice.scoreEffects) {
-    for (const [key, value] of Object.entries(choice.scoreEffects)) {
-      newScore[key] = (newScore[key] ?? 0) + value
-    }
-  }
+  // Apply choice's score effects, then destination node's score effects
+  let newScore = applyScoreEffects(session.score, choice.scoreEffects)
+  newScore = applyScoreEffects(newScore, nextNode.scoreEffects)
 
   const isEnding = nextNode.type === 'ending'
 
@@ -58,8 +102,4 @@ export function advanceSession(
     completedAt: isEnding ? new Date().toISOString() : undefined,
     endingNodeId: isEnding ? choice.targetNodeId : undefined,
   }
-}
-
-export function getNodeTitle(scenario: ScenarioLike, nodeId: string): string {
-  return getNodeById(scenario, nodeId)?.title ?? nodeId
 }

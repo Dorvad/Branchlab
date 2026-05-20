@@ -1,4 +1,3 @@
-import { notFound } from 'next/navigation'
 import { EditorShell } from '@/components/editor/EditorShell'
 import { mockScenarios } from '@/data/mock-scenarios'
 
@@ -8,10 +7,10 @@ interface EditorPageProps {
 
 export default async function EditorPage({ params }: EditorPageProps) {
   const { scenarioId } = await params
-  const scenario = mockScenarios.find(s => s.id === scenarioId)
-  if (!scenario) notFound()
-
-  return <EditorShell scenario={scenario} />
+  // Pass the mock scenario if it exists; EditorShell will prefer the
+  // localStorage version if one has been saved for this ID.
+  const initialScenario = mockScenarios.find(s => s.id === scenarioId) ?? null
+  return <EditorShell scenarioId={scenarioId} initialScenario={initialScenario} />
 }
 
 export async function generateStaticParams() {

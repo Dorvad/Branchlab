@@ -1,5 +1,4 @@
-import { notFound } from 'next/navigation'
-import { ScenarioPlayer } from '@/components/player/ScenarioPlayer'
+import { PreviewShell } from '@/components/player/PreviewShell'
 import { mockScenarios } from '@/data/mock-scenarios'
 
 interface PreviewPageProps {
@@ -8,16 +7,10 @@ interface PreviewPageProps {
 
 export default async function PreviewPage({ params }: PreviewPageProps) {
   const { scenarioId } = await params
-  const scenario = mockScenarios.find(s => s.id === scenarioId)
-  if (!scenario) notFound()
-
-  return (
-    <ScenarioPlayer
-      scenario={scenario}
-      mode="preview"
-      backHref={`/editor/${scenario.id}`}
-    />
-  )
+  // Pass the mock scenario as fallback; PreviewShell loads the localStorage
+  // version (which may have unsaved edits) and prefers that.
+  const initialScenario = mockScenarios.find(s => s.id === scenarioId) ?? null
+  return <PreviewShell scenarioId={scenarioId} initialScenario={initialScenario} />
 }
 
 export async function generateStaticParams() {
