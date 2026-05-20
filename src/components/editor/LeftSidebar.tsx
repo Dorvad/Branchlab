@@ -15,9 +15,16 @@ interface LeftSidebarProps {
   selectedNodeId: string | null
   onSelectNode: (id: string | null) => void
   onAddNode: () => void
+  nodeStatusMap?: Record<string, 'error' | 'warning'>
 }
 
-export function LeftSidebar({ scenario, selectedNodeId, onSelectNode, onAddNode }: LeftSidebarProps) {
+export function LeftSidebar({
+  scenario,
+  selectedNodeId,
+  onSelectNode,
+  onAddNode,
+  nodeStatusMap = {},
+}: LeftSidebarProps) {
   // Collect all unique clips from this scenario
   const clips = scenario.nodes
     .filter(n => n.clip)
@@ -25,7 +32,8 @@ export function LeftSidebar({ scenario, selectedNodeId, onSelectNode, onAddNode 
 
   const startNode = scenario.nodes.find(n => n.type === 'start')
   const endingCount = scenario.nodes.filter(n => n.type === 'ending').length
-  const warnCount = scenario.nodes.filter(n => n.type !== 'ending' && n.choices.length === 0).length
+  const errorCount = Object.values(nodeStatusMap).filter(s => s === 'error').length
+  const warnCount = Object.values(nodeStatusMap).filter(s => s === 'warning').length
 
   return (
     <aside
@@ -47,11 +55,11 @@ export function LeftSidebar({ scenario, selectedNodeId, onSelectNode, onAddNode 
           <div className="flex flex-wrap gap-2 mt-2">
             <StatChip label={`${scenario.nodes.length} nodes`} />
             <StatChip label={`${endingCount} endings`} />
+            {errorCount > 0 && (
+              <StatChip label={`${errorCount} error${errorCount !== 1 ? 's' : ''}`} color="oklch(70% 0.18 25)" />
+            )}
             {warnCount > 0 && (
-              <StatChip
-                label={`${warnCount} incomplete`}
-                color="oklch(80% 0.16 60)"
-              />
+              <StatChip label={`${warnCount} warning${warnCount !== 1 ? 's' : ''}`} color="oklch(80% 0.16 60)" />
             )}
           </div>
         </div>
@@ -63,16 +71,14 @@ export function LeftSidebar({ scenario, selectedNodeId, onSelectNode, onAddNode 
             {scenario.nodes.map(node => {
               const isSelected = node.id === selectedNodeId
               const dot = TYPE_DOT[node.type]
-              const hasWarning = node.type !== 'ending' && node.choices.length === 0
+              const status = nodeStatusMap[node.id] ?? null
 
               return (
                 <button
                   key={node.id}
                   onClick={() => onSelectNode(node.id)}
                   className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors group"
-                  style={{
-                    background: isSelected ? 'rgba(255,255,255,0.06)' : undefined,
-                  }}
+                  style={{ background: isSelected ? 'rgba(255,255,255,0.06)' : undefined }}
                   onMouseEnter={e => {
                     if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
                   }}
@@ -83,27 +89,24 @@ export function LeftSidebar({ scenario, selectedNodeId, onSelectNode, onAddNode 
                   {/* Type dot */}
                   <span
                     className="shrink-0 w-1.5 h-1.5 rounded-full"
-                    style={{
-                      background: dot,
-                      boxShadow: isSelected ? `0 0 6px ${dot}` : undefined,
-                    }}
+                    style={{ background: dot, boxShadow: isSelected ? `0 0 6px ${dot}` : undefined }}
                   />
                   {/* Title */}
                   <span
                     className="flex-1 text-[12px] leading-snug truncate"
                     style={{ color: isSelected ? '#f5f6fa' : '#8a90a4' }}
                   >
-                    {node.title}
+                    {node.title || <span style={{ color: '#3a3f4e', fontStyle: 'italic' }}>Untitled</span>}
                   </span>
-                  {/* Warning dot */}
-                  {hasWarning && (
-                    <span
-                      className="shrink-0 w-1.5 h-1.5 rounded-full"
-                      style={{ background: 'oklch(80% 0.16 60)' }}
-                    />
+                  {/* Validation indicator */}
+                  {status === 'error' && (
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'oklch(70% 0.18 25)' }} />
                   )}
-                  {/* Choice count */}
-                  {node.choices.length > 0 && !hasWarning && (
+                  {status === 'warning' && (
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'oklch(80% 0.16 60)' }} />
+                  )}
+                  {/* Choice count (only when clean) */}
+                  {!status && node.choices.length > 0 && (
                     <span className="shrink-0 font-mono text-[9px]" style={{ color: '#3a3f4e' }}>
                       {node.choices.length}
                     </span>

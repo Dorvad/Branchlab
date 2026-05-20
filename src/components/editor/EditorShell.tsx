@@ -7,9 +7,9 @@ import { ScenarioCanvas } from './ScenarioCanvas'
 import { LeftSidebar } from './LeftSidebar'
 import { NodeInspector } from './NodeInspector'
 import { ValidationPanel } from './ValidationPanel'
-import { validatePlayableScenario } from '@/lib/scenario-engine'
+import { validateScenario } from '@/lib/scenario-engine'
 import { getLocalScenario, saveScenario } from '@/lib/local-store'
-import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge } from '@/types'
+import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, ValidationResult } from '@/types'
 
 interface EditorShellProps {
   scenarioId: string
@@ -115,9 +115,18 @@ function EditorUI({
   }, [scenario.nodes])
 
   const validationResult = useMemo(
-    () => validatePlayableScenario(scenario),
+    () => validateScenario(scenario),
     [scenario]
   )
+
+  // Derive per-node status for canvas and sidebar indicators
+  const nodeStatusMap = useMemo((): Record<string, 'error' | 'warning'> => {
+    const map: Record<string, 'error' | 'warning'> = {}
+    for (const [nodeId, nodeIssues] of Object.entries(validationResult.nodeIssueMap)) {
+      map[nodeId] = nodeIssues.some(i => i.severity === 'error') ? 'error' : 'warning'
+    }
+    return map
+  }, [validationResult.nodeIssueMap])
 
   // ── Node mutations ────────────────────────────────────────────────────────
 
@@ -222,7 +231,27 @@ function EditorUI({
     setIsDirty(false)
   }, [scenario, derivedEdges, setScenario, setSavedAt, setIsDirty])
 
-  const issueCount = validationResult.issues.length
+  const { errors, warnings } = validationResult
+  const errorCount = errors.length
+  const warningCount = warnings.length
+
+  const handleSelectFromValidation = (nodeId: string) => {
+    setSelectedNodeId(nodeId)
+    setShowValidation(false)
+  }
+
+  // Validation button style: red if errors, amber if only warnings, muted if valid
+  const validateBtnStyle = errorCount > 0
+    ? { borderColor: 'oklch(70% 0.18 25 / 0.4)', color: 'oklch(70% 0.18 25)' }
+    : warningCount > 0
+    ? { borderColor: 'oklch(80% 0.16 60 / 0.4)', color: 'oklch(80% 0.16 60)' }
+    : { borderColor: 'rgba(255,255,255,0.1)', color: '#5c6273' }
+
+  const validateBtnLabel = errorCount > 0
+    ? `${errorCount} error${errorCount !== 1 ? 's' : ''}${warningCount > 0 ? ` · ${warningCount}` : ''}`
+    : warningCount > 0
+    ? `${warningCount} warning${warningCount !== 1 ? 's' : ''}`
+    : 'Valid'
 
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#0a0b10' }}>
@@ -262,15 +291,14 @@ function EditorUI({
           <button
             onClick={() => setShowValidation(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
-            style={{
-              borderColor: issueCount > 0 ? 'oklch(70% 0.18 25 / 0.4)' : 'rgba(255,255,255,0.1)',
-              color: issueCount > 0 ? 'oklch(70% 0.18 25)' : '#8a90a4',
-            }}
+            style={validateBtnStyle}
           >
-            {issueCount > 0 ? (
-              <><AlertTriangle size={12} /> {issueCount} issue{issueCount !== 1 ? 's' : ''}</>
+            {errorCount > 0 ? (
+              <><AlertTriangle size={12} /> {validateBtnLabel}</>
+            ) : warningCount > 0 ? (
+              <><AlertTriangle size={12} /> {validateBtnLabel}</>
             ) : (
-              <><CheckCircle2 size={12} /> Valid</>
+              <><CheckCircle2 size={12} /> {validateBtnLabel}</>
             )}
           </button>
 
@@ -315,6 +343,7 @@ function EditorUI({
           selectedNodeId={selectedNodeId}
           onSelectNode={setSelectedNodeId}
           onAddNode={addNode}
+          nodeStatusMap={nodeStatusMap}
         />
 
         <div className="flex-1 relative overflow-hidden">
@@ -324,6 +353,7 @@ function EditorUI({
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
             onNodePositionChange={updateNodePosition}
+            nodeStatusMap={nodeStatusMap}
           />
         </div>
 
@@ -354,9 +384,14 @@ function EditorUI({
           { label: 'Edges', value: derivedEdges.length },
           { label: 'Endings', value: scenario.nodes.filter(n => n.type === 'ending').length },
           {
-            label: 'Validation',
-            value: issueCount === 0 ? '✓ valid' : `${issueCount} issue${issueCount !== 1 ? 's' : ''}`,
-            color: issueCount === 0 ? 'oklch(82% 0.18 165)' : 'oklch(70% 0.18 25)',
+            label: 'Errors',
+            value: errorCount === 0 ? '✓ none' : String(errorCount),
+            color: errorCount === 0 ? 'oklch(82% 0.18 165)' : 'oklch(70% 0.18 25)',
+          },
+          {
+            label: 'Warnings',
+            value: warningCount === 0 ? '✓ none' : String(warningCount),
+            color: warningCount === 0 ? '#5c6273' : 'oklch(80% 0.16 60)',
           },
           {
             label: 'Saved',
@@ -382,6 +417,7 @@ function EditorUI({
       {showValidation && (
         <ValidationPanel
           result={validationResult}
+          onSelectNode={handleSelectFromValidation}
           onClose={() => setShowValidation(false)}
         />
       )}

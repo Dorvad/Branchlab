@@ -6,11 +6,10 @@ import type {
   ScenarioLike,
   PlayerSessionState,
   ScoreEffects,
-  ValidationResult,
-  ValidationIssue,
 } from '@/types'
 
 export type { ScenarioLike }
+export { validateScenario } from './validation'
 
 function getScenarioId(scenario: ScenarioLike): string {
   if ('scenarioId' in scenario) return scenario.scenarioId
@@ -57,40 +56,6 @@ export function getAvailableChoices(scenario: ScenarioLike, nodeId: string): Sce
 
 export function isEndingNode(scenario: ScenarioLike, nodeId: string): boolean {
   return getNodeById(scenario, nodeId)?.type === 'ending'
-}
-
-// ─── Validation ──────────────────────────────────────────────────────────────
-
-export function validatePlayableScenario(scenario: ScenarioLike): ValidationResult {
-  const issues: ValidationIssue[] = []
-  const nodeIds = new Set(scenario.nodes.map(n => n.id))
-
-  if (!nodeIds.has(scenario.startNodeId)) {
-    issues.push({
-      nodeId: scenario.startNodeId,
-      message: `Start node "${scenario.startNodeId}" does not exist`,
-    })
-  }
-
-  for (const node of scenario.nodes) {
-    for (const choice of node.choices) {
-      if (!nodeIds.has(choice.targetNodeId)) {
-        issues.push({
-          nodeId: node.id,
-          message: `Choice "${choice.label}" points to missing node "${choice.targetNodeId}"`,
-        })
-      }
-    }
-
-    if (node.type !== 'ending' && node.choices.length === 0) {
-      issues.push({
-        nodeId: node.id,
-        message: `Node "${node.title}" has no choices — players will be stuck here`,
-      })
-    }
-  }
-
-  return { valid: issues.length === 0, issues }
 }
 
 // ─── Session management ──────────────────────────────────────────────────────

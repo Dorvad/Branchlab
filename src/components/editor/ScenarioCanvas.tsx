@@ -63,7 +63,7 @@ interface NodeCardData {
   title: string
   nodeType: NodeType
   choiceCount: number
-  hasWarning: boolean
+  errorLevel: 'error' | 'warning' | null
   clipDuration?: number
   isSelected: boolean
 }
@@ -81,13 +81,23 @@ function ScenarioNodeCard({ data }: NodeProps) {
     ending: 'Ending',
   }
 
+  const errorBorder = d.errorLevel === 'error'
+    ? 'oklch(70% 0.18 25 / 0.7)'
+    : d.errorLevel === 'warning'
+    ? 'oklch(80% 0.16 60 / 0.5)'
+    : null
+
+  const activeBorder = d.isSelected
+    ? 'oklch(82% 0.18 165 / 0.8)'
+    : errorBorder ?? cfg.border
+
   return (
     <div
       className="relative rounded-[12px] overflow-hidden select-none"
       style={{
         width: 200,
         background: cfg.bg,
-        border: `1px solid ${d.isSelected ? 'oklch(82% 0.18 165 / 0.8)' : cfg.border}`,
+        border: `1px solid ${activeBorder}`,
         boxShadow: d.isSelected ? SELECTED_RING : cfg.glow,
         transition: 'box-shadow 0.15s, border-color 0.15s',
       }}
@@ -135,7 +145,7 @@ function ScenarioNodeCard({ data }: NodeProps) {
 
       {/* Content */}
       <div className="px-3 py-2.5">
-        {/* Type badge row */}
+        {/* Type badge + error/warning icon */}
         <div className="flex items-center justify-between mb-2">
           <span
             className="text-[9px] font-mono tracking-[0.16em] uppercase"
@@ -143,21 +153,20 @@ function ScenarioNodeCard({ data }: NodeProps) {
           >
             {TYPE_LABELS[d.nodeType]}
           </span>
-          {d.hasWarning && (
-            <AlertTriangle
-              size={11}
-              aria-label="No choices defined"
-              style={{ color: 'oklch(80% 0.16 60)', flexShrink: 0 }}
-            />
+          {d.errorLevel === 'error' && (
+            <AlertTriangle size={11} style={{ color: 'oklch(70% 0.18 25)', flexShrink: 0 }} />
+          )}
+          {d.errorLevel === 'warning' && (
+            <AlertTriangle size={11} style={{ color: 'oklch(80% 0.16 60)', flexShrink: 0 }} />
           )}
         </div>
 
         {/* Title */}
         <p
           className="font-medium leading-tight mb-1.5 line-clamp-2"
-          style={{ fontSize: 12, color: '#e8eaf0' }}
+          style={{ fontSize: 12, color: d.title ? '#e8eaf0' : '#5c6273' }}
         >
-          {d.title}
+          {d.title || 'Untitled'}
         </p>
 
         {/* Footer */}
@@ -178,7 +187,11 @@ const NODE_TYPES = { scenarioNode: ScenarioNodeCard }
 
 // ── Helper converters ─────────────────────────────────────────────────────────
 
-function buildRFNodes(nodes: ScenarioNode[], selectedNodeId: string | null): Node[] {
+function buildRFNodes(
+  nodes: ScenarioNode[],
+  selectedNodeId: string | null,
+  nodeStatusMap: Record<string, 'error' | 'warning'>
+): Node[] {
   return nodes.map(n => ({
     id: n.id,
     position: n.position,
@@ -187,7 +200,7 @@ function buildRFNodes(nodes: ScenarioNode[], selectedNodeId: string | null): Nod
       title: n.title,
       nodeType: n.type,
       choiceCount: n.choices.length,
-      hasWarning: n.type !== 'ending' && n.choices.length === 0,
+      errorLevel: nodeStatusMap[n.id] ?? null,
       clipDuration: n.clip?.duration,
       isSelected: n.id === selectedNodeId,
     } satisfies NodeCardData,
@@ -220,6 +233,7 @@ interface ScenarioCanvasProps {
   selectedNodeId: string | null
   onSelectNode: (id: string | null) => void
   onNodePositionChange: (id: string, position: { x: number; y: number }) => void
+  nodeStatusMap: Record<string, 'error' | 'warning'>
 }
 
 export function ScenarioCanvas({
@@ -228,16 +242,17 @@ export function ScenarioCanvas({
   selectedNodeId,
   onSelectNode,
   onNodePositionChange,
+  nodeStatusMap,
 }: ScenarioCanvasProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(
-    buildRFNodes(nodes, selectedNodeId)
+    buildRFNodes(nodes, selectedNodeId, nodeStatusMap)
   )
   const [rfEdges, setRfEdges] = useEdgesState<Edge>(buildRFEdges(edges))
 
   // Sync node data when scenario state changes from editor
   useEffect(() => {
-    setRfNodes(buildRFNodes(nodes, selectedNodeId))
-  }, [nodes, selectedNodeId, setRfNodes])
+    setRfNodes(buildRFNodes(nodes, selectedNodeId, nodeStatusMap))
+  }, [nodes, selectedNodeId, nodeStatusMap, setRfNodes])
 
   // Sync edges when choices change
   useEffect(() => {

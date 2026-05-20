@@ -75,14 +75,26 @@ export interface PlayerSessionState {
   endingNodeId?: string;
 }
 
+export type ValidationSeverity = 'error' | 'warning';
+
 export interface ValidationIssue {
-  nodeId: string;
+  id: string;
+  severity: ValidationSeverity;
+  nodeId?: string;
+  choiceId?: string;
   message: string;
+  suggestedFix?: string;
 }
 
 export interface ValidationResult {
+  /** True only when there are zero errors (warnings are allowed). */
   valid: boolean;
+  errors: ValidationIssue[];
+  warnings: ValidationIssue[];
+  /** errors + warnings in display order */
   issues: ValidationIssue[];
+  /** nodeId → all issues for that node */
+  nodeIssueMap: Record<string, ValidationIssue[]>;
 }
 
 export type ScenarioLike = Scenario | ScenarioVersion;
