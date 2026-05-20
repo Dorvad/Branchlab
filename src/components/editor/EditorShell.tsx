@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2 } from 'lucide-react'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScenarioCanvas } from './ScenarioCanvas'
 import { LeftSidebar } from './LeftSidebar'
@@ -55,29 +55,65 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenarioId])
 
+  // Mobile warning — editor is desktop-only
+  const mobileWarning = (
+    <div
+      className="fixed inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center md:hidden"
+      style={{ background: '#0a0b10' }}
+    >
+      <div
+        className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6"
+        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+      >
+        <Monitor size={22} style={{ color: '#5c6273' }} />
+      </div>
+      <h2 className="text-lg font-semibold text-ink-0 mb-2">Open on a larger screen</h2>
+      <p className="text-sm text-ink-3 leading-relaxed max-w-xs">
+        The scenario editor is designed for desktop. Open this page on a laptop or desktop computer to build your scenario.
+      </p>
+      <Link
+        href="/dashboard"
+        className="mt-8 text-xs font-mono text-ink-3 hover:text-ink-1 transition-colors underline underline-offset-4"
+      >
+        Back to dashboard
+      </Link>
+    </div>
+  )
+
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center" style={{ background: '#0a0b10' }}>
-        <Loader2 size={22} className="animate-spin text-ink-3" />
-      </div>
+      <>
+        {mobileWarning}
+        <div className="hidden md:flex h-screen items-center justify-center" style={{ background: '#0a0b10' }}>
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 size={22} className="animate-spin text-ink-3" />
+            <p className="text-[11px] font-mono text-ink-4">Loading scenario…</p>
+          </div>
+        </div>
+      </>
     )
   }
 
   if (notFound || !scenario) {
     return (
-      <div className="flex h-screen items-center justify-center flex-col gap-4" style={{ background: '#0a0b10' }}>
-        <p className="text-ink-2 text-sm">Scenario not found.</p>
-        <Link
-          href="/dashboard"
-          className="text-xs font-mono text-ink-3 hover:text-ink-1 transition-colors underline underline-offset-4"
-        >
-          Back to dashboard
-        </Link>
-      </div>
+      <>
+        {mobileWarning}
+        <div className="hidden md:flex h-screen items-center justify-center flex-col gap-4" style={{ background: '#0a0b10' }}>
+          <p className="text-ink-2 text-sm">Scenario not found.</p>
+          <Link
+            href="/dashboard"
+            className="text-xs font-mono text-ink-3 hover:text-ink-1 transition-colors underline underline-offset-4"
+          >
+            Back to dashboard
+          </Link>
+        </div>
+      </>
     )
   }
 
   return (
+    <>
+      {mobileWarning}
     <EditorUI
       scenario={scenario}
       setScenario={setScenario}
@@ -94,6 +130,7 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
       showAssets={showAssets}
       setShowAssets={setShowAssets}
     />
+    </>
   )
 }
 
@@ -223,6 +260,22 @@ function EditorUI({
     setIsDirty(true)
   }, [setScenario, setSelectedNodeId, setIsDirty])
 
+  const duplicateNode = useCallback((nodeId: string) => {
+    const node = scenario.nodes.find(n => n.id === nodeId)
+    if (!node) return
+    const ts = Date.now()
+    const newNode: ScenarioNode = {
+      ...node,
+      id: `node-${ts}`,
+      title: `${node.title} (copy)`,
+      position: { x: node.position.x + 50, y: node.position.y + 50 },
+      choices: node.choices.map((c, i) => ({ ...c, id: `choice-${ts}-${i}` })),
+    }
+    setScenario(prev => prev ? ({ ...prev, nodes: [...prev.nodes, newNode] }) : prev)
+    setSelectedNodeId(newNode.id)
+    setIsDirty(true)
+  }, [scenario.nodes, setScenario, setSelectedNodeId, setIsDirty])
+
   // ── Choice mutations ──────────────────────────────────────────────────────
 
   const addChoice = useCallback((nodeId: string) => {
@@ -288,6 +341,39 @@ function EditorUI({
     setSavedAt(new Date(updated.updatedAt))
     setIsDirty(false)
   }, [scenario, derivedEdges, setScenario, setSavedAt, setIsDirty])
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+        || (e.target as HTMLElement).isContentEditable
+      if (isInput) return
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+        const node = scenario.nodes.find(n => n.id === selectedNodeId)
+        if (node?.type === 'start') return // protect start node from accidental delete
+        deleteNode(selectedNodeId)
+        return
+      }
+      if (e.key === 'Escape') {
+        setSelectedNodeId(null)
+        return
+      }
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'd' && selectedNodeId) {
+        e.preventDefault()
+        duplicateNode(selectedNodeId)
+        return
+      }
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNodeId, scenario.nodes])
 
   // ── Clip management ───────────────────────────────────────────────────────
   const [clips, setClips] = useState<Clip[]>([])
@@ -457,6 +543,7 @@ function EditorUI({
             onSelectNode={setSelectedNodeId}
             onNodePositionChange={updateNodePosition}
             nodeStatusMap={nodeStatusMap}
+            startNodeId={scenario.startNodeId}
           />
         </div>
 
@@ -470,6 +557,7 @@ function EditorUI({
             onUpdateChoice={updateChoice}
             onDeleteChoice={deleteChoice}
             onDeleteNode={deleteNode}
+            onDuplicateNode={() => duplicateNode(selectedNode.id)}
             onOpenLibrary={() => setShowAssets(true)}
             onClose={() => setSelectedNodeId(null)}
           />

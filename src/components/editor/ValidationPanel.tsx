@@ -1,6 +1,6 @@
 'use client'
 
-import { X, CheckCircle2, AlertTriangle, AlertCircle, ArrowRight, Lightbulb } from 'lucide-react'
+import { X, CheckCircle2, AlertTriangle, AlertCircle, ArrowUpRight, Lightbulb } from 'lucide-react'
 import type { ValidationResult, ValidationIssue } from '@/types'
 
 interface ValidationPanelProps {
@@ -76,9 +76,14 @@ export function ValidationPanel({ result, onClose, onSelectNode }: ValidationPan
               }}
             >
               <CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: 'oklch(82% 0.18 165)' }} />
-              <span className="text-[12px] leading-relaxed" style={{ color: 'oklch(82% 0.18 165)' }}>
-                All nodes are reachable, every non-ending node has choices with valid destinations, and at least one ending exists.
-              </span>
+              <div>
+                <p className="text-[12px] font-medium mb-1" style={{ color: 'oklch(82% 0.18 165)' }}>
+                  Ready to publish
+                </p>
+                <p className="text-[11px] leading-relaxed" style={{ color: 'oklch(82% 0.18 165 / 0.7)' }}>
+                  Every scene is reachable, all choices have destinations, and at least one ending exists.
+                </p>
+              </div>
             </div>
           ) : (
             <>
@@ -113,7 +118,9 @@ export function ValidationPanel({ result, onClose, onSelectNode }: ValidationPan
         >
           {!valid && (
             <span className="text-[10px] font-mono text-ink-4">
-              {totalIssues} issue{totalIssues !== 1 ? 's' : ''} · errors block publishing
+              {errors.length > 0
+                ? `${errors.length} error${errors.length !== 1 ? 's' : ''} must be fixed before publishing`
+                : `${warnings.length} warning${warnings.length !== 1 ? 's' : ''} — you can publish with these`}
             </span>
           )}
           <button
@@ -229,11 +236,11 @@ function IssueCard({ issue, accentColor, onSelectNode, onClose }: IssueCardProps
         <div className="px-3.5 pb-2.5 flex justify-end">
           <button
             onClick={handleJump}
-            className="flex items-center gap-1 text-[10px] font-mono transition-opacity hover:opacity-80"
-            style={{ color: accentColor }}
+            className="flex items-center gap-1 text-[10px] font-mono px-2.5 py-1.5 rounded-lg transition-all hover:opacity-90"
+            style={{ background: `${accentColor}14`, border: `1px solid ${accentColor}30`, color: accentColor }}
           >
-            Jump to node
-            <ArrowRight size={10} />
+            Go to scene
+            <ArrowUpRight size={10} />
           </button>
         </div>
       )}

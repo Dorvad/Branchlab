@@ -1,6 +1,6 @@
 'use client'
 
-import { Plus, Film, GitBranch } from 'lucide-react'
+import { Plus, Film, GitBranch, Info } from 'lucide-react'
 import type { Scenario, NodeType } from '@/types'
 
 const TYPE_DOT: Record<NodeType, string> = {
@@ -8,6 +8,13 @@ const TYPE_DOT: Record<NodeType, string> = {
   scene:    '#5c6273',
   feedback: 'oklch(78% 0.18 285)',
   ending:   'oklch(80% 0.16 60)',
+}
+
+const TYPE_LABEL: Record<NodeType, string> = {
+  start: 'Start',
+  scene: 'Scene',
+  feedback: 'Feedback',
+  ending: 'Ending',
 }
 
 interface LeftSidebarProps {
@@ -25,7 +32,6 @@ export function LeftSidebar({
   onAddNode,
   nodeStatusMap = {},
 }: LeftSidebarProps) {
-  // Collect all unique clips from this scenario
   const clips = scenario.nodes
     .filter(n => n.clip)
     .map(n => ({ ...n.clip!, nodeTitle: n.title }))
@@ -52,9 +58,9 @@ export function LeftSidebar({
               {scenario.description}
             </p>
           )}
-          <div className="flex flex-wrap gap-2 mt-2">
-            <StatChip label={`${scenario.nodes.length} nodes`} />
-            <StatChip label={`${endingCount} endings`} />
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            <StatChip label={`${scenario.nodes.length} scene${scenario.nodes.length !== 1 ? 's' : ''}`} />
+            <StatChip label={`${endingCount} ending${endingCount !== 1 ? 's' : ''}`} />
             {errorCount > 0 && (
               <StatChip label={`${errorCount} error${errorCount !== 1 ? 's' : ''}`} color="oklch(70% 0.18 25)" />
             )}
@@ -66,62 +72,88 @@ export function LeftSidebar({
 
         {/* ── Node list ────────────────────────────────────────────────────── */}
         <div className="px-3 pt-3 pb-2">
-          <SectionLabel>Nodes</SectionLabel>
-          <div className="space-y-0.5 mt-2">
-            {scenario.nodes.map(node => {
-              const isSelected = node.id === selectedNodeId
-              const dot = TYPE_DOT[node.type]
-              const status = nodeStatusMap[node.id] ?? null
-
-              return (
-                <button
-                  key={node.id}
-                  onClick={() => onSelectNode(node.id)}
-                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors group"
-                  style={{ background: isSelected ? 'rgba(255,255,255,0.06)' : undefined }}
-                  onMouseEnter={e => {
-                    if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                  }}
-                  onMouseLeave={e => {
-                    if (!isSelected) e.currentTarget.style.background = ''
-                  }}
-                >
-                  {/* Type dot */}
-                  <span
-                    className="shrink-0 w-1.5 h-1.5 rounded-full"
-                    style={{ background: dot, boxShadow: isSelected ? `0 0 6px ${dot}` : undefined }}
-                  />
-                  {/* Title */}
-                  <span
-                    className="flex-1 text-[12px] leading-snug truncate"
-                    style={{ color: isSelected ? '#f5f6fa' : '#8a90a4' }}
-                  >
-                    {node.title || <span style={{ color: '#3a3f4e', fontStyle: 'italic' }}>Untitled</span>}
-                  </span>
-                  {/* Validation indicator */}
-                  {status === 'error' && (
-                    <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'oklch(70% 0.18 25)' }} />
-                  )}
-                  {status === 'warning' && (
-                    <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'oklch(80% 0.16 60)' }} />
-                  )}
-                  {/* Choice count (only when clean) */}
-                  {!status && node.choices.length > 0 && (
-                    <span className="shrink-0 font-mono text-[9px]" style={{ color: '#3a3f4e' }}>
-                      {node.choices.length}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
+          <div className="flex items-center justify-between mb-2">
+            <SectionLabel>Scenes</SectionLabel>
+            <div
+              className="group relative"
+              title="Each scene is one video in the story. Players progress by making choices at the end of each video."
+            >
+              <Info size={10} style={{ color: '#3a3f4e', cursor: 'help' }} />
+            </div>
           </div>
+
+          {scenario.nodes.length === 0 ? (
+            <div className="py-4 px-2">
+              <p className="text-[11px] text-ink-4 leading-relaxed">
+                No scenes yet. Click <span className="text-ink-3">Add Scene</span> below to start.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {scenario.nodes.map(node => {
+                const isSelected = node.id === selectedNodeId
+                const dot = TYPE_DOT[node.type]
+                const status = nodeStatusMap[node.id] ?? null
+
+                return (
+                  <button
+                    key={node.id}
+                    onClick={() => onSelectNode(node.id)}
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors"
+                    style={{ background: isSelected ? 'rgba(255,255,255,0.07)' : undefined }}
+                    onMouseEnter={e => {
+                      if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                    }}
+                    onMouseLeave={e => {
+                      if (!isSelected) e.currentTarget.style.background = ''
+                    }}
+                  >
+                    {/* Type dot */}
+                    <span
+                      className="shrink-0 w-1.5 h-1.5 rounded-full"
+                      style={{
+                        background: dot,
+                        boxShadow: isSelected ? `0 0 5px ${dot}` : undefined,
+                      }}
+                    />
+                    {/* Title */}
+                    <span
+                      className="flex-1 text-[12px] leading-snug truncate"
+                      style={{ color: isSelected ? '#f5f6fa' : '#8a90a4' }}
+                    >
+                      {node.title || <span style={{ color: '#3a3f4e', fontStyle: 'italic' }}>Untitled</span>}
+                    </span>
+                    {/* Status indicators */}
+                    {status === 'error' && (
+                      <span className="shrink-0 w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'oklch(70% 0.18 25)' }} />
+                    )}
+                    {status === 'warning' && (
+                      <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'oklch(80% 0.16 60)' }} />
+                    )}
+                    {/* Clip indicator */}
+                    {!status && node.clip && (
+                      <Film size={9} style={{ color: '#3a3f4e', flexShrink: 0 }} />
+                    )}
+                    {/* Choice count */}
+                    {!status && !node.clip && node.choices.length > 0 && (
+                      <span className="shrink-0 font-mono text-[9px]" style={{ color: '#3a3f4e' }}>
+                        {node.choices.length}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {/* ── Asset library ────────────────────────────────────────────────── */}
-        <div className="px-3 pt-2 pb-3 mt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
-          <SectionLabel>Assets</SectionLabel>
+        {/* ── Assets summary ───────────────────────────────────────────────── */}
+        <div className="px-3 pt-2 pb-3 mt-1 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+          <SectionLabel>Attached Clips</SectionLabel>
           {clips.length === 0 ? (
-            <p className="text-[11px] text-ink-4 mt-2 px-1">No clips attached</p>
+            <p className="text-[11px] text-ink-4 mt-2 px-1 leading-relaxed">
+              Upload videos and attach them to scenes via the Asset Library.
+            </p>
           ) : (
             <div className="space-y-0.5 mt-2">
               {clips.map(clip => (
@@ -130,13 +162,13 @@ export function LeftSidebar({
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
                   style={{ background: 'rgba(255,255,255,0.02)' }}
                 >
-                  <Film size={11} style={{ color: '#5c6273', flexShrink: 0 }} />
+                  <Film size={10} style={{ color: '#5c6273', flexShrink: 0 }} />
                   <div className="min-w-0">
                     <p className="font-mono text-[10px] text-ink-3 truncate">
-                      {clip.url.split('/').pop()}
+                      {clip.nodeTitle}
                     </p>
                     <p className="font-mono text-[9px]" style={{ color: '#3a3f4e' }}>
-                      {clip.nodeTitle} · {clip.duration}s
+                      {clip.duration}s
                     </p>
                   </div>
                 </div>
@@ -145,20 +177,30 @@ export function LeftSidebar({
           )}
         </div>
 
-        {/* ── Graph stats ──────────────────────────────────────────────────── */}
+        {/* ── Graph info ───────────────────────────────────────────────────── */}
         {startNode && (
           <div className="px-3 pb-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
             <div className="flex items-center gap-2 mt-3">
-              <GitBranch size={12} style={{ color: '#5c6273' }} />
+              <GitBranch size={11} style={{ color: '#5c6273' }} />
               <span className="text-[11px] text-ink-3">
                 Entry: <span className="text-ink-1">{startNode.title}</span>
               </span>
             </div>
           </div>
         )}
+
+        {/* ── Keyboard hints ───────────────────────────────────────────────── */}
+        <div className="px-4 pb-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+          <div className="mt-3 space-y-1">
+            <KeyHint keys={['Del']} label="Delete selected" />
+            <KeyHint keys={['⌘', 'D']} label="Duplicate" />
+            <KeyHint keys={['⌘⇧', 'F']} label="Fit view" />
+            <KeyHint keys={['Esc']} label="Deselect" />
+          </div>
+        </div>
       </div>
 
-      {/* ── Add node button ───────────────────────────────────────────────── */}
+      {/* ── Add scene button ──────────────────────────────────────────────── */}
       <div className="shrink-0 p-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
         <button
           onClick={onAddNode}
@@ -170,8 +212,11 @@ export function LeftSidebar({
           }}
         >
           <Plus size={14} />
-          Add Node
+          Add Scene
         </button>
+        <p className="text-center text-[9px] font-mono mt-1.5" style={{ color: '#3a3f4e' }}>
+          Scenes play in sequence based on player choices
+        </p>
       </div>
     </aside>
   )
@@ -197,5 +242,28 @@ function StatChip({ label, color }: { label: string; color?: string }) {
     >
       {label}
     </span>
+  )
+}
+
+function KeyHint({ keys, label }: { keys: string[]; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-0.5">
+        {keys.map((k, i) => (
+          <span
+            key={i}
+            className="px-1 py-0.5 rounded text-[8px] font-mono"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#3a3f4e',
+            }}
+          >
+            {k}
+          </span>
+        ))}
+      </div>
+      <span className="text-[10px]" style={{ color: '#3a3f4e' }}>{label}</span>
+    </div>
   )
 }
