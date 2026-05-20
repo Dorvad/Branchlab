@@ -400,6 +400,9 @@ function SuccessStep({ scenario, slug, publicUrl, copied, onCopy, onClose }: Suc
             /play/{slug}
           </span>
         </div>
+        <p className="text-[10px] font-mono" style={{ color: '#3a3f4e' }}>
+          Local prototype · this URL only works in this browser. Add Supabase to make it truly shareable.
+        </p>
 
         {/* Action buttons */}
         <div className="grid grid-cols-2 gap-2">
