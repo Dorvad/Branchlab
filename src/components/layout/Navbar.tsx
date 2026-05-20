@@ -1,17 +1,27 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { signOut } from '@/lib/supabase/auth'
 
 interface NavbarProps {
   title?: string
   actions?: React.ReactNode
+  showSignOut?: boolean
 }
 
-export function Navbar({ title, actions }: NavbarProps) {
+export function Navbar({ title, actions, showSignOut }: NavbarProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const isDashboard = pathname === '/dashboard'
+
+  const handleSignOut = async () => {
+    await signOut()
+    router.push('/auth')
+    router.refresh()
+  }
 
   return (
     <header
@@ -51,7 +61,19 @@ export function Navbar({ title, actions }: NavbarProps) {
         )}
       </div>
 
-      <div className="flex items-center gap-3">{actions}</div>
+      <div className="flex items-center gap-3">
+        {actions}
+        {showSignOut && (
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-ink-3 hover:text-ink-1 hover:bg-white/5 transition-all"
+            title="Sign out"
+          >
+            <LogOut size={13} />
+            <span className="hidden sm:inline">Sign out</span>
+          </button>
+        )}
+      </div>
     </header>
   )
 }

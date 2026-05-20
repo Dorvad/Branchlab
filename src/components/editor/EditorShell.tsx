@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScenarioCanvas } from './ScenarioCanvas'
 import { LeftSidebar } from './LeftSidebar'
@@ -10,35 +11,59 @@ import { NodeInspector } from './NodeInspector'
 import { ValidationPanel } from './ValidationPanel'
 import { AssetLibrary } from './AssetLibrary'
 import { validateScenario } from '@/lib/scenario-engine'
-import { getLocalScenario, saveScenario, publishScenario } from '@/lib/local-store'
+import { getScenario, saveScenario, publishScenario } from '@/lib/scenario-store'
 import { getAllClips } from '@/lib/clip-store'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
 import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, VideoClip } from '@/types'
 
 interface EditorShellProps {
   scenarioId: string
-  initialScenario: Scenario | null
 }
 
-export function EditorShell({ scenarioId, initialScenario }: EditorShellProps) {
-  // Prefer the locally stored version; fall back to the server-provided initial
-  const [scenario, setScenario] = useState<Scenario | null>(() => {
-    if (typeof window === 'undefined') return initialScenario
-    return getLocalScenario(scenarioId) ?? initialScenario
-  })
+export function EditorShell({ scenarioId }: EditorShellProps) {
+  const router = useRouter()
+  const [scenario, setScenario] = useState<Scenario | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
-  const [savedAt, setSavedAt] = useState<Date | null>(() => {
-    if (typeof window === 'undefined') return null
-    const local = getLocalScenario(scenarioId)
-    return local ? new Date(local.updatedAt) : null
-  })
+  const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [showValidation, setShowValidation] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
   const [showAssets, setShowAssets] = useState(false)
 
-  if (!scenario) {
+  // Auth guard + initial scenario load
+  useEffect(() => {
+    const sb = getSupabaseClient()
+    sb.auth.getUser().then(async res => {
+      const user = res.data?.user
+      if (!user) {
+        router.replace('/auth')
+        return
+      }
+      const s = await getScenario(scenarioId)
+      if (!s) {
+        setNotFound(true)
+      } else {
+        setScenario(s)
+        setSavedAt(new Date(s.updatedAt))
+      }
+      setLoading(false)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenarioId])
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center" style={{ background: '#0a0b10' }}>
+        <Loader2 size={22} className="animate-spin text-ink-3" />
+      </div>
+    )
+  }
+
+  if (notFound || !scenario) {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4" style={{ background: '#0a0b10' }}>
         <p className="text-ink-2 text-sm">Scenario not found.</p>
@@ -108,6 +133,8 @@ function EditorUI({
   showAssets,
   setShowAssets,
 }: EditorUIProps) {
+  const [isSaving, setIsSaving] = useState(false)
+
   const selectedNode = useMemo(
     () => scenario.nodes.find(n => n.id === selectedNodeId) ?? null,
     [scenario.nodes, selectedNodeId]
@@ -242,15 +269,21 @@ function EditorUI({
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
-  const handleSave = useCallback(() => {
-    const stored = saveScenario({ ...scenario, edges: derivedEdges })
-    setScenario(stored)
-    setSavedAt(new Date(stored.updatedAt))
-    setIsDirty(false)
-  }, [scenario, derivedEdges, setScenario, setSavedAt, setIsDirty])
+  const handleSave = useCallback(async () => {
+    if (isSaving) return
+    setIsSaving(true)
+    try {
+      const stored = await saveScenario({ ...scenario, edges: derivedEdges })
+      setScenario(stored)
+      setSavedAt(new Date(stored.updatedAt))
+      setIsDirty(false)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [scenario, derivedEdges, isSaving, setScenario, setSavedAt, setIsDirty])
 
-  const handlePublish = useCallback((slug: string) => {
-    const updated = publishScenario({ ...scenario, edges: derivedEdges }, slug)
+  const handlePublish = useCallback(async (slug: string) => {
+    const updated = await publishScenario({ ...scenario, edges: derivedEdges }, slug)
     setScenario(updated)
     setSavedAt(new Date(updated.updatedAt))
     setIsDirty(false)
@@ -365,14 +398,15 @@ function EditorUI({
 
           <button
             onClick={handleSave}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
+            disabled={isSaving}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5 disabled:opacity-50"
             style={{
               borderColor: isDirty ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.08)',
               color: isDirty ? '#c9cdda' : '#5c6273',
             }}
           >
-            <Save size={12} />
-            Save draft
+            {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+            {isSaving ? 'Saving…' : 'Save draft'}
           </button>
 
           <Link

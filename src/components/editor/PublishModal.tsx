@@ -1,21 +1,22 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   X, CheckCircle2, AlertTriangle, AlertCircle,
-  Globe, Copy, ExternalLink, ChevronDown, ChevronUp,
+  Globe, Copy, ExternalLink, ChevronDown, ChevronUp, Loader2,
 } from 'lucide-react'
-import { slugify, validateSlug } from '@/lib/local-store'
+import { slugify, validateSlugFormat, isSlugAvailable } from '@/lib/scenario-store'
 import type { Scenario, ValidationResult } from '@/types'
 
 interface PublishModalProps {
   scenario: Scenario
   validationResult: ValidationResult
-  onPublish: (slug: string) => void
+  onPublish: (slug: string) => Promise<void>
   onClose: () => void
 }
 
 type ModalStep = 'form' | 'success'
+type SlugState = 'idle' | 'checking' | 'ok' | 'error'
 
 export function PublishModal({
   scenario,
@@ -28,36 +29,70 @@ export function PublishModal({
 
   const [step, setStep] = useState<ModalStep>('form')
   const [publishedSlug, setPublishedSlug] = useState('')
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
 
   // Slug state
   const [slug, setSlug] = useState(() =>
     scenario.publishedVersion?.slug ?? slugify(scenario.title)
   )
+  const [slugState, setSlugState] = useState<SlugState>('idle')
   const [slugError, setSlugError] = useState<string | null>(null)
   const [showWarnings, setShowWarnings] = useState(false)
   const [copied, setCopied] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Validate slug on every change
+  // Debounced async slug validation (400ms)
   useEffect(() => {
-    setSlugError(validateSlug(slug, scenario.id))
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    // Format-only check first (sync)
+    const formatError = validateSlugFormat(slug)
+    if (formatError) {
+      setSlugError(formatError)
+      setSlugState('error')
+      return
+    }
+
+    setSlugState('checking')
+    setSlugError(null)
+
+    debounceRef.current = setTimeout(async () => {
+      const available = await isSlugAvailable(slug, scenario.id)
+      if (!available) {
+        setSlugError('This URL is already taken')
+        setSlugState('error')
+      } else {
+        setSlugError(null)
+        setSlugState('ok')
+      }
+    }, 400)
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
   }, [slug, scenario.id])
 
-  const canPublish = errors.length === 0 && !slugError && slug.length >= 2
-  const publicUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/play/${slug}`
-    : `/play/${slug}`
+  const canPublish = errors.length === 0 && slugState === 'ok' && !isPublishing
 
   const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Enforce slug character set as the user types
     const cleaned = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
     setSlug(cleaned)
   }
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!canPublish) return
-    onPublish(slug)
-    setPublishedSlug(slug)
-    setStep('success')
+    setIsPublishing(true)
+    setPublishError(null)
+    try {
+      await onPublish(slug)
+      setPublishedSlug(slug)
+      setStep('success')
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : 'Publish failed — please try again')
+    } finally {
+      setIsPublishing(false)
+    }
   }
 
   const handleCopy = useCallback(async () => {
@@ -93,9 +128,12 @@ export function PublishModal({
             errors={errors}
             warnings={warnings}
             slug={slug}
+            slugState={slugState}
             slugError={slugError}
             showWarnings={showWarnings}
             canPublish={canPublish}
+            isPublishing={isPublishing}
+            publishError={publishError}
             onSlugChange={handleSlugChange}
             onToggleWarnings={() => setShowWarnings(v => !v)}
             onPublish={handlePublish}
@@ -105,7 +143,6 @@ export function PublishModal({
           <SuccessStep
             scenario={scenario}
             slug={publishedSlug}
-            publicUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/play/${publishedSlug}`}
             copied={copied}
             onCopy={handleCopy}
             onClose={onClose}
@@ -124,9 +161,12 @@ interface FormStepProps {
   errors: ReturnType<typeof Array.prototype.filter>
   warnings: ReturnType<typeof Array.prototype.filter>
   slug: string
+  slugState: SlugState
   slugError: string | null
   showWarnings: boolean
   canPublish: boolean
+  isPublishing: boolean
+  publishError: string | null
   onSlugChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onToggleWarnings: () => void
   onPublish: () => void
@@ -134,8 +174,9 @@ interface FormStepProps {
 }
 
 function FormStep({
-  scenario, isRepublish, errors, warnings, slug, slugError,
-  showWarnings, canPublish, onSlugChange, onToggleWarnings, onPublish, onClose,
+  scenario, isRepublish, errors, warnings, slug, slugState, slugError,
+  showWarnings, canPublish, isPublishing, publishError,
+  onSlugChange, onToggleWarnings, onPublish, onClose,
 }: FormStepProps) {
   const hasErrors = errors.length > 0
   const hasWarnings = warnings.length > 0
@@ -240,7 +281,7 @@ function FormStep({
           </div>
         )}
 
-        {/* ── Slug editor (only when not blocked) ── */}
+        {/* ── Slug editor ── */}
         {!hasErrors && (
           <div>
             <p
@@ -250,7 +291,6 @@ function FormStep({
               Public URL
             </p>
 
-            {/* URL bar */}
             <div
               className="flex items-center rounded-xl overflow-hidden"
               style={{
@@ -273,16 +313,24 @@ function FormStep({
                 spellCheck={false}
                 autoComplete="off"
               />
+              {slugState === 'checking' && (
+                <span className="pr-3">
+                  <Loader2 size={12} className="animate-spin" style={{ color: '#5c6273' }} />
+                </span>
+              )}
             </div>
 
-            {/* Slug feedback */}
             {slugError ? (
               <p className="text-[10px] font-mono mt-1.5" style={{ color: 'oklch(70% 0.18 25)' }}>
                 {slugError}
               </p>
-            ) : slug.length >= 2 ? (
+            ) : slugState === 'ok' ? (
               <p className="text-[10px] font-mono mt-1.5" style={{ color: 'oklch(82% 0.18 165)' }}>
                 ✓ Available
+              </p>
+            ) : slugState === 'checking' ? (
+              <p className="text-[10px] font-mono mt-1.5" style={{ color: '#5c6273' }}>
+                Checking availability…
               </p>
             ) : null}
           </div>
@@ -307,6 +355,13 @@ function FormStep({
             </p>
           </div>
         )}
+
+        {/* ── Publish error ── */}
+        {publishError && (
+          <p className="text-[11px] font-mono" style={{ color: 'oklch(70% 0.18 25)' }}>
+            {publishError}
+          </p>
+        )}
       </div>
 
       {/* Footer */}
@@ -316,7 +371,8 @@ function FormStep({
       >
         <button
           onClick={onClose}
-          className="px-4 py-2 rounded-xl text-xs font-mono transition-all hover:bg-white/5"
+          disabled={isPublishing}
+          className="px-4 py-2 rounded-xl text-xs font-mono transition-all hover:bg-white/5 disabled:opacity-50"
           style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#8a90a4' }}
         >
           Cancel
@@ -336,8 +392,10 @@ function FormStep({
             cursor: 'not-allowed',
           }}
         >
-          <Globe size={12} />
-          {isRepublish ? 'Republish' : 'Publish'}
+          {isPublishing
+            ? <><Loader2 size={12} className="animate-spin" /> Publishing…</>
+            : <><Globe size={12} /> {isRepublish ? 'Republish' : 'Publish'}</>
+          }
         </button>
       </div>
     </>
@@ -349,13 +407,16 @@ function FormStep({
 interface SuccessStepProps {
   scenario: Scenario
   slug: string
-  publicUrl: string
   copied: boolean
   onCopy: () => void
   onClose: () => void
 }
 
-function SuccessStep({ scenario, slug, publicUrl, copied, onCopy, onClose }: SuccessStepProps) {
+function SuccessStep({ scenario, slug, copied, onCopy, onClose }: SuccessStepProps) {
+  const publicUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/play/${slug}`
+    : `/play/${slug}`
+
   return (
     <>
       {/* Header */}
@@ -376,8 +437,6 @@ function SuccessStep({ scenario, slug, publicUrl, copied, onCopy, onClose }: Suc
 
       {/* Body */}
       <div className="px-5 py-6 space-y-5">
-
-        {/* Scenario title */}
         <div className="text-center">
           <p className="text-xs font-mono text-ink-4 tracking-widest uppercase mb-1">
             {scenario.title}
@@ -397,12 +456,9 @@ function SuccessStep({ scenario, slug, publicUrl, copied, onCopy, onClose }: Suc
         >
           <Globe size={12} style={{ color: 'oklch(82% 0.18 165)', flexShrink: 0 }} />
           <span className="flex-1 font-mono text-[12px] truncate" style={{ color: '#c9cdda' }}>
-            /play/{slug}
+            {publicUrl}
           </span>
         </div>
-        <p className="text-[10px] font-mono" style={{ color: '#3a3f4e' }}>
-          Local prototype · this URL only works in this browser. Add Supabase to make it truly shareable.
-        </p>
 
         {/* Action buttons */}
         <div className="grid grid-cols-2 gap-2">

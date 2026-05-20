@@ -1,56 +1,80 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, GitBranch, Layers } from 'lucide-react'
+import { Plus, GitBranch, Layers, Loader2 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { ScenarioCard } from '@/components/dashboard/ScenarioCard'
 import {
   getAllScenarios,
+  getScenario,
+  saveScenario,
+  deleteScenario,
   createScenario,
   createFromTemplate,
   duplicateScenario,
-  deleteScenario,
-  saveScenario,
-} from '@/lib/local-store'
+} from '@/lib/scenario-store'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import type { Scenario } from '@/types'
 
 export default function DashboardPage() {
   const router = useRouter()
+  const [scenarios, setScenarios] = useState<Scenario[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
 
-  // Lazy init: reads localStorage synchronously — no flash or loading state
-  const [scenarios, setScenarios] = useState<Scenario[]>(() => {
-    if (typeof window === 'undefined') return []
-    return getAllScenarios()
-  })
+  // Auth guard + initial load
+  useEffect(() => {
+    const sb = getSupabaseClient()
+    sb.auth.getUser().then(res => {
+      const user = res.data?.user
+      if (!user) {
+        router.replace('/auth')
+        return
+      }
+      load()
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const refresh = () => setScenarios(getAllScenarios())
+  const load = () => {
+    setError(null)
+    getAllScenarios()
+      .then(setScenarios)
+      .catch(e => setError(e.message ?? 'Failed to load scenarios'))
+      .finally(() => setLoading(false))
+  }
 
   const handleCreate = () => {
-    const s = createScenario()
-    saveScenario(s)
-    router.push(`/editor/${s.id}`)
+    startTransition(async () => {
+      const s = createScenario()
+      await saveScenario(s)
+      router.push(`/editor/${s.id}`)
+    })
   }
 
   const handleCreateFromTemplate = () => {
-    const s = createFromTemplate()
-    saveScenario(s)
-    router.push(`/editor/${s.id}`)
+    startTransition(async () => {
+      const s = createFromTemplate()
+      await saveScenario(s)
+      router.push(`/editor/${s.id}`)
+    })
   }
 
-  const handleDuplicate = (source: Scenario) => {
+  const handleDuplicate = async (source: Scenario) => {
     const copy = duplicateScenario(source)
-    saveScenario(copy)
-    refresh()
+    await saveScenario(copy)
+    load()
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const target = scenarios.find(s => s.id === id)
     if (!target) return
     if (!window.confirm(`Delete "${target.title}"? This cannot be undone.`)) return
-    deleteScenario(id)
-    refresh()
+    await deleteScenario(id)
+    load()
   }
 
   const published = scenarios.filter(s => s.status === 'published')
@@ -67,11 +91,13 @@ export default function DashboardPage() {
       />
 
       <Navbar
+        showSignOut
         actions={
           <div className="flex items-center gap-2">
             <button
               onClick={handleCreate}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all hover:bg-white/5"
+              disabled={isPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all hover:bg-white/5 disabled:opacity-50"
               style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#c9cdda' }}
             >
               <Plus size={14} />
@@ -79,7 +105,8 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={handleCreateFromTemplate}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:brightness-110"
+              disabled={isPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:brightness-110 disabled:opacity-50"
               style={{
                 background: 'var(--neon-mint)',
                 color: '#052916',
@@ -93,21 +120,6 @@ export default function DashboardPage() {
         }
       />
 
-      {/* Prototype notice */}
-      <div className="relative max-w-7xl mx-auto px-6 pt-4">
-        <div
-          className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-[11px] font-mono"
-          style={{
-            background: 'rgba(255,255,255,0.025)',
-            border: '1px solid rgba(255,255,255,0.07)',
-            color: '#5c6273',
-          }}
-        >
-          <span style={{ color: 'oklch(80% 0.16 60)' }}>⚠</span>
-          Local prototype — all scenarios and published URLs are stored in this browser only. Nothing is shared across devices or persists after clearing site data.
-        </div>
-      </div>
-
       <main className="relative max-w-7xl mx-auto px-6 py-10">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -116,60 +128,78 @@ export default function DashboardPage() {
           className="mb-10"
         >
           <h1 className="text-2xl font-semibold tracking-[-0.02em] text-ink-0">My Scenarios</h1>
-          <p className="text-sm text-ink-2 mt-1">
-            {scenarios.length} scenario{scenarios.length !== 1 ? 's' : ''} · {published.length} published
-          </p>
+          {!loading && (
+            <p className="text-sm text-ink-2 mt-1">
+              {scenarios.length} scenario{scenarios.length !== 1 ? 's' : ''} · {published.length} published
+            </p>
+          )}
         </motion.div>
 
-        <AnimatePresence mode="wait">
-          {scenarios.length === 0 ? (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+        {loading ? (
+          <div className="flex items-center justify-center py-32">
+            <Loader2 size={22} className="animate-spin text-ink-3" />
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center py-24 text-center gap-3">
+            <p className="text-sm text-ink-2">{error}</p>
+            <button
+              onClick={load}
+              className="text-xs text-ink-3 hover:text-ink-1 underline underline-offset-2 transition-colors"
             >
-              <EmptyState onCreate={handleCreate} onCreateFromTemplate={handleCreateFromTemplate} />
-            </motion.div>
-          ) : (
-            <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              {published.length > 0 && (
-                <section className="mb-12">
-                  <SectionLabel>Published</SectionLabel>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-4">
-                    {published.map((s, i) => (
-                      <ScenarioCard
-                        key={s.id}
-                        scenario={s}
-                        index={i}
-                        onDuplicate={() => handleDuplicate(s)}
-                        onDelete={() => handleDelete(s.id)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
+              Retry
+            </button>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            {scenarios.length === 0 ? (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <EmptyState onCreate={handleCreate} onCreateFromTemplate={handleCreateFromTemplate} />
+              </motion.div>
+            ) : (
+              <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                {published.length > 0 && (
+                  <section className="mb-12">
+                    <SectionLabel>Published</SectionLabel>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-4">
+                      {published.map((s, i) => (
+                        <ScenarioCard
+                          key={s.id}
+                          scenario={s}
+                          index={i}
+                          onDuplicate={() => handleDuplicate(s)}
+                          onDelete={() => handleDelete(s.id)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
 
-              {drafts.length > 0 && (
-                <section>
-                  <SectionLabel>Drafts</SectionLabel>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-4">
-                    {drafts.map((s, i) => (
-                      <ScenarioCard
-                        key={s.id}
-                        scenario={s}
-                        index={published.length + i}
-                        onDuplicate={() => handleDuplicate(s)}
-                        onDelete={() => handleDelete(s.id)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+                {drafts.length > 0 && (
+                  <section>
+                    <SectionLabel>Drafts</SectionLabel>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-4">
+                      {drafts.map((s, i) => (
+                        <ScenarioCard
+                          key={s.id}
+                          scenario={s}
+                          index={published.length + i}
+                          onDuplicate={() => handleDuplicate(s)}
+                          onDelete={() => handleDelete(s.id)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
       </main>
     </div>
   )
@@ -186,7 +216,6 @@ function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
-      {/* Graph icon */}
       <div
         className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
