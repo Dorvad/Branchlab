@@ -38,6 +38,7 @@ export interface ScenarioNode {
   description?: string;
   clip?: ClipAsset;
   clipId?: string;
+  thumbnailUrl?: string; // custom choice-screen backdrop; falls back to last video frame
   choices: ScenarioChoice[];
   position: { x: number; y: number };
   scoreEffects?: ScoreEffects; // applied when this node is entered
