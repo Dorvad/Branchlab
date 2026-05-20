@@ -285,10 +285,13 @@ function FormStep({
         {!hasErrors && (
           <div>
             <p
-              className="text-[9px] font-mono tracking-[0.16em] uppercase mb-2"
+              className="text-[9px] font-mono tracking-[0.16em] uppercase mb-1"
               style={{ color: '#5c6273' }}
             >
               Public URL
+            </p>
+            <p className="text-[10px] mb-2" style={{ color: '#3a3f4e' }}>
+              Share this link with anyone. Only lowercase letters, numbers, and hyphens.
             </p>
 
             <div
@@ -336,23 +339,31 @@ function FormStep({
           </div>
         )}
 
-        {/* ── Republish note ── */}
-        {isRepublish && scenario.publishedVersion && !hasErrors && (
+        {/* ── How publishing works ── */}
+        {!hasErrors && (
           <div
-            className="px-3.5 py-3 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
+            className="px-3.5 py-3 rounded-xl space-y-1.5"
+            style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}
           >
-            <p className="text-[11px] leading-relaxed" style={{ color: '#5c6273' }}>
-              Currently live at{' '}
-              <span className="font-mono" style={{ color: '#8a90a4' }}>
-                /play/{scenario.publishedVersion.slug}
-              </span>
-              {' '}· v{scenario.publishedVersion.version}
-              {' '}· {new Date(scenario.publishedVersion.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </p>
-            <p className="text-[11px] mt-1" style={{ color: '#3a3f4e' }}>
-              Publishing creates a new snapshot — the old URL will keep working.
-            </p>
+            {isRepublish && scenario.publishedVersion ? (
+              <>
+                <p className="text-[11px] leading-relaxed" style={{ color: '#5c6273' }}>
+                  Currently live at{' '}
+                  <span className="font-mono" style={{ color: '#8a90a4' }}>
+                    /play/{scenario.publishedVersion.slug}
+                  </span>
+                  {' '}· v{scenario.publishedVersion.version}
+                  {' '}· {new Date(scenario.publishedVersion.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </p>
+                <p className="text-[11px] leading-relaxed" style={{ color: '#3a3f4e' }}>
+                  Republishing replaces the live version at this URL. All edits made since the last publish will go live. Your previous draft is unaffected.
+                </p>
+              </>
+            ) : (
+              <p className="text-[11px] leading-relaxed" style={{ color: '#5c6273' }}>
+                Publishing creates a permanent snapshot of your scenario. The public link stays stable — you can keep editing the draft without affecting what players see.
+              </p>
+            )}
           </div>
         )}
 

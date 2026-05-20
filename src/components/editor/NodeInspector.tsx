@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon } from 'lucide-react'
+import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy } from 'lucide-react'
 import type { ScenarioNode, ScenarioChoice, NodeType, Clip } from '@/types'
 import { formatDuration } from '@/lib/supabase/clips'
 
@@ -37,6 +37,13 @@ const TYPE_COLOR: Record<NodeType, string> = {
   ending:   'oklch(80% 0.16 60)',
 }
 
+const TYPE_DESC: Record<NodeType, string> = {
+  start:    'The first scene players see when they open the scenario.',
+  scene:    'A video scene in the story. Choices at the end advance the narrative.',
+  feedback: 'An explanatory scene shown after the player picks a choice.',
+  ending:   'A final outcome. The player\'s journey ends here.',
+}
+
 interface NodeInspectorProps {
   node: ScenarioNode
   allNodes: ScenarioNode[]
@@ -46,6 +53,7 @@ interface NodeInspectorProps {
   onUpdateChoice: (nodeId: string, choiceId: string, updates: Partial<ScenarioChoice>) => void
   onDeleteChoice: (nodeId: string, choiceId: string) => void
   onDeleteNode: (nodeId: string) => void
+  onDuplicateNode?: () => void
   onOpenLibrary: () => void
   onClose: () => void
 }
@@ -59,21 +67,19 @@ export function NodeInspector({
   onUpdateChoice,
   onDeleteChoice,
   onDeleteNode,
+  onDuplicateNode,
   onOpenLibrary,
   onClose,
 }: NodeInspectorProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  // Other nodes (valid destinations for choices)
   const otherNodes = allNodes.filter(n => n.id !== node.id)
   const isEnding = node.type === 'ending'
-  const hasWarning = !isEnding && node.choices.length === 0
+  const hasChoiceWarning = !isEnding && node.choices.length === 0
+  const currentClip = clips.find(c => c.id === node.clip?.id)
 
   const handleDelete = () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true)
-      return
-    }
+    if (!confirmDelete) { setConfirmDelete(true); return }
     onDeleteNode(node.id)
     setConfirmDelete(false)
   }
@@ -83,7 +89,7 @@ export function NodeInspector({
       className="flex flex-col w-[320px] shrink-0 border-l overflow-hidden"
       style={{ borderColor: 'rgba(255,255,255,0.07)', background: '#09090e' }}
     >
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-4 h-[44px] border-b shrink-0"
         style={{ borderColor: 'rgba(255,255,255,0.07)' }}
@@ -94,22 +100,33 @@ export function NodeInspector({
             style={{ background: TYPE_COLOR[node.type] }}
           />
           <span className="text-xs font-mono text-ink-2 tracking-wider uppercase">
-            Node Inspector
+            Scene Inspector
           </span>
         </div>
-        <button
-          onClick={onClose}
-          className="text-ink-3 hover:text-ink-1 transition-colors p-1"
-        >
-          <X size={14} />
-        </button>
+        <div className="flex items-center gap-0.5">
+          {onDuplicateNode && (
+            <button
+              onClick={onDuplicateNode}
+              title="Duplicate scene (⌘D)"
+              className="text-ink-4 hover:text-ink-1 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+            >
+              <Copy size={13} />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="text-ink-3 hover:text-ink-1 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+          >
+            <X size={13} />
+          </button>
+        </div>
       </div>
 
-      {/* Scrollable body */}
+      {/* ── Scrollable body ─────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
 
-        {/* Warning banner */}
-        {hasWarning && (
+        {/* No-choices warning */}
+        {hasChoiceWarning && (
           <div
             className="mx-4 mt-4 flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs"
             style={{
@@ -118,150 +135,202 @@ export function NodeInspector({
               color: 'oklch(80% 0.16 60)',
             }}
           >
-            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-            <span>This node has no choices. Players will get stuck here.</span>
+            <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+            <span>This scene has no choices. Players will get stuck here and can&apos;t continue.</span>
           </div>
         )}
 
         <div className="px-4 py-4 space-y-5">
 
-          {/* ── Title ──────────────────────────────────────────────────────── */}
-          <Field label="Title">
-            <input
-              className="inspector-input"
-              value={node.title}
-              onChange={e => onUpdateNode(node.id, { title: e.target.value })}
-              placeholder="Scene title"
-            />
-          </Field>
+          {/* ── Section: Identity ─────────────────────────────────────────── */}
+          <div className="space-y-3.5">
+            <SectionHeader>Identity</SectionHeader>
 
-          {/* ── Node type ──────────────────────────────────────────────────── */}
-          <Field label="Type">
-            <div className="relative">
-              <select
-                className="inspector-input appearance-none pr-8"
-                value={node.type}
-                onChange={e => onUpdateNode(node.id, { type: e.target.value as NodeType })}
-                style={{ color: TYPE_COLOR[node.type] }}
-              >
-                {NODE_TYPES.map(t => (
-                  <option key={t} value={t}>
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={12}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: '#5c6273' }}
-              />
-            </div>
-          </Field>
-
-          {/* ── Description / prompt ───────────────────────────────────────── */}
-          <Field label="Description / Prompt">
-            <textarea
-              className="inspector-input resize-none"
-              rows={3}
-              value={node.description ?? ''}
-              onChange={e => onUpdateNode(node.id, { description: e.target.value })}
-              placeholder="What happens in this scene…"
-            />
-          </Field>
-
-          {/* ── Video clip ─────────────────────────────────────────────────── */}
-          <Field label="Video Clip">
-            {clips.length === 0 ? (
-              <div
-                className="px-3 py-2.5 rounded-xl text-[11px] leading-relaxed border border-dashed"
-                style={{ borderColor: 'rgba(255,255,255,0.08)', color: '#5c6273' }}
-              >
-                No clips in library.{' '}
-                <button
-                  onClick={onOpenLibrary}
-                  className="underline underline-offset-2 transition-colors hover:opacity-80"
-                  style={{ color: '#8a90a4' }}
-                >
-                  Open Asset Library →
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <div className="relative">
-                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#5c6273' }}>
-                    <Film size={12} />
-                  </div>
-                  <select
-                    className="inspector-input pl-7 appearance-none pr-8"
-                    value={node.clip?.id ?? ''}
-                    onChange={e => {
-                      const clip = clips.find(c => c.id === e.target.value)
-                      if (clip) {
-                        onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration }, clipId: undefined })
-                      } else {
-                        onUpdateNode(node.id, { clip: undefined, clipId: undefined })
-                      }
-                    }}
-                  >
-                    <option value="">— No clip —</option>
-                    {clips.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name.length > 28 ? c.name.slice(0, 25) + '…' : c.name} · {formatDuration(c.duration)}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={12}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                    style={{ color: '#5c6273' }}
-                  />
-                </div>
-                <button
-                  onClick={onOpenLibrary}
-                  className="text-[10px] font-mono transition-opacity hover:opacity-80"
-                  style={{ color: '#3a3f4e' }}
-                >
-                  Manage clips →
-                </button>
-              </div>
-            )}
-          </Field>
-
-          {/* ── Choice screen thumbnail ────────────────────────────────────── */}
-          {!isEnding && (
-            <Field label="Choice Screen">
-              <ThumbnailField
-                thumbnailUrl={node.thumbnailUrl}
-                onUpload={url => onUpdateNode(node.id, { thumbnailUrl: url })}
-                onClear={() => onUpdateNode(node.id, { thumbnailUrl: undefined })}
+            <Field label="Title">
+              <input
+                className="inspector-input"
+                value={node.title}
+                onChange={e => onUpdateNode(node.id, { title: e.target.value })}
+                placeholder="e.g. The Emergency Meeting"
               />
             </Field>
-          )}
 
-          {/* ── Choices ────────────────────────────────────────────────────── */}
+            <Field label="Type">
+              <div className="relative">
+                <select
+                  className="inspector-input appearance-none pr-8"
+                  value={node.type}
+                  onChange={e => onUpdateNode(node.id, { type: e.target.value as NodeType })}
+                  style={{ color: TYPE_COLOR[node.type] }}
+                >
+                  {NODE_TYPES.map(t => (
+                    <option key={t} value={t}>
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={12}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                  style={{ color: '#5c6273' }}
+                />
+              </div>
+              <p className="text-[10px] leading-relaxed mt-1.5 px-0.5" style={{ color: '#3a3f4e' }}>
+                {TYPE_DESC[node.type]}
+              </p>
+            </Field>
+
+            <Field label="Description">
+              <textarea
+                className="inspector-input resize-none"
+                rows={3}
+                value={node.description ?? ''}
+                onChange={e => onUpdateNode(node.id, { description: e.target.value })}
+                placeholder="What happens in this scene — shown on the placeholder card while you work."
+              />
+            </Field>
+          </div>
+
+          {/* ── Divider ─────────────────────────────────────────────────────── */}
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />
+
+          {/* ── Section: Media ────────────────────────────────────────────── */}
+          <div className="space-y-3.5">
+            <SectionHeader>Media</SectionHeader>
+
+            {/* Video Clip */}
+            <Field label="Video Clip">
+              <p className="text-[10px] mb-2 leading-relaxed" style={{ color: '#3a3f4e' }}>
+                The video that plays when players reach this scene.
+              </p>
+              {clips.length === 0 ? (
+                <div
+                  className="px-3 py-3 rounded-xl text-[11px] leading-relaxed border border-dashed"
+                  style={{ borderColor: 'rgba(255,255,255,0.07)', color: '#5c6273' }}
+                >
+                  No clips uploaded yet.{' '}
+                  <button
+                    onClick={onOpenLibrary}
+                    className="underline underline-offset-2 transition-opacity hover:opacity-80"
+                    style={{ color: '#8a90a4' }}
+                  >
+                    Open Asset Library →
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {/* Currently attached clip preview */}
+                  {node.clip && (
+                    <div
+                      className="flex items-center gap-2 px-2.5 py-2 rounded-lg mb-2"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                    >
+                      <Film size={11} style={{ color: 'oklch(82% 0.18 165)', flexShrink: 0 }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] truncate" style={{ color: '#c9cdda' }}>
+                          {currentClip?.name ?? 'Attached clip'}
+                        </p>
+                        {currentClip && (
+                          <p className="text-[9px] font-mono" style={{ color: '#5c6273' }}>
+                            {formatDuration(currentClip.duration)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <div className="relative">
+                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#5c6273' }}>
+                      <Film size={12} />
+                    </div>
+                    <select
+                      className="inspector-input pl-7 appearance-none pr-8"
+                      value={node.clip?.id ?? ''}
+                      onChange={e => {
+                        const clip = clips.find(c => c.id === e.target.value)
+                        if (clip) {
+                          onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration }, clipId: undefined })
+                        } else {
+                          onUpdateNode(node.id, { clip: undefined, clipId: undefined })
+                        }
+                      }}
+                    >
+                      <option value="">— No clip —</option>
+                      {clips.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name.length > 26 ? c.name.slice(0, 23) + '…' : c.name} · {formatDuration(c.duration)}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={12}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{ color: '#5c6273' }}
+                    />
+                  </div>
+                  <button
+                    onClick={onOpenLibrary}
+                    className="text-[10px] font-mono transition-opacity hover:opacity-80"
+                    style={{ color: '#3a3f4e' }}
+                  >
+                    Manage clips in Asset Library →
+                  </button>
+                </div>
+              )}
+            </Field>
+
+            {/* Choice Screen Thumbnail */}
+            {!isEnding && (
+              <Field label="Choice Screen Thumbnail">
+                <p className="text-[10px] mb-2 leading-relaxed" style={{ color: '#3a3f4e' }}>
+                  Image shown behind the choices. Defaults to the last frame of the video.
+                </p>
+                <ThumbnailField
+                  thumbnailUrl={node.thumbnailUrl}
+                  onUpload={url => onUpdateNode(node.id, { thumbnailUrl: url })}
+                  onClear={() => onUpdateNode(node.id, { thumbnailUrl: undefined })}
+                />
+              </Field>
+            )}
+          </div>
+
+          {/* ── Divider ─────────────────────────────────────────────────────── */}
+          {!isEnding && <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />}
+
+          {/* ── Section: Choices ──────────────────────────────────────────── */}
           {!isEnding && (
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <FieldLabel>Choices</FieldLabel>
+              <div className="flex items-center justify-between mb-1">
+                <SectionHeader>Choices</SectionHeader>
                 <button
                   onClick={() => onAddChoice(node.id)}
                   className="flex items-center gap-1 text-[11px] font-mono transition-colors hover:opacity-80"
                   style={{ color: 'oklch(82% 0.18 165)' }}
                 >
                   <Plus size={11} />
-                  Add
+                  Add choice
                 </button>
               </div>
 
+              <p className="text-[10px] mb-3 leading-relaxed" style={{ color: '#3a3f4e' }}>
+                Choices appear as buttons after the video. Players tap one to advance.
+              </p>
+
               {node.choices.length === 0 ? (
                 <div
-                  className="text-center py-4 rounded-xl text-[11px] text-ink-4 border border-dashed"
-                  style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+                  className="text-center py-5 rounded-xl border border-dashed"
+                  style={{ borderColor: 'rgba(255,255,255,0.07)' }}
                 >
-                  No choices yet
+                  <p className="text-[11px] text-ink-4 mb-2">No choices yet</p>
+                  <button
+                    onClick={() => onAddChoice(node.id)}
+                    className="text-[11px] font-mono transition-opacity hover:opacity-80"
+                    style={{ color: 'oklch(82% 0.18 165)' }}
+                  >
+                    + Add first choice
+                  </button>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {node.choices.map((choice, i) => (
                     <ChoiceEditor
                       key={choice.id}
@@ -278,23 +347,24 @@ export function NodeInspector({
             </div>
           )}
 
-          {/* ── Ending notes ───────────────────────────────────────────────── */}
+          {/* ── Ending note ─────────────────────────────────────────────────── */}
           {isEnding && (
             <div
-              className="px-3 py-3 rounded-xl text-[11px] text-ink-3"
-              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
+              className="px-3 py-3.5 rounded-xl text-[11px] leading-relaxed"
+              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: '#5c6273' }}
             >
-              Ending nodes don't have choices. The player sees the ending screen after this scene.
+              <p className="font-medium mb-1" style={{ color: '#8a90a4' }}>Ending scenes don&apos;t have choices.</p>
+              <p>The player sees a summary screen after this scene plays. Add multiple endings to give players different outcomes based on their path.</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Delete node */}
+      {/* ── Delete ──────────────────────────────────────────────────────────── */}
       <div className="shrink-0 px-4 py-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
         {confirmDelete ? (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-ink-2 flex-1">Delete this node?</span>
+            <span className="text-xs text-ink-2 flex-1">Delete this scene?</span>
             <button
               onClick={handleDelete}
               className="text-xs px-2.5 py-1.5 rounded-lg transition-colors"
@@ -316,7 +386,7 @@ export function NodeInspector({
             style={{ color: '#5c6273', border: '1px solid rgba(255,255,255,0.07)' }}
           >
             <Trash2 size={12} />
-            Delete node
+            Delete scene
           </button>
         )}
       </div>
@@ -338,15 +408,11 @@ function ThumbnailField({ thumbnailUrl, onUpload, onClear }: ThumbnailFieldProps
   const [error, setError] = useState<string | null>(null)
 
   const handleFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError('Please select an image file.')
-      return
-    }
+    if (!file.type.startsWith('image/')) { setError('Please select an image file.'); return }
     setError(null)
     setProcessing(true)
     try {
-      const url = await compressImage(file)
-      onUpload(url)
+      onUpload(await compressImage(file))
     } catch {
       setError('Could not process image.')
     } finally {
@@ -363,7 +429,6 @@ function ThumbnailField({ thumbnailUrl, onUpload, onClear }: ThumbnailFieldProps
   if (thumbnailUrl) {
     return (
       <div className="space-y-2">
-        {/* Preview */}
         <div className="relative rounded-xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
           <img src={thumbnailUrl} alt="Choice screen thumbnail" className="w-full h-full object-cover" />
           <div
@@ -371,7 +436,7 @@ function ThumbnailField({ thumbnailUrl, onUpload, onClear }: ThumbnailFieldProps
             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)' }}
           >
             <span className="text-[9px] font-mono tracking-wider uppercase" style={{ color: 'rgba(255,255,255,0.5)' }}>
-              Custom
+              Custom thumbnail
             </span>
           </div>
         </div>
@@ -391,13 +456,8 @@ function ThumbnailField({ thumbnailUrl, onUpload, onClear }: ThumbnailFieldProps
             Remove
           </button>
         </div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
-        />
+        <input ref={inputRef} type="file" accept="image/*" className="hidden"
+          onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
       </div>
     )
   }
@@ -405,30 +465,25 @@ function ThumbnailField({ thumbnailUrl, onUpload, onClear }: ThumbnailFieldProps
   return (
     <div>
       <div
-        className="flex flex-col items-center gap-2 px-3 py-4 rounded-xl border border-dashed transition-colors cursor-pointer"
+        className="flex flex-col items-center gap-2 px-3 py-4 rounded-xl border border-dashed transition-colors cursor-pointer hover:border-white/15"
         style={{ borderColor: 'rgba(255,255,255,0.08)', color: '#5c6273' }}
         onDrop={handleDrop}
         onDragOver={e => e.preventDefault()}
         onClick={() => inputRef.current?.click()}
       >
-        <ImageIcon size={16} style={{ color: '#3a3f4e' }} />
+        <ImageIcon size={15} style={{ color: '#3a3f4e' }} />
         <div className="text-center">
-          <p className="text-[11px]" style={{ color: '#5c6273' }}>Defaults to last video frame</p>
+          <p className="text-[11px]" style={{ color: '#5c6273' }}>
+            {processing ? 'Processing…' : 'Upload custom image'}
+          </p>
           <p className="text-[10px] mt-0.5" style={{ color: '#3a3f4e' }}>
-            {processing ? 'Processing…' : 'Click or drag to upload custom image'}
+            Click or drag · JPG, PNG, WebP
           </p>
         </div>
       </div>
-      {error && (
-        <p className="text-[10px] font-mono mt-1.5" style={{ color: 'oklch(70% 0.18 25)' }}>{error}</p>
-      )}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
-      />
+      {error && <p className="text-[10px] font-mono mt-1.5" style={{ color: 'oklch(70% 0.18 25)' }}>{error}</p>}
+      <input ref={inputRef} type="file" accept="image/*" className="hidden"
+        onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
     </div>
   )
 }
@@ -446,7 +501,7 @@ interface ChoiceEditorProps {
 
 function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceEditorProps) {
   const [showFeedback, setShowFeedback] = useState(!!choice.feedback)
-  const letter = String.fromCharCode(65 + index) // A, B, C…
+  const letter = String.fromCharCode(65 + index)
 
   const targetNode = otherNodes.find(n => n.id === choice.targetNodeId)
   const hasNoTarget = !choice.targetNodeId
@@ -455,19 +510,17 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
     <div
       className="rounded-xl overflow-hidden"
       style={{
-        background: 'rgba(255,255,255,0.025)',
+        background: 'rgba(255,255,255,0.02)',
         border: hasNoTarget
           ? '1px solid oklch(80% 0.16 60 / 0.3)'
-          : '1px solid rgba(255,255,255,0.08)',
+          : '1px solid rgba(255,255,255,0.07)',
       }}
     >
       {/* Choice header */}
-      <div
-        className="flex items-center gap-2 px-3 pt-2.5 pb-0"
-      >
+      <div className="flex items-center gap-2 px-3 pt-2.5 pb-0">
         <span
           className="shrink-0 w-5 h-5 flex items-center justify-center rounded font-mono text-[10px] font-medium"
-          style={{ background: 'rgba(255,255,255,0.06)', color: '#8a90a4' }}
+          style={{ background: 'rgba(255,255,255,0.06)', color: '#8a90a4', border: '1px solid rgba(255,255,255,0.08)' }}
         >
           {letter}
         </span>
@@ -475,11 +528,12 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
           className="flex-1 bg-transparent text-[12px] text-ink-1 placeholder-ink-4 outline-none py-1"
           value={choice.label}
           onChange={e => onUpdate({ label: e.target.value })}
-          placeholder="Choice label"
+          placeholder="Choice label…"
         />
         <button
           onClick={onDelete}
           className="shrink-0 text-ink-4 hover:text-neon-danger transition-colors p-1"
+          title="Remove choice"
         >
           <Trash2 size={11} />
         </button>
@@ -488,7 +542,7 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
       <div className="px-3 pb-2.5 pt-2 space-y-2">
         {/* Destination */}
         <div className="relative">
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 font-mono text-[10px]" style={{ color: '#3a3f4e' }}>
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono" style={{ color: '#3a3f4e' }}>
             →
           </span>
           <select
@@ -496,14 +550,14 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
             style={{
               background: 'rgba(255,255,255,0.04)',
               border: hasNoTarget ? '1px solid oklch(80% 0.16 60 / 0.4)' : '1px solid rgba(255,255,255,0.08)',
-              color: targetNode ? '#c9cdda' : 'oklch(80% 0.16 60)',
+              color: targetNode ? '#c9cdda' : hasNoTarget ? 'oklch(80% 0.16 60)' : '#5c6273',
             }}
             value={choice.targetNodeId}
             onChange={e => onUpdate({ targetNodeId: e.target.value })}
           >
             <option value="">— pick destination —</option>
             {otherNodes.map(n => (
-              <option key={n.id} value={n.id}>{n.title}</option>
+              <option key={n.id} value={n.id}>{n.title} ({n.type})</option>
             ))}
           </select>
           <ChevronDown
@@ -513,28 +567,49 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
           />
         </div>
 
+        {/* Target node type indicator */}
+        {targetNode && (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: TYPE_COLOR[targetNode.type] }}
+            />
+            <span className="text-[9px] font-mono uppercase tracking-wider" style={{ color: TYPE_COLOR[targetNode.type] }}>
+              {targetNode.type}
+            </span>
+            {targetNode.type === 'ending' && (
+              <span className="text-[9px] font-mono" style={{ color: '#3a3f4e' }}>· ends here</span>
+            )}
+          </div>
+        )}
+
         {/* Feedback toggle */}
         <button
           onClick={() => setShowFeedback(v => !v)}
-          className="text-[10px] font-mono transition-colors"
+          className="text-[10px] font-mono transition-colors flex items-center gap-1"
           style={{ color: showFeedback ? 'oklch(78% 0.18 285)' : '#3a3f4e' }}
         >
-          {showFeedback ? '− feedback' : '+ add feedback'}
+          {showFeedback ? '− hide feedback' : '+ add feedback'}
         </button>
 
         {/* Feedback textarea */}
         {showFeedback && (
-          <textarea
-            className="w-full bg-transparent text-[11px] text-ink-2 placeholder-ink-4 outline-none resize-none rounded-lg px-2.5 py-2 leading-relaxed"
-            rows={2}
-            style={{
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.07)',
-            }}
-            value={choice.feedback ?? ''}
-            onChange={e => onUpdate({ feedback: e.target.value || undefined })}
-            placeholder="Shown to player after this choice…"
-          />
+          <div>
+            <textarea
+              className="w-full bg-transparent text-[11px] text-ink-2 placeholder-ink-4 outline-none resize-none rounded-lg px-2.5 py-2 leading-relaxed"
+              rows={2}
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.07)',
+              }}
+              value={choice.feedback ?? ''}
+              onChange={e => onUpdate({ feedback: e.target.value || undefined })}
+              placeholder="Brief message shown to player after this choice…"
+            />
+            <p className="text-[9px] font-mono mt-1" style={{ color: '#3a3f4e' }}>
+              Shown as an overlay before advancing to the next scene.
+            </p>
+          </div>
         )}
       </div>
     </div>
@@ -543,9 +618,9 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
 
 // ── Shared form primitives ────────────────────────────────────────────────────
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
+function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[10px] font-mono text-ink-3 tracking-[0.14em] uppercase mb-1.5">
+    <p className="text-[9px] font-mono text-ink-4 tracking-[0.16em] uppercase mb-0.5">
       {children}
     </p>
   )
@@ -554,7 +629,9 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <FieldLabel>{label}</FieldLabel>
+      <p className="text-[9px] font-mono text-ink-4 tracking-[0.14em] uppercase mb-1.5">
+        {label}
+      </p>
       {children}
     </div>
   )
