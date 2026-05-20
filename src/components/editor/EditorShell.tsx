@@ -12,10 +12,10 @@ import { ValidationPanel } from './ValidationPanel'
 import { AssetLibrary } from './AssetLibrary'
 import { validateScenario } from '@/lib/scenario-engine'
 import { getScenario, saveScenario, publishScenario } from '@/lib/scenario-store'
-import { getAllClips } from '@/lib/clip-store'
+import { fetchClips } from '@/lib/supabase/clips'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
-import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, VideoClip } from '@/types'
+import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip } from '@/types'
 
 interface EditorShellProps {
   scenarioId: string
@@ -290,9 +290,13 @@ function EditorUI({
   }, [scenario, derivedEdges, setScenario, setSavedAt, setIsDirty])
 
   // ── Clip management ───────────────────────────────────────────────────────
-  const [clips, setClips] = useState<VideoClip[]>(() => getAllClips())
+  const [clips, setClips] = useState<Clip[]>([])
 
-  const addClip = useCallback((clip: VideoClip) => {
+  useEffect(() => {
+    fetchClips().then(setClips).catch(() => {})
+  }, [])
+
+  const addClip = useCallback((clip: Clip) => {
     setClips(prev => [clip, ...prev])
   }, [])
 
@@ -302,8 +306,13 @@ function EditorUI({
 
   const attachClipToNode = useCallback((clipId: string) => {
     if (!selectedNodeId) return
-    updateNode(selectedNodeId, { clipId })
-  }, [selectedNodeId, updateNode])
+    const clip = clips.find(c => c.id === clipId)
+    if (!clip) return
+    updateNode(selectedNodeId, {
+      clip: { id: clip.id, url: clip.url, duration: clip.duration },
+      clipId: undefined,
+    })
+  }, [selectedNodeId, clips, updateNode])
 
   const { errors, warnings } = validationResult
   const errorCount = errors.length

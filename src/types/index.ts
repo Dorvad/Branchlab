@@ -12,6 +12,17 @@ export interface VideoClip {
   addedAt: string;    // ISO timestamp
 }
 
+export interface Clip {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  url: string;         // permanent Supabase public URL
+  storagePath: string; // used for deletion
+  duration: number;    // seconds
+  createdAt: string;   // ISO timestamp
+}
+
 export interface ScoreEffects {
   [key: string]: number;
 }

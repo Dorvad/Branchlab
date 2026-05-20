@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight } from 'lucide-react'
 import type { ScenarioNode } from '@/types'
-import { getClip } from '@/lib/clip-store'
 
 interface VideoSceneProps {
   node: ScenarioNode
@@ -44,7 +43,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSceneProps) {
   const color = TYPE_COLOR[node.type] ?? '#8a90a4'
-  const clip = node.clipId ? getClip(node.clipId) : null
+  const clip = node.clip ?? null
 
   const [done, setDone] = useState(false)
 
@@ -94,7 +93,7 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
-          src={clip.objectUrl}
+          src={clip.url}
           autoPlay
           playsInline
           onTimeUpdate={handleTimeUpdate}
