@@ -8,9 +8,24 @@ import { getClip } from '@/lib/clip-store'
 
 interface VideoSceneProps {
   node: ScenarioNode
-  onComplete: () => void
+  /** Called when the scene ends. Passes a JPEG data URL of the last frame when a real video played. */
+  onComplete: (frozenFrame?: string) => void
   /** Seconds before auto-advancing in placeholder mode. 0 = no auto-advance. */
   autoAdvanceSeconds?: number
+}
+
+function captureVideoFrame(video: HTMLVideoElement): string | undefined {
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx || !canvas.width || !canvas.height) return undefined
+    ctx.drawImage(video, 0, 0)
+    return canvas.toDataURL('image/jpeg', 0.85)
+  } catch {
+    return undefined
+  }
 }
 
 const TYPE_COLOR: Record<string, string> = {
@@ -62,14 +77,15 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
   const handleVideoEnded = useCallback(() => {
     if (done) return
     setDone(true)
-    onComplete()
+    onComplete(videoRef.current ? captureVideoFrame(videoRef.current) : undefined)
   }, [done, onComplete])
 
   const handleVideoSkip = useCallback(() => {
     if (done) return
     setDone(true)
+    const frame = videoRef.current ? captureVideoFrame(videoRef.current) : undefined
     if (videoRef.current) videoRef.current.pause()
-    onComplete()
+    onComplete(frame)
   }, [done, onComplete])
 
   if (clip) {

@@ -1,9 +1,32 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon } from 'lucide-react'
 import type { ScenarioNode, ScenarioChoice, NodeType, VideoClip } from '@/types'
 import { formatDuration } from '@/lib/clip-store'
+
+async function compressImage(file: File, maxWidth = 1280, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = e => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const scale = Math.min(1, maxWidth / img.width)
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('canvas unavailable')); return }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = reject
+      img.src = e.target?.result as string
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
 
 const NODE_TYPES: NodeType[] = ['start', 'scene', 'feedback', 'ending']
 
@@ -197,6 +220,17 @@ export function NodeInspector({
             )}
           </Field>
 
+          {/* ── Choice screen thumbnail ────────────────────────────────────── */}
+          {!isEnding && (
+            <Field label="Choice Screen">
+              <ThumbnailField
+                thumbnailUrl={node.thumbnailUrl}
+                onUpload={url => onUpdateNode(node.id, { thumbnailUrl: url })}
+                onClear={() => onUpdateNode(node.id, { thumbnailUrl: undefined })}
+              />
+            </Field>
+          )}
+
           {/* ── Choices ────────────────────────────────────────────────────── */}
           {!isEnding && (
             <div>
@@ -280,6 +314,115 @@ export function NodeInspector({
         )}
       </div>
     </aside>
+  )
+}
+
+// ── ThumbnailField ────────────────────────────────────────────────────────────
+
+interface ThumbnailFieldProps {
+  thumbnailUrl?: string
+  onUpload: (url: string) => void
+  onClear: () => void
+}
+
+function ThumbnailField({ thumbnailUrl, onUpload, onClear }: ThumbnailFieldProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [processing, setProcessing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file.')
+      return
+    }
+    setError(null)
+    setProcessing(true)
+    try {
+      const url = await compressImage(file)
+      onUpload(url)
+    } catch {
+      setError('Could not process image.')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files[0]
+    if (file) handleFile(file)
+  }
+
+  if (thumbnailUrl) {
+    return (
+      <div className="space-y-2">
+        {/* Preview */}
+        <div className="relative rounded-xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
+          <img src={thumbnailUrl} alt="Choice screen thumbnail" className="w-full h-full object-cover" />
+          <div
+            className="absolute inset-0 flex items-end justify-start p-2"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)' }}
+          >
+            <span className="text-[9px] font-mono tracking-wider uppercase" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              Custom
+            </span>
+          </div>
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => inputRef.current?.click()}
+            className="flex-1 text-[10px] font-mono py-1.5 rounded-lg transition-opacity hover:opacity-80"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8a90a4' }}
+          >
+            Replace
+          </button>
+          <button
+            onClick={onClear}
+            className="text-[10px] font-mono px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#5c6273' }}
+          >
+            Remove
+          </button>
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div
+        className="flex flex-col items-center gap-2 px-3 py-4 rounded-xl border border-dashed transition-colors cursor-pointer"
+        style={{ borderColor: 'rgba(255,255,255,0.08)', color: '#5c6273' }}
+        onDrop={handleDrop}
+        onDragOver={e => e.preventDefault()}
+        onClick={() => inputRef.current?.click()}
+      >
+        <ImageIcon size={16} style={{ color: '#3a3f4e' }} />
+        <div className="text-center">
+          <p className="text-[11px]" style={{ color: '#5c6273' }}>Defaults to last video frame</p>
+          <p className="text-[10px] mt-0.5" style={{ color: '#3a3f4e' }}>
+            {processing ? 'Processing…' : 'Click or drag to upload custom image'}
+          </p>
+        </div>
+      </div>
+      {error && (
+        <p className="text-[10px] font-mono mt-1.5" style={{ color: 'oklch(70% 0.18 25)' }}>{error}</p>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
+      />
+    </div>
   )
 }
 

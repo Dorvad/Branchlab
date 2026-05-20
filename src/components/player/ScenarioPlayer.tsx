@@ -33,9 +33,13 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref }: ScenarioPl
   const [session, setSession] = useState<PlayerSessionState>(() => createSession(scenario))
   const [phase, setPhase] = useState<PlayerPhase>('watching')
   const [pendingChoice, setPendingChoice] = useState<ScenarioChoice | null>(null)
+  const [frozenFrame, setFrozenFrame] = useState<string | null>(null)
 
   const currentNode = getNodeById(scenario, session.currentNodeId)!
   const choices = getAvailableChoices(scenario, session.currentNodeId)
+
+  // The background shown behind choices: custom thumbnail takes priority over captured frame
+  const choiceBackground = currentNode.thumbnailUrl ?? frozenFrame ?? null
 
   // Step count: non-ending nodes visited so far
   const stepCount = session.history.filter(id => !isEndingNode(scenario, id)).length
@@ -45,10 +49,11 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref }: ScenarioPl
     : 'Scenario'
 
   // ── Called by VideoScene when the clip finishes ─────────────────────────────
-  const handleVideoComplete = useCallback(() => {
+  const handleVideoComplete = useCallback((frame?: string) => {
     if (currentNode.type === 'ending') {
       setPhase('ending')
     } else if (choices.length > 0) {
+      if (frame) setFrozenFrame(frame)
       setPhase('choices')
     }
     // If no choices (incomplete draft node), stay showing the scene
@@ -78,6 +83,7 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref }: ScenarioPl
   function commitAndAdvance(choice: ScenarioChoice) {
     const newSession = advanceSession(session, scenario, choice.id)
     setSession(newSession)
+    setFrozenFrame(null)
     setPhase('transitioning')
     // Short gap so AnimatePresence can exit the old VideoScene before mounting new
     setTimeout(() => setPhase('watching'), 350)
@@ -87,6 +93,7 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref }: ScenarioPl
   const handleRestart = useCallback(() => {
     setSession(createSession(scenario))
     setPendingChoice(null)
+    setFrozenFrame(null)
     setPhase('watching')
   }, [scenario])
 
@@ -136,13 +143,34 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref }: ScenarioPl
         {/* ── Main: video + overlays ──────────────────────────────────────────── */}
         <main className="relative flex-1 overflow-hidden">
 
+          {/* Frozen frame / custom thumbnail backdrop — shown when choices are active */}
+          <AnimatePresence>
+            {phase === 'choices' && choiceBackground && (
+              <motion.div
+                key="choice-bg"
+                className="absolute inset-0 z-[1]"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.35 }}
+              >
+                <img
+                  src={choiceBackground}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{ filter: 'blur(18px) brightness(0.35)', transform: 'scale(1.1)' }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* VideoScene — keyed to currentNodeId so it remounts on transition */}
           <AnimatePresence mode="wait">
             {phase !== 'transitioning' && (
               <motion.div
                 key={session.currentNodeId}
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                animate={{ opacity: phase === 'choices' && choiceBackground ? 0 : 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute inset-0"
