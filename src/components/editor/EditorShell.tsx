@@ -8,7 +8,8 @@ import { LeftSidebar } from './LeftSidebar'
 import { NodeInspector } from './NodeInspector'
 import { ValidationPanel } from './ValidationPanel'
 import { validateScenario } from '@/lib/scenario-engine'
-import { getLocalScenario, saveScenario } from '@/lib/local-store'
+import { getLocalScenario, saveScenario, publishScenario } from '@/lib/local-store'
+import { PublishModal } from './PublishModal'
 import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, ValidationResult } from '@/types'
 
 interface EditorShellProps {
@@ -31,6 +32,7 @@ export function EditorShell({ scenarioId, initialScenario }: EditorShellProps) {
     return local ? new Date(local.updatedAt) : null
   })
   const [showValidation, setShowValidation] = useState(false)
+  const [showPublish, setShowPublish] = useState(false)
 
   if (!scenario) {
     return (
@@ -58,6 +60,8 @@ export function EditorShell({ scenarioId, initialScenario }: EditorShellProps) {
       setSavedAt={setSavedAt}
       showValidation={showValidation}
       setShowValidation={setShowValidation}
+      showPublish={showPublish}
+      setShowPublish={setShowPublish}
     />
   )
 }
@@ -76,6 +80,8 @@ interface EditorUIProps {
   setSavedAt: React.Dispatch<React.SetStateAction<Date | null>>
   showValidation: boolean
   setShowValidation: React.Dispatch<React.SetStateAction<boolean>>
+  showPublish: boolean
+  setShowPublish: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 function EditorUI({
@@ -89,6 +95,8 @@ function EditorUI({
   setSavedAt,
   showValidation,
   setShowValidation,
+  showPublish,
+  setShowPublish,
 }: EditorUIProps) {
   const selectedNode = useMemo(
     () => scenario.nodes.find(n => n.id === selectedNodeId) ?? null,
@@ -231,6 +239,13 @@ function EditorUI({
     setIsDirty(false)
   }, [scenario, derivedEdges, setScenario, setSavedAt, setIsDirty])
 
+  const handlePublish = useCallback((slug: string) => {
+    const updated = publishScenario({ ...scenario, edges: derivedEdges }, slug)
+    setScenario(updated)
+    setSavedAt(new Date(updated.updatedAt))
+    setIsDirty(false)
+  }, [scenario, derivedEdges, setScenario, setSavedAt, setIsDirty])
+
   const { errors, warnings } = validationResult
   const errorCount = errors.length
   const warningCount = warnings.length
@@ -324,13 +339,12 @@ function EditorUI({
           </Link>
 
           <button
-            disabled
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border opacity-35 cursor-not-allowed"
+            onClick={() => setShowPublish(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
             style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#8a90a4' }}
-            title="Publish — coming next"
           >
             <Globe size={12} />
-            Publish
+            {scenario.publishedVersion ? 'Republish' : 'Publish'}
           </button>
         </div>
       </header>
@@ -419,6 +433,15 @@ function EditorUI({
           result={validationResult}
           onSelectNode={handleSelectFromValidation}
           onClose={() => setShowValidation(false)}
+        />
+      )}
+
+      {showPublish && (
+        <PublishModal
+          scenario={scenario}
+          validationResult={validationResult}
+          onPublish={handlePublish}
+          onClose={() => setShowPublish(false)}
         />
       )}
     </div>

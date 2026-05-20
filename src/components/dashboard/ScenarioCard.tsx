@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { GitBranch, Eye, ArrowRight, Clock, Copy, Trash2 } from 'lucide-react'
+import { GitBranch, Eye, ArrowRight, Clock, Copy, Trash2, Globe } from 'lucide-react'
 import type { Scenario } from '@/types'
 
 interface ScenarioCardProps {
@@ -44,6 +44,11 @@ export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: Sce
     month: 'short',
     day: 'numeric',
   })
+  const pub = scenario.publishedVersion
+  const hasDraftChanges = pub && new Date(scenario.updatedAt) > new Date(pub.publishedAt)
+  const publishedDate = pub
+    ? new Date(pub.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null
 
   return (
     <motion.div
@@ -79,6 +84,16 @@ export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: Sce
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: style.dot }} />
           {style.label}
         </div>
+
+        {/* Draft changes badge */}
+        {hasDraftChanges && (
+          <div
+            className="absolute bottom-3 left-3 px-2 py-0.5 rounded-full text-[10px] font-mono tracking-wider"
+            style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.12)', color: '#8a90a4' }}
+          >
+            draft changes
+          </div>
+        )}
 
         {/* Hover actions (duplicate / delete) */}
         {(onDuplicate || onDelete) && (
@@ -123,10 +138,17 @@ export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: Sce
             {nodeCount} nodes
           </span>
           <span>{endingCount} endings</span>
-          <span className="flex items-center gap-1.5 ml-auto">
-            <Clock size={11} />
-            {updatedDate}
-          </span>
+          {pub ? (
+            <span className="flex items-center gap-1.5 ml-auto" title={`Published ${publishedDate} · v${pub.version}`}>
+              <Globe size={11} />
+              v{pub.version} · {publishedDate}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 ml-auto">
+              <Clock size={11} />
+              {updatedDate}
+            </span>
+          )}
         </div>
 
         {/* Actions */}
@@ -146,9 +168,9 @@ export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: Sce
             <Eye size={13} />
             Preview
           </Link>
-          {scenario.status === 'published' && (
+          {pub && (
             <Link
-              href={`/play/${scenario.slug}`}
+              href={`/play/${pub.slug}`}
               className="flex items-center gap-1.5 py-2 px-3 rounded-xl text-sm font-medium transition-all"
               style={{
                 background: 'oklch(82% 0.18 165 / 0.12)',

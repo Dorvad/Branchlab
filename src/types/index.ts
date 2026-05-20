@@ -43,6 +43,7 @@ export interface ScenarioVersion {
   id: string;
   scenarioId: string;
   version: number;
+  title?: string;
   nodes: ScenarioNode[];
   edges: ScenarioEdge[];
   startNodeId: string;

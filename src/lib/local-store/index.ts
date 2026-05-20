@@ -1,7 +1,11 @@
-import type { Scenario, ScenarioEdge } from '@/types'
+import type { Scenario, ScenarioEdge, ScenarioVersion } from '@/types'
 import { mockScenarios } from '@/data/mock-scenarios'
+import { mockPublishedScenarios } from '@/data/mock-scenarios'
 
-const STORE_KEY = 'branchlab_scenarios'
+// ── Storage keys ───────────────────────────────────────────────────────────────
+
+const DRAFTS_KEY = 'branchlab_scenarios'
+const PUBLISHED_KEY = 'branchlab_published'
 
 // ── Private helpers ────────────────────────────────────────────────────────────
 
@@ -10,40 +14,103 @@ function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${++_nonce}`
 }
 
-function readStore(): Record<string, Scenario> {
+function readDrafts(): Record<string, Scenario> {
   try {
-    const raw = localStorage.getItem(STORE_KEY)
+    const raw = localStorage.getItem(DRAFTS_KEY)
     return raw ? (JSON.parse(raw) as Record<string, Scenario>) : {}
   } catch {
     return {}
   }
 }
 
-function writeStore(data: Record<string, Scenario>): void {
+function writeDrafts(data: Record<string, Scenario>): void {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(data))
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(data))
   } catch {
-    // quota exceeded or unavailable — fail silently
+    // quota exceeded or unavailable
   }
 }
 
-// On first visit (no STORE_KEY in localStorage at all), seed with mock scenarios
-// so the dashboard isn't empty out of the box.
-function seedIfNeeded(): void {
-  if (localStorage.getItem(STORE_KEY) !== null) return
+function readPublished(): Record<string, ScenarioVersion> {
+  try {
+    const raw = localStorage.getItem(PUBLISHED_KEY)
+    return raw ? (JSON.parse(raw) as Record<string, ScenarioVersion>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writePublished(data: Record<string, ScenarioVersion>): void {
+  try {
+    localStorage.setItem(PUBLISHED_KEY, JSON.stringify(data))
+  } catch {
+    // quota exceeded or unavailable
+  }
+}
+
+// Seed draft store with mock scenarios on first visit
+function seedDraftsIfNeeded(): void {
+  if (localStorage.getItem(DRAFTS_KEY) !== null) return
   const seed: Record<string, Scenario> = {}
-  for (const s of mockScenarios) {
-    seed[s.id] = s
-  }
-  writeStore(seed)
+  for (const s of mockScenarios) seed[s.id] = s
+  writeDrafts(seed)
 }
 
-// ── Public API ─────────────────────────────────────────────────────────────────
+// Seed published store with mock published versions on first visit
+function seedPublishedIfNeeded(): void {
+  if (localStorage.getItem(PUBLISHED_KEY) !== null) return
+  const seed: Record<string, ScenarioVersion> = {}
+  for (const [slug, version] of Object.entries(mockPublishedScenarios)) {
+    seed[slug] = version
+  }
+  writePublished(seed)
+}
 
-/** Returns all scenarios sorted newest-first. Seeds on first call. */
+// ── Slug utilities ─────────────────────────────────────────────────────────────
+
+/** Converts an arbitrary string into a URL-safe slug. */
+export function slugify(title: string): string {
+  return (
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'untitled'
+  )
+}
+
+/**
+ * Validates a slug string. Returns an error message, or null if valid.
+ * Pass `ownScenarioId` to allow a scenario to reclaim its own existing slug.
+ */
+export function validateSlug(slug: string, ownScenarioId?: string): string | null {
+  if (!slug || slug.length < 2) return 'Must be at least 2 characters'
+  if (slug.length > 60) return 'Must be 60 characters or less'
+  if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug)) {
+    return 'Only lowercase letters, numbers, and hyphens; cannot start or end with a hyphen'
+  }
+  if (!isSlugAvailable(slug, ownScenarioId)) return 'This URL is already taken'
+  return null
+}
+
+/** Returns true if the slug is unused, or if it belongs to `ownScenarioId`. */
+export function isSlugAvailable(slug: string, ownScenarioId?: string): boolean {
+  seedPublishedIfNeeded()
+  const store = readPublished()
+  const existing = store[slug]
+  if (!existing) return true
+  return ownScenarioId !== undefined && existing.scenarioId === ownScenarioId
+}
+
+// ── Draft CRUD ─────────────────────────────────────────────────────────────────
+
+/** Returns all draft scenarios sorted newest-first. Seeds on first call. */
 export function getAllScenarios(): Scenario[] {
-  seedIfNeeded()
-  return Object.values(readStore()).sort(
+  seedDraftsIfNeeded()
+  return Object.values(readDrafts()).sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   )
 }
@@ -54,29 +121,25 @@ export function getAllScenarios(): Scenario[] {
  */
 export function getLocalScenario(id: string): Scenario | null {
   try {
-    const store = readStore()
-    return store[id] ?? null
+    return readDrafts()[id] ?? null
   } catch {
     return null
   }
 }
 
-/**
- * Saves (creates or overwrites) a scenario. Stamps updatedAt with current time.
- * Returns the stored scenario (with updated timestamp).
- */
+/** Saves (creates or overwrites) a scenario. Stamps updatedAt. Returns stored copy. */
 export function saveScenario(scenario: Scenario): Scenario {
   const stored: Scenario = { ...scenario, updatedAt: new Date().toISOString() }
-  const store = readStore()
-  store[stored.id] = stored
-  writeStore(store)
+  const drafts = readDrafts()
+  drafts[stored.id] = stored
+  writeDrafts(drafts)
   return stored
 }
 
 export function deleteScenario(id: string): void {
-  const store = readStore()
-  delete store[id]
-  writeStore(store)
+  const drafts = readDrafts()
+  delete drafts[id]
+  writeDrafts(drafts)
 }
 
 /** Returns an unsaved copy with a new ID. Caller must saveScenario() it. */
@@ -189,5 +252,65 @@ export function createFromTemplate(): Scenario {
         position: { x: 380, y: 520 },
       },
     ],
+  }
+}
+
+// ── Publish ────────────────────────────────────────────────────────────────────
+
+/**
+ * Publishes a scenario by:
+ *   1. Creating an immutable ScenarioVersion snapshot
+ *   2. Writing it to the published store keyed by slug
+ *   3. Updating the draft scenario's status, slug, and publishedVersion
+ *
+ * Returns the updated draft scenario so callers can update React state.
+ */
+export function publishScenario(scenario: Scenario, slug: string): Scenario {
+  const now = new Date().toISOString()
+  const prevVersion = scenario.publishedVersion
+  const versionNumber = prevVersion ? prevVersion.version + 1 : 1
+
+  const version: ScenarioVersion = {
+    id: uid('version'),
+    scenarioId: scenario.id,
+    version: versionNumber,
+    title: scenario.title,
+    // Deep-copy nodes/edges so future draft edits don't affect the snapshot
+    nodes: JSON.parse(JSON.stringify(scenario.nodes)),
+    edges: JSON.parse(JSON.stringify(scenario.edges)),
+    startNodeId: scenario.startNodeId,
+    publishedAt: now,
+    slug,
+  }
+
+  // Write snapshot to published store
+  const pubStore = readPublished()
+  pubStore[slug] = version
+  writePublished(pubStore)
+
+  // Update the draft to reflect published state
+  const updatedDraft: Scenario = {
+    ...scenario,
+    status: 'published',
+    slug,
+    publishedVersion: version,
+    updatedAt: now,
+  }
+
+  const draftStore = readDrafts()
+  draftStore[scenario.id] = updatedDraft
+  writeDrafts(draftStore)
+
+  return updatedDraft
+}
+
+// ── Published store reads ──────────────────────────────────────────────────────
+
+export function getPublishedBySlug(slug: string): ScenarioVersion | null {
+  seedPublishedIfNeeded()
+  try {
+    return readPublished()[slug] ?? null
+  } catch {
+    return null
   }
 }
