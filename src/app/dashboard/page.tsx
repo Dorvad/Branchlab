@@ -25,7 +25,7 @@ import {
 } from '@/lib/scenario-store'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
-import { fetchClips } from '@/lib/supabase/clips'
+import { fetchClips, uploadClip, deleteClip, ACCEPTED_EXTENSIONS, type UploadProgress } from '@/lib/supabase/clips'
 import { useTheme } from '@/lib/theme'
 import type { Scenario, Clip } from '@/types'
 import type { User } from '@supabase/supabase-js'
@@ -48,6 +48,8 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>('updated')
   const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null)
+  const [clipUploadProgress, setClipUploadProgress] = useState<UploadProgress | null>(null)
+  const [clipUploadError, setClipUploadError] = useState<string | null>(null)
 
   // Auth guard + initial load
   useEffect(() => {
@@ -107,6 +109,28 @@ export default function DashboardPage() {
     load()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deleteTarget])
+
+  const handleClipUpload = useCallback(async (file: File) => {
+    setClipUploadError(null)
+    setClipUploadProgress({ loaded: 0, total: file.size })
+    try {
+      const clip = await uploadClip(file, p => setClipUploadProgress(p))
+      setClips(prev => [clip, ...prev])
+    } catch (e) {
+      setClipUploadError(e instanceof Error ? e.message : 'Upload failed')
+    } finally {
+      setClipUploadProgress(null)
+    }
+  }, [])
+
+  const handleClipDelete = useCallback(async (clip: import('@/types').Clip) => {
+    try {
+      await deleteClip(clip.id, clip.storagePath)
+      setClips(prev => prev.filter(c => c.id !== clip.id))
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Delete failed')
+    }
+  }, [])
 
   const drafts = useMemo(() => scenarios.filter(s => s.status !== 'published'), [scenarios])
   const published = useMemo(() => scenarios.filter(s => s.status === 'published'), [scenarios])
@@ -171,7 +195,13 @@ export default function DashboardPage() {
             <AnimatePresence mode="wait">
               {section === 'assets' ? (
                 <motion.div key="assets" {...fadeProps}>
-                  <AssetsView clips={clips} onClipDeleted={id => setClips(c => c.filter(x => x.id !== id))} />
+                  <AssetsView
+                    clips={clips}
+                    uploadProgress={clipUploadProgress}
+                    uploadError={clipUploadError}
+                    onUpload={handleClipUpload}
+                    onClipDelete={handleClipDelete}
+                  />
                 </motion.div>
               ) : section === 'drafts' ? (
                 <motion.div key="drafts" {...fadeProps}>
@@ -976,11 +1006,20 @@ function DashboardCard({
 // ── AssetsView ────────────────────────────────────────────────────────────────
 
 function AssetsView({
-  clips, onClipDeleted,
+  clips, uploadProgress, uploadError, onUpload, onClipDelete,
 }: {
   clips: Clip[]
-  onClipDeleted: (id: string) => void
+  uploadProgress: UploadProgress | null
+  uploadError: string | null
+  onUpload: (file: File) => void
+  onClipDelete: (clip: Clip) => void
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const isUploading = uploadProgress !== null
+  const uploadPct = uploadProgress
+    ? Math.round((uploadProgress.loaded / uploadProgress.total) * 100)
+    : 0
+
   const formatSize = (bytes: number) => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`
@@ -992,34 +1031,101 @@ function AssetsView({
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      onUpload(file)
+      e.target.value = ''
+    }
+  }
+
   return (
     <div className="px-8 py-6">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ACCEPTED_EXTENSIONS}
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       <div className="flex items-center gap-3 mb-6">
-        <div>
+        <div className="flex-1">
           <h2 className="text-sm font-semibold" style={{ color: 'var(--fg-0)' }}>Asset Library</h2>
           <p className="text-xs mt-0.5" style={{ color: 'var(--fg-3)' }}>
-            Video clips uploaded to your scenarios. Manage and attach them in the editor.
+            {clips.length} clip{clips.length !== 1 ? 's' : ''} · MP4, WebM, or MOV up to 500 MB
           </p>
         </div>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium transition-all disabled:opacity-50"
+          style={{
+            background: 'oklch(82% 0.18 165)',
+            color: '#052916',
+            boxShadow: isUploading ? 'none' : '0 0 16px oklch(82% 0.18 165 / 0.3)',
+          }}
+        >
+          <Upload size={12} />
+          Upload clip
+        </button>
       </div>
 
-      {clips.length === 0 ? (
+      {/* Upload progress */}
+      <AnimatePresence>
+        {isUploading && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="mb-4 rounded-xl p-3.5"
+            style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)' }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-mono" style={{ color: 'var(--fg-2)' }}>Uploading…</span>
+              <span className="text-xs font-mono" style={{ color: 'var(--fg-3)' }}>{uploadPct}%</span>
+            </div>
+            <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--tint-3)' }}>
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: 'oklch(82% 0.18 165)', width: `${uploadPct}%` }}
+                transition={{ duration: 0.1 }}
+              />
+            </div>
+          </motion.div>
+        )}
+        {uploadError && !isUploading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mb-4 px-4 py-3 rounded-xl text-xs font-mono"
+            style={{ background: 'oklch(70% 0.18 25 / 0.08)', border: '1px solid oklch(70% 0.18 25 / 0.25)', color: 'oklch(70% 0.18 25)' }}
+          >
+            {uploadError}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {clips.length === 0 && !isUploading ? (
         <div
-          className="flex flex-col items-center justify-center py-20 rounded-2xl border border-dashed text-center"
+          className="flex flex-col items-center justify-center py-20 rounded-2xl border border-dashed text-center cursor-pointer transition-colors hover:border-[var(--line-3)]"
           style={{ borderColor: 'var(--line-2)' }}
+          onClick={() => fileInputRef.current?.click()}
         >
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
             style={{ background: 'var(--tint-2)' }}
           >
-            <Film size={22} style={{ color: 'var(--fg-4)' }} />
+            <Upload size={22} style={{ color: 'var(--fg-4)' }} />
           </div>
-          <p className="text-sm font-medium" style={{ color: 'var(--fg-1)' }}>No clips yet</p>
+          <p className="text-sm font-medium" style={{ color: 'var(--fg-1)' }}>Drop a video clip here</p>
           <p className="text-xs mt-1.5 max-w-xs leading-relaxed" style={{ color: 'var(--fg-3)' }}>
-            Upload video clips in the editor&rsquo;s Asset Library panel, then attach them to scene nodes.
+            MP4, WebM, or MOV · max 500 MB
           </p>
-          <p className="text-[10px] font-mono mt-4" style={{ color: 'var(--fg-4)' }}>
-            Open a scenario → Assets button → Upload
+          <p className="text-[11px] font-mono mt-3 px-3 py-1.5 rounded-lg" style={{ color: 'var(--fg-3)', background: 'var(--tint-2)' }}>
+            Click to browse
           </p>
         </div>
       ) : (
@@ -1027,7 +1133,6 @@ function AssetsView({
           className="rounded-2xl overflow-hidden"
           style={{ border: '1px solid var(--line-1)' }}
         >
-          {/* Table header */}
           <div
             className="grid gap-4 px-5 py-2.5 text-[10px] font-mono tracking-widest uppercase border-b"
             style={{ gridTemplateColumns: '1fr 80px 80px 100px 40px', borderColor: 'var(--line-1)', color: 'var(--fg-4)', background: 'var(--tint-1)' }}
@@ -1038,8 +1143,6 @@ function AssetsView({
             <span>Uploaded</span>
             <span />
           </div>
-
-          {/* Rows */}
           {clips.map((clip, i) => (
             <ClipRow
               key={clip.id}
@@ -1047,7 +1150,7 @@ function AssetsView({
               formatSize={formatSize}
               formatDuration={formatDuration}
               isLast={i === clips.length - 1}
-              onDelete={() => onClipDeleted(clip.id)}
+              onDelete={() => onClipDelete(clip)}
             />
           ))}
         </div>

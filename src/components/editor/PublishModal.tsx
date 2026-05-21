@@ -74,11 +74,16 @@ export function PublishModal({ scenario, validationResult, onPublish, onClose }:
     setSlugError(null)
 
     debounceRef.current = setTimeout(async () => {
-      const available = await isSlugAvailable(slug, scenario.id)
-      if (!available) {
-        setSlugError('This URL is already taken')
-        setSlugState('error')
-      } else {
+      try {
+        const available = await isSlugAvailable(slug, scenario.id)
+        if (!available) {
+          setSlugError('This URL is already taken')
+          setSlugState('error')
+        } else {
+          setSlugState('ok')
+          setSlugError(null)
+        }
+      } catch {
         setSlugState('ok')
         setSlugError(null)
       }

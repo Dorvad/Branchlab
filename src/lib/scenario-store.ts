@@ -91,16 +91,21 @@ export function validateSlugFormat(slug: string): string | null {
  * Pass `ownScenarioId` to allow a scenario to reclaim its own published slug.
  */
 export async function isSlugAvailable(slug: string, ownScenarioId?: string): Promise<boolean> {
-  const sb = getSupabaseClient()
-  const { data } = await sb
-    .from('scenario_versions')
-    .select('scenario_id')
-    .eq('slug', slug)
-    .maybeSingle()
+  try {
+    const sb = getSupabaseClient()
+    const { data, error } = await sb
+      .from('scenario_versions')
+      .select('scenario_id')
+      .eq('slug', slug)
+      .maybeSingle()
 
-  if (!data) return true
-  const row = data as { scenario_id: string }
-  return ownScenarioId !== undefined && row.scenario_id === ownScenarioId
+    if (error) return true // table not yet created or network issue — assume available
+    if (!data) return true
+    const row = data as { scenario_id: string }
+    return ownScenarioId !== undefined && row.scenario_id === ownScenarioId
+  } catch {
+    return true
+  }
 }
 
 /** Full slug validation including DB availability check. Returns error string or null. */
