@@ -32,7 +32,7 @@ const NODE_TYPES: NodeType[] = ['start', 'scene', 'feedback', 'ending']
 
 const TYPE_COLOR: Record<NodeType, string> = {
   start:    'oklch(82% 0.18 165)',
-  scene:    '#8a90a4',
+  scene:    'var(--fg-2)',
   feedback: 'oklch(78% 0.18 285)',
   ending:   'oklch(80% 0.16 60)',
 }
@@ -87,7 +87,7 @@ export function NodeInspector({
   return (
     <aside
       className="flex flex-col w-[320px] shrink-0 border-l overflow-hidden"
-      style={{ borderColor: 'rgba(255,255,255,0.07)', background: '#09090e' }}
+      style={{ borderColor: 'var(--line-1)', background: 'var(--bg-0)' }}
     >
       {/* ── Colored type accent line ──────────────────────────────────────── */}
       <div style={{ height: 2, background: TYPE_COLOR[node.type], opacity: 0.7 }} />
@@ -95,7 +95,7 @@ export function NodeInspector({
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-4 h-[44px] border-b shrink-0"
-        style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+        style={{ borderColor: 'var(--line-1)' }}
       >
         <div className="flex items-center gap-2">
           <span
@@ -117,14 +117,14 @@ export function NodeInspector({
             <button
               onClick={onDuplicateNode}
               title="Duplicate scene (⌘D)"
-              className="text-ink-4 hover:text-ink-1 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+              className="text-ink-4 hover:text-ink-1 transition-colors p-1.5 rounded-lg hover:bg-[var(--tint-3)]"
             >
               <Copy size={13} />
             </button>
           )}
           <button
             onClick={onClose}
-            className="text-ink-3 hover:text-ink-1 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+            className="text-ink-3 hover:text-ink-1 transition-colors p-1.5 rounded-lg hover:bg-[var(--tint-3)]"
           >
             <X size={13} />
           </button>
@@ -181,10 +181,10 @@ export function NodeInspector({
                 <ChevronDown
                   size={12}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                  style={{ color: '#5c6273' }}
+                  style={{ color: 'var(--fg-3)' }}
                 />
               </div>
-              <p className="text-[10px] leading-relaxed mt-1.5 px-0.5" style={{ color: '#3a3f4e' }}>
+              <p className="text-[10px] leading-relaxed mt-1.5 px-0.5" style={{ color: 'var(--fg-4)' }}>
                 {TYPE_DESC[node.type]}
               </p>
             </Field>
@@ -201,7 +201,7 @@ export function NodeInspector({
           </div>
 
           {/* ── Divider ─────────────────────────────────────────────────────── */}
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />
+          <div style={{ height: 1, background: 'var(--tint-2)' }} />
 
           {/* ── Section: Media ────────────────────────────────────────────── */}
           <div className="space-y-3.5">
@@ -209,19 +209,19 @@ export function NodeInspector({
 
             {/* Video Clip */}
             <Field label="Video Clip">
-              <p className="text-[10px] mb-2 leading-relaxed" style={{ color: '#3a3f4e' }}>
+              <p className="text-[10px] mb-2 leading-relaxed" style={{ color: 'var(--fg-4)' }}>
                 The video that plays when players reach this scene.
               </p>
               {clips.length === 0 ? (
                 <div
                   className="px-3 py-3 rounded-xl text-[11px] leading-relaxed border border-dashed"
-                  style={{ borderColor: 'rgba(255,255,255,0.07)', color: '#5c6273' }}
+                  style={{ borderColor: 'var(--line-1)', color: 'var(--fg-3)' }}
                 >
                   No clips uploaded yet.{' '}
                   <button
                     onClick={onOpenLibrary}
                     className="underline underline-offset-2 transition-opacity hover:opacity-80"
-                    style={{ color: '#8a90a4' }}
+                    style={{ color: 'var(--fg-2)' }}
                   >
                     Open Asset Library →
                   </button>
@@ -233,7 +233,7 @@ export function NodeInspector({
                     <ClipPreviewPlayer url={node.clip.url} name={currentClip?.name} />
                   )}
                   <div className="relative">
-                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#5c6273' }}>
+                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-3)' }}>
                       <Film size={12} />
                     </div>
                     <select
@@ -258,13 +258,13 @@ export function NodeInspector({
                     <ChevronDown
                       size={12}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                      style={{ color: '#5c6273' }}
+                      style={{ color: 'var(--fg-3)' }}
                     />
                   </div>
                   <button
                     onClick={onOpenLibrary}
                     className="text-[10px] font-mono transition-opacity hover:opacity-80"
-                    style={{ color: '#3a3f4e' }}
+                    style={{ color: 'var(--fg-4)' }}
                   >
                     Manage clips in Asset Library →
                   </button>
@@ -275,7 +275,7 @@ export function NodeInspector({
             {/* Choice Screen Thumbnail */}
             {!isEnding && (
               <Field label="Choice Screen Thumbnail">
-                <p className="text-[10px] mb-2 leading-relaxed" style={{ color: '#3a3f4e' }}>
+                <p className="text-[10px] mb-2 leading-relaxed" style={{ color: 'var(--fg-4)' }}>
                   Image shown behind the choices. Defaults to the last frame of the video.
                 </p>
                 <ThumbnailField
@@ -288,7 +288,7 @@ export function NodeInspector({
           </div>
 
           {/* ── Divider ─────────────────────────────────────────────────────── */}
-          {!isEnding && <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />}
+          {!isEnding && <div style={{ height: 1, background: 'var(--tint-2)' }} />}
 
           {/* ── Section: Choices ──────────────────────────────────────────── */}
           {!isEnding && (
@@ -305,14 +305,14 @@ export function NodeInspector({
                 </button>
               </div>
 
-              <p className="text-[10px] mb-3 leading-relaxed" style={{ color: '#3a3f4e' }}>
+              <p className="text-[10px] mb-3 leading-relaxed" style={{ color: 'var(--fg-4)' }}>
                 Choices appear as buttons after the video. Players tap one to advance.
               </p>
 
               {node.choices.length === 0 ? (
                 <div
                   className="text-center py-5 rounded-xl border border-dashed"
-                  style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+                  style={{ borderColor: 'var(--line-1)' }}
                 >
                   <p className="text-[11px] text-ink-4 mb-2">No choices yet</p>
                   <button
@@ -345,9 +345,9 @@ export function NodeInspector({
           {isEnding && (
             <div
               className="px-3 py-3.5 rounded-xl text-[11px] leading-relaxed"
-              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: '#5c6273' }}
+              style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)', color: 'var(--fg-3)' }}
             >
-              <p className="font-medium mb-1" style={{ color: '#8a90a4' }}>Ending scenes don&apos;t have choices.</p>
+              <p className="font-medium mb-1" style={{ color: 'var(--fg-2)' }}>Ending scenes don&apos;t have choices.</p>
               <p>The player sees a summary screen after this scene plays. Add multiple endings to give players different outcomes based on their path.</p>
             </div>
           )}
@@ -355,7 +355,7 @@ export function NodeInspector({
       </div>
 
       {/* ── Delete ──────────────────────────────────────────────────────────── */}
-      <div className="shrink-0 px-4 py-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+      <div className="shrink-0 px-4 py-3 border-t" style={{ borderColor: 'var(--line-1)' }}>
         {confirmDelete ? (
           <div className="flex items-center gap-2">
             <span className="text-xs text-ink-2 flex-1">Delete this scene?</span>
@@ -377,7 +377,7 @@ export function NodeInspector({
           <button
             onClick={handleDelete}
             className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs transition-all hover:opacity-80"
-            style={{ color: '#5c6273', border: '1px solid rgba(255,255,255,0.07)' }}
+            style={{ color: 'var(--fg-3)', border: '1px solid var(--line-1)' }}
           >
             <Trash2 size={12} />
             Delete scene
@@ -438,14 +438,14 @@ function ThumbnailField({ thumbnailUrl, onUpload, onClear }: ThumbnailFieldProps
           <button
             onClick={() => inputRef.current?.click()}
             className="flex-1 text-[10px] font-mono py-1.5 rounded-lg transition-opacity hover:opacity-80"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8a90a4' }}
+            style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
           >
             Replace
           </button>
           <button
             onClick={onClear}
             className="text-[10px] font-mono px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#5c6273' }}
+            style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-3)' }}
           >
             Remove
           </button>
@@ -459,18 +459,18 @@ function ThumbnailField({ thumbnailUrl, onUpload, onClear }: ThumbnailFieldProps
   return (
     <div>
       <div
-        className="flex flex-col items-center gap-2 px-3 py-4 rounded-xl border border-dashed transition-colors cursor-pointer hover:border-white/15"
-        style={{ borderColor: 'rgba(255,255,255,0.08)', color: '#5c6273' }}
+        className="flex flex-col items-center gap-2 px-3 py-4 rounded-xl border border-dashed transition-colors cursor-pointer hover:border-[var(--line-4)]"
+        style={{ borderColor: 'var(--line-2)', color: 'var(--fg-3)' }}
         onDrop={handleDrop}
         onDragOver={e => e.preventDefault()}
         onClick={() => inputRef.current?.click()}
       >
-        <ImageIcon size={15} style={{ color: '#3a3f4e' }} />
+        <ImageIcon size={15} style={{ color: 'var(--fg-4)' }} />
         <div className="text-center">
-          <p className="text-[11px]" style={{ color: '#5c6273' }}>
+          <p className="text-[11px]" style={{ color: 'var(--fg-3)' }}>
             {processing ? 'Processing…' : 'Upload custom image'}
           </p>
-          <p className="text-[10px] mt-0.5" style={{ color: '#3a3f4e' }}>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>
             Click or drag · JPG, PNG, WebP
           </p>
         </div>
@@ -504,17 +504,17 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
     <div
       className="rounded-xl overflow-hidden"
       style={{
-        background: 'rgba(255,255,255,0.02)',
+        background: 'var(--tint-1)',
         border: hasNoTarget
           ? '1px solid oklch(80% 0.16 60 / 0.3)'
-          : '1px solid rgba(255,255,255,0.07)',
+          : '1px solid var(--line-1)',
       }}
     >
       {/* Choice header */}
       <div className="flex items-center gap-2 px-3 pt-2.5 pb-0">
         <span
           className="shrink-0 w-5 h-5 flex items-center justify-center rounded font-mono text-[10px] font-medium"
-          style={{ background: 'rgba(255,255,255,0.06)', color: '#8a90a4', border: '1px solid rgba(255,255,255,0.08)' }}
+          style={{ background: 'var(--tint-3)', color: 'var(--fg-2)', border: '1px solid var(--line-2)' }}
         >
           {letter}
         </span>
@@ -536,15 +536,15 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
       <div className="px-3 pb-2.5 pt-2 space-y-2">
         {/* Destination */}
         <div className="relative">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono" style={{ color: '#3a3f4e' }}>
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono" style={{ color: 'var(--fg-4)' }}>
             →
           </span>
           <select
             className="w-full pl-6 pr-6 py-1.5 rounded-lg text-[11px] font-mono appearance-none outline-none transition-colors"
             style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: hasNoTarget ? '1px solid oklch(80% 0.16 60 / 0.4)' : '1px solid rgba(255,255,255,0.08)',
-              color: targetNode ? '#c9cdda' : hasNoTarget ? 'oklch(80% 0.16 60)' : '#5c6273',
+              background: 'var(--tint-2)',
+              border: hasNoTarget ? '1px solid oklch(80% 0.16 60 / 0.4)' : '1px solid var(--line-2)',
+              color: targetNode ? 'var(--fg-1)' : hasNoTarget ? 'oklch(80% 0.16 60)' : 'var(--fg-3)',
             }}
             value={choice.targetNodeId}
             onChange={e => onUpdate({ targetNodeId: e.target.value })}
@@ -557,7 +557,7 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
           <ChevronDown
             size={10}
             className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ color: '#5c6273' }}
+            style={{ color: 'var(--fg-3)' }}
           />
         </div>
 
@@ -572,7 +572,7 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
               {targetNode.type}
             </span>
             {targetNode.type === 'ending' && (
-              <span className="text-[9px] font-mono" style={{ color: '#3a3f4e' }}>· ends here</span>
+              <span className="text-[9px] font-mono" style={{ color: 'var(--fg-4)' }}>· ends here</span>
             )}
           </div>
         )}
@@ -581,7 +581,7 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
         <button
           onClick={() => setShowFeedback(v => !v)}
           className="text-[10px] font-mono transition-colors flex items-center gap-1"
-          style={{ color: showFeedback ? 'oklch(78% 0.18 285)' : '#3a3f4e' }}
+          style={{ color: showFeedback ? 'oklch(78% 0.18 285)' : 'var(--fg-4)' }}
         >
           {showFeedback ? '− hide feedback' : '+ add feedback'}
         </button>
@@ -593,14 +593,14 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
               className="w-full bg-transparent text-[11px] text-ink-2 placeholder-ink-4 outline-none resize-none rounded-lg px-2.5 py-2 leading-relaxed"
               rows={2}
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.07)',
+                background: 'var(--tint-1)',
+                border: '1px solid var(--line-1)',
               }}
               value={choice.feedback ?? ''}
               onChange={e => onUpdate({ feedback: e.target.value || undefined })}
               placeholder="Brief message shown to player after this choice…"
             />
-            <p className="text-[9px] font-mono mt-1" style={{ color: '#3a3f4e' }}>
+            <p className="text-[9px] font-mono mt-1" style={{ color: 'var(--fg-4)' }}>
               Shown as an overlay before advancing to the next scene.
             </p>
           </div>
@@ -662,7 +662,7 @@ function ClipPreviewPlayer({ url, name }: ClipPreviewPlayerProps) {
   }
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: '#000', border: '1px solid rgba(255,255,255,0.08)' }}>
+    <div className="rounded-xl overflow-hidden" style={{ background: '#000', border: '1px solid var(--line-2)' }}>
       {/* Video */}
       <div className="relative" style={{ aspectRatio: '16/9' }} onClick={toggle}>
         <video

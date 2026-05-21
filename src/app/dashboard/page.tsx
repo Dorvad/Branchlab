@@ -97,8 +97,8 @@ export default function DashboardPage() {
             <button
               onClick={handleCreate}
               disabled={isPending}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all hover:bg-white/5 disabled:opacity-50"
-              style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#c9cdda' }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)] disabled:opacity-50"
+              style={{ borderColor: 'var(--line-2)', color: 'var(--fg-1)' }}
             >
               <Plus size={14} />
               Blank
@@ -218,9 +218,9 @@ function EmptyState({
     <div className="flex flex-col items-center justify-center py-24 text-center">
       <div
         className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
-        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
+        style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}
       >
-        <GitBranch size={32} style={{ color: '#3a3f4e' }} />
+        <GitBranch size={32} style={{ color: 'var(--fg-4)' }} />
       </div>
 
       <h2 className="text-lg font-semibold text-ink-0 mb-2">No scenarios yet</h2>
@@ -231,8 +231,8 @@ function EmptyState({
       <div className="flex items-center gap-3">
         <button
           onClick={onCreate}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium border transition-all hover:bg-white/5"
-          style={{ borderColor: 'rgba(255,255,255,0.12)', color: '#c9cdda' }}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)]"
+          style={{ borderColor: 'var(--line-3)', color: 'var(--fg-1)' }}
         >
           <Plus size={14} />
           Blank scenario
@@ -264,7 +264,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3">
       <span className="text-xs font-mono text-ink-3 tracking-widest uppercase">{children}</span>
-      <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+      <div className="flex-1 h-px" style={{ background: 'var(--line-1)' }} />
     </div>
   )
 }

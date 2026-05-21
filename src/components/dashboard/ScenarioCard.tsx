@@ -22,17 +22,17 @@ const STATUS_STYLES = {
   },
   draft: {
     label: 'Draft',
-    dot: '#8a90a4',
-    text: '#8a90a4',
-    border: 'rgba(255,255,255,0.12)',
-    bg: 'rgba(255,255,255,0.03)',
+    dot: 'var(--fg-2)',
+    text: 'var(--fg-2)',
+    border: 'var(--line-3)',
+    bg: 'var(--tint-1)',
   },
   archived: {
     label: 'Archived',
-    dot: '#5c6273',
-    text: '#5c6273',
-    border: 'rgba(255,255,255,0.08)',
-    bg: 'rgba(255,255,255,0.02)',
+    dot: 'var(--fg-3)',
+    text: 'var(--fg-3)',
+    border: 'var(--line-2)',
+    bg: 'var(--tint-1)',
   },
 }
 
@@ -57,8 +57,8 @@ export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: Sce
       transition={{ delay: index * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       className="group rounded-2xl border overflow-hidden flex flex-col"
       style={{
-        background: 'rgba(17,20,28,0.7)',
-        borderColor: 'rgba(255,255,255,0.07)',
+        background: 'var(--tint-1)',
+        borderColor: 'var(--line-1)',
         backdropFilter: 'blur(16px)',
       }}
     >
@@ -66,8 +66,8 @@ export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: Sce
       <div
         className="relative h-40 flex items-center justify-center overflow-hidden"
         style={{
-          background: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.02) 0 6px, transparent 6px 12px), #0c0e14',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          background: 'repeating-linear-gradient(135deg, var(--tint-1) 0 6px, transparent 6px 12px), var(--bg-1)',
+          borderBottom: '1px solid var(--line-1)',
         }}
       >
         <svg width="48" height="48" viewBox="0 0 44 44" fill="none" className="opacity-20">
@@ -89,7 +89,7 @@ export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: Sce
         {hasDraftChanges && (
           <div
             className="absolute bottom-3 left-3 px-2 py-0.5 rounded-full text-[10px] font-mono tracking-wider"
-            style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.12)', color: '#8a90a4' }}
+            style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid var(--line-3)', color: 'var(--fg-2)' }}
           >
             draft changes
           </div>
@@ -102,7 +102,7 @@ export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: Sce
               <button
                 onClick={e => { e.preventDefault(); onDuplicate() }}
                 className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
-                style={{ background: 'rgba(0,0,0,0.5)', color: '#8a90a4' }}
+                style={{ background: 'rgba(0,0,0,0.5)', color: 'var(--fg-2)' }}
                 title="Duplicate"
               >
                 <Copy size={12} />
@@ -112,7 +112,7 @@ export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: Sce
               <button
                 onClick={e => { e.preventDefault(); onDelete() }}
                 className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:text-red-400"
-                style={{ background: 'rgba(0,0,0,0.5)', color: '#8a90a4' }}
+                style={{ background: 'rgba(0,0,0,0.5)', color: 'var(--fg-2)' }}
                 title="Delete"
               >
                 <Trash2 size={12} />
@@ -152,18 +152,18 @@ export function ScenarioCard({ scenario, index = 0, onDuplicate, onDelete }: Sce
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 pt-1 mt-auto border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center gap-2 pt-1 mt-auto border-t" style={{ borderColor: 'var(--line-1)' }}>
           <Link
             href={`/editor/${scenario.id}`}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-sm font-medium border transition-all hover:bg-white/5"
-            style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#c9cdda' }}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)]"
+            style={{ borderColor: 'var(--line-2)', color: 'var(--fg-1)' }}
           >
             Edit
           </Link>
           <Link
             href={`/preview/${scenario.id}`}
-            className="flex items-center gap-1.5 py-2 px-3 rounded-xl text-sm font-medium border transition-all hover:bg-white/5"
-            style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#c9cdda' }}
+            className="flex items-center gap-1.5 py-2 px-3 rounded-xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)]"
+            style={{ borderColor: 'var(--line-2)', color: 'var(--fg-1)' }}
           >
             <Eye size={13} />
             Preview

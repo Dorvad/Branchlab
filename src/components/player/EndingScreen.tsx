@@ -105,7 +105,7 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
         )}
 
         {/* Divider */}
-        <div className="h-px mb-8" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="h-px mb-8" style={{ background: 'var(--line-1)' }} />
 
         {/* Path taken */}
         {pathNodes.length > 0 && (
@@ -127,9 +127,9 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
                   <span
                     className="text-xs px-2.5 py-1 rounded-full"
                     style={{
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.09)',
-                      color: '#c9cdda',
+                      background: 'var(--tint-2)',
+                      border: '1px solid var(--line-2)',
+                      color: 'var(--fg-1)',
                     }}
                   >
                     {node.title}
@@ -164,8 +164,8 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
         >
           <button
             onClick={onRestart}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-medium border transition-all hover:bg-white/5 active:scale-[0.98]"
-            style={{ borderColor: 'rgba(255,255,255,0.14)', color: '#c9cdda' }}
+            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)] active:scale-[0.98]"
+            style={{ borderColor: 'var(--line-3)', color: 'var(--fg-1)' }}
           >
             <RotateCcw size={14} />
             Play again
@@ -174,8 +174,8 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
           {mode === 'play' && (
             <button
               onClick={handleShare}
-              className="flex items-center gap-2 py-3.5 px-5 rounded-2xl text-sm font-medium border transition-all hover:bg-white/5 active:scale-[0.98]"
-              style={{ borderColor: 'rgba(255,255,255,0.14)', color: '#8a90a4' }}
+              className="flex items-center gap-2 py-3.5 px-5 rounded-2xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)] active:scale-[0.98]"
+              style={{ borderColor: 'var(--line-3)', color: 'var(--fg-2)' }}
             >
               <Share2 size={14} />
               Share

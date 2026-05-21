@@ -38,11 +38,11 @@ const TYPE_CONFIG: Record<NodeType, { border: string; bg: string; glow: string; 
     dot: '#5ef5a8',
   },
   scene: {
-    border: 'rgba(255,255,255,0.14)',
-    bg: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
+    border: 'var(--line-3)',
+    bg: 'linear-gradient(180deg, var(--tint-2) 0%, rgba(255,255,255,0.01) 100%)',
     glow: '0 4px 24px rgba(0,0,0,0.45)',
-    label: '#8a90a4',
-    dot: '#5c6273',
+    label: 'var(--fg-2)',
+    dot: 'var(--fg-3)',
   },
   feedback: {
     border: 'oklch(78% 0.18 285 / 0.65)',
@@ -107,9 +107,9 @@ function ChoiceEdge({
           >
             <span
               style={{
-                background: 'rgba(9,9,14,0.95)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                color: d.isHighlighted ? 'oklch(82% 0.18 165)' : '#8a90a4',
+                background: 'var(--bg-glass)',
+                border: '1px solid var(--line-3)',
+                color: d.isHighlighted ? 'oklch(82% 0.18 165)' : 'var(--fg-2)',
                 fontSize: 9,
                 fontFamily: 'monospace',
                 padding: '2px 8px',
@@ -168,7 +168,7 @@ function ScenarioNodeCard({ data }: NodeProps) {
   const handleStyle: React.CSSProperties = {
     width: 10,
     height: 10,
-    background: '#09090e',
+    background: 'var(--bg-0)',
     border: '2px solid oklch(82% 0.18 165)',
     borderRadius: '50%',
     opacity: hovered ? 1 : 0,
@@ -218,9 +218,9 @@ function ScenarioNodeCard({ data }: NodeProps) {
           style={{
             height: 68,
             background: d.hasClip
-              ? `radial-gradient(ellipse 80% 60% at 50% 50%, ${cfg.dot}18 0%, transparent 70%), #0b0d13`
-              : 'repeating-linear-gradient(135deg, rgba(255,255,255,0.02) 0 5px, transparent 5px 10px), #0b0d13',
-            borderBottom: `1px solid ${d.isSelected ? 'oklch(82% 0.18 165 / 0.2)' : 'rgba(255,255,255,0.06)'}`,
+              ? `radial-gradient(ellipse 80% 60% at 50% 50%, ${cfg.dot}18 0%, transparent 70%), var(--bg-thumbnail)`
+              : 'repeating-linear-gradient(135deg, var(--tint-1) 0 5px, transparent 5px 10px), var(--bg-thumbnail)',
+            borderBottom: `1px solid ${d.isSelected ? 'oklch(82% 0.18 165 / 0.2)' : 'var(--line-1)'}`,
           }}
         >
           {d.hasClip ? (
@@ -229,13 +229,13 @@ function ScenarioNodeCard({ data }: NodeProps) {
               <span className="font-mono text-[10px]" style={{ color: cfg.label }}>clip attached</span>
             </div>
           ) : (
-            <Film size={15} style={{ color: '#2a2f3e' }} />
+            <Film size={15} style={{ color: 'var(--fg-4)' }} />
           )}
 
           {d.clipDuration != null && (
             <span
               className="absolute right-2 bottom-1.5 font-mono text-[9px] tabular-nums px-1 py-0.5 rounded"
-              style={{ background: 'rgba(0,0,0,0.5)', color: '#8a90a4' }}
+              style={{ background: 'rgba(0,0,0,0.5)', color: 'var(--fg-2)' }}
             >
               {Math.floor(d.clipDuration / 60)}:{String(d.clipDuration % 60).padStart(2, '0')}
             </span>
@@ -266,7 +266,7 @@ function ScenarioNodeCard({ data }: NodeProps) {
 
           <p
             className="font-semibold leading-tight mb-2 line-clamp-2"
-            style={{ fontSize: 12.5, color: d.title ? '#e8eaf0' : '#3a3f4e', fontStyle: d.title ? 'normal' : 'italic' }}
+            style={{ fontSize: 12.5, color: d.title ? 'var(--fg-1)' : 'var(--fg-4)', fontStyle: d.title ? 'normal' : 'italic' }}
           >
             {d.title || 'Untitled'}
           </p>
@@ -279,7 +279,7 @@ function ScenarioNodeCard({ data }: NodeProps) {
                 <span
                   key={i}
                   className="w-3.5 h-3.5 rounded flex items-center justify-center text-[8px] font-mono font-medium"
-                  style={{ background: 'rgba(255,255,255,0.07)', color: '#5c6273', border: '1px solid rgba(255,255,255,0.08)' }}
+                  style={{ background: 'var(--tint-3)', color: 'var(--fg-3)', border: '1px solid var(--line-2)' }}
                 >
                   {String.fromCharCode(65 + i)}
                 </span>
@@ -287,13 +287,13 @@ function ScenarioNodeCard({ data }: NodeProps) {
             ) : (
               <span
                 className="text-[9px] font-mono"
-                style={{ color: noChoicesWarning ? 'oklch(80% 0.16 60 / 0.7)' : '#3a3f4e' }}
+                style={{ color: noChoicesWarning ? 'oklch(80% 0.16 60 / 0.7)' : 'var(--fg-4)' }}
               >
                 {noChoicesWarning ? '⚠ no choices' : 'No choices'}
               </span>
             )}
             {d.choiceCount > 4 && (
-              <span className="text-[9px] font-mono" style={{ color: '#3a3f4e' }}>+{d.choiceCount - 4}</span>
+              <span className="text-[9px] font-mono" style={{ color: 'var(--fg-4)' }}>+{d.choiceCount - 4}</span>
             )}
           </div>
         </div>
@@ -351,13 +351,13 @@ function buildRFEdges(
       },
       reconnectable: true,
       style: {
-        stroke: isHighlighted ? 'oklch(82% 0.18 165 / 0.65)' : 'rgba(255,255,255,0.13)',
+        stroke: isHighlighted ? 'oklch(82% 0.18 165 / 0.65)' : 'var(--line-3)',
         strokeWidth: isHighlighted ? 2 : 1.5,
         transition: 'stroke 0.2s ease, stroke-width 0.2s ease',
       },
       markerEnd: {
         type: 'arrowclosed' as const,
-        color: isHighlighted ? 'oklch(82% 0.18 165 / 0.65)' : 'rgba(255,255,255,0.22)',
+        color: isHighlighted ? 'oklch(82% 0.18 165 / 0.65)' : 'var(--line-4)',
         width: 12,
         height: 12,
       },
@@ -396,8 +396,8 @@ function CanvasActions({ startNodeId }: { startNodeId: string | null }) {
       <div
         className="flex gap-1"
         style={{
-          background: 'rgba(9,9,14,0.9)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'var(--bg-glass)',
+          border: '1px solid var(--line-2)',
           borderRadius: 10,
           padding: '3px',
           backdropFilter: 'blur(8px)',
@@ -418,9 +418,9 @@ function CanvasBtn({ onClick, title, children }: { onClick: () => void; title: s
       onClick={onClick}
       title={title}
       className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
-      style={{ color: '#5c6273' }}
-      onMouseEnter={e => { e.currentTarget.style.color = '#c9cdda'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
-      onMouseLeave={e => { e.currentTarget.style.color = '#5c6273'; e.currentTarget.style.background = '' }}
+      style={{ color: 'var(--fg-3)' }}
+      onMouseEnter={e => { e.currentTarget.style.color = 'var(--fg-1)'; e.currentTarget.style.background = 'var(--tint-3)' }}
+      onMouseLeave={e => { e.currentTarget.style.color = 'var(--fg-3)'; e.currentTarget.style.background = '' }}
     >
       {children}
     </button>
@@ -521,9 +521,9 @@ export function ScenarioCanvas({
           <div className="flex flex-col items-center gap-4 max-w-xs text-center">
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)' }}
+              style={{ background: 'var(--tint-1)', border: '1px dashed var(--line-2)' }}
             >
-              <Film size={22} style={{ color: '#3a3f4e' }} />
+              <Film size={22} style={{ color: 'var(--fg-4)' }} />
             </div>
             <div>
               <p className="text-sm font-medium text-ink-2 mb-1">No scenes yet</p>
@@ -559,11 +559,12 @@ export function ScenarioCanvas({
         }}
         proOptions={{ hideAttribution: true }}
         deleteKeyCode={null}
-        style={{ background: '#0c0e14' }}
+        style={{ background: 'var(--bg-canvas)' }}
       >
         <Background
           variant={BackgroundVariant.Dots}
-          color="rgba(255,255,255,0.05)"
+          color="var(--tint-2)"
+
           gap={24}
           size={1.5}
         />
@@ -571,7 +572,7 @@ export function ScenarioCanvas({
         <MiniMap
           nodeColor={n => {
             const t = (n.data as unknown as NodeCardData).nodeType
-            return TYPE_CONFIG[t]?.dot ?? '#3a3f4e'
+            return TYPE_CONFIG[t]?.dot ?? 'var(--fg-4)'
           }}
           maskColor="rgba(8,9,13,0.85)"
           style={{ bottom: 12, right: 12 }}

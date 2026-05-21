@@ -21,7 +21,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="font-sans bg-bg-0 text-ink-0 antialiased">
+      <head>
+        {/* Anti-flash: set theme before first paint */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('branchlab-theme')||(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t)})()` }} />
+      </head>
+      <body className="font-sans antialiased" style={{ background: 'var(--bg-0)', color: 'var(--fg-0)' }}>
         {children}
       </body>
     </html>

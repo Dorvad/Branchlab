@@ -115,14 +115,14 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref }: ScenarioPl
         {/* ── Header ─────────────────────────────────────────────────────────── */}
         <header
           className="flex items-center justify-between px-5 py-4 shrink-0"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+          style={{ borderBottom: '1px solid var(--line-1)' }}
         >
           <div className="flex items-center gap-3 min-w-0">
             {backHref && (
               <Link
                 href={backHref}
-                className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-white/5"
-                style={{ color: '#5c6273' }}
+                className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-[var(--tint-3)]"
+                style={{ color: 'var(--fg-3)' }}
               >
                 <ArrowLeft size={16} />
               </Link>

@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor } from 'lucide-react'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScenarioCanvas } from './ScenarioCanvas'
 import { LeftSidebar } from './LeftSidebar'
@@ -59,13 +60,13 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
   const mobileWarning = (
     <div
       className="fixed inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center md:hidden"
-      style={{ background: '#0a0b10' }}
+      style={{ background: 'var(--bg-0)' }}
     >
       <div
         className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6"
-        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+        style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)' }}
       >
-        <Monitor size={22} style={{ color: '#5c6273' }} />
+        <Monitor size={22} style={{ color: 'var(--fg-3)' }} />
       </div>
       <h2 className="text-lg font-semibold text-ink-0 mb-2">Open on a larger screen</h2>
       <p className="text-sm text-ink-3 leading-relaxed max-w-xs">
@@ -84,7 +85,7 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
     return (
       <>
         {mobileWarning}
-        <div className="hidden md:flex h-screen items-center justify-center" style={{ background: '#0a0b10' }}>
+        <div className="hidden md:flex h-screen items-center justify-center" style={{ background: 'var(--bg-0)' }}>
           <div className="flex flex-col items-center gap-3">
             <Loader2 size={22} className="animate-spin text-ink-3" />
             <p className="text-[11px] font-mono text-ink-4">Loading scenario…</p>
@@ -98,7 +99,7 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
     return (
       <>
         {mobileWarning}
-        <div className="hidden md:flex h-screen items-center justify-center flex-col gap-4" style={{ background: '#0a0b10' }}>
+        <div className="hidden md:flex h-screen items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-0)' }}>
           <p className="text-ink-2 text-sm">Scenario not found.</p>
           <Link
             href="/dashboard"
@@ -482,7 +483,7 @@ function EditorUI({
     ? { borderColor: 'oklch(70% 0.18 25 / 0.4)', color: 'oklch(70% 0.18 25)' }
     : warningCount > 0
     ? { borderColor: 'oklch(80% 0.16 60 / 0.4)', color: 'oklch(80% 0.16 60)' }
-    : { borderColor: 'rgba(255,255,255,0.1)', color: '#5c6273' }
+    : { borderColor: 'var(--line-2)', color: 'var(--fg-3)' }
 
   const validateBtnLabel = errorCount > 0
     ? `${errorCount} error${errorCount !== 1 ? 's' : ''}${warningCount > 0 ? ` · ${warningCount}` : ''}`
@@ -491,14 +492,14 @@ function EditorUI({
     : 'Valid'
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#0a0b10' }}>
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-0)' }}>
 
       {/* ── Top bar ───────────────────────────────────────────────────────── */}
       <header
         className="flex items-center justify-between px-4 h-[52px] shrink-0 z-20 border-b"
         style={{
-          borderColor: 'rgba(255,255,255,0.07)',
-          background: 'rgba(8,9,13,0.92)',
+          borderColor: 'var(--line-1)',
+          background: 'var(--bg-glass)',
           backdropFilter: 'blur(16px)',
         }}
       >
@@ -511,7 +512,7 @@ function EditorUI({
             <ArrowLeft size={14} />
             <span className="hidden sm:inline">Dashboard</span>
           </Link>
-          <span style={{ color: 'rgba(255,255,255,0.12)' }}>/</span>
+          <span style={{ color: 'var(--line-3)' }}>/</span>
           <span className="text-sm font-medium text-ink-0 truncate max-w-[200px]">
             {scenario.title}
           </span>
@@ -522,10 +523,10 @@ function EditorUI({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAssets(v => !v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
             style={{
-              borderColor: showAssets ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
-              color: showAssets ? '#c9cdda' : '#8a90a4',
+              borderColor: showAssets ? 'var(--line-4)' : 'var(--line-2)',
+              color: showAssets ? 'var(--fg-1)' : 'var(--fg-2)',
             }}
           >
             <Library size={12} />
@@ -533,7 +534,7 @@ function EditorUI({
             {clips.length > 0 && (
               <span
                 className="px-1.5 py-px rounded-full font-mono text-[9px]"
-                style={{ background: 'rgba(255,255,255,0.08)', color: '#8a90a4' }}
+                style={{ background: 'var(--tint-3)', color: 'var(--fg-2)' }}
               >
                 {clips.length}
               </span>
@@ -542,7 +543,7 @@ function EditorUI({
 
           <button
             onClick={() => setShowValidation(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
             style={validateBtnStyle}
           >
             {errorCount > 0 ? (
@@ -557,10 +558,10 @@ function EditorUI({
           <button
             onClick={handleSave}
             disabled={isSaving || !isDirty}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5 disabled:opacity-40"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)] disabled:opacity-40"
             style={{
-              borderColor: isDirty && !isSaving ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)',
-              color: isDirty && !isSaving ? '#c9cdda' : '#5c6273',
+              borderColor: isDirty && !isSaving ? 'var(--line-4)' : 'var(--line-1)',
+              color: isDirty && !isSaving ? 'var(--fg-1)' : 'var(--fg-3)',
             }}
             title={isSaving ? 'Saving…' : isDirty ? 'Save now (⌘S)' : 'All changes saved'}
           >
@@ -568,13 +569,15 @@ function EditorUI({
             {isSaving ? 'Saving…' : isDirty ? 'Save now' : 'Saved'}
           </button>
 
+          <ThemeToggle />
+
           <button
             onClick={async () => {
               if (isDirty) await handleSave()
               window.open(`/preview/${scenario.id}`, '_blank', 'noopener,noreferrer')
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
-            style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#c9cdda' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
+            style={{ borderColor: 'var(--line-2)', color: 'var(--fg-1)' }}
           >
             <Eye size={12} />
             Preview
@@ -582,8 +585,8 @@ function EditorUI({
 
           <button
             onClick={() => setShowPublish(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
-            style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#8a90a4' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
+            style={{ borderColor: 'var(--line-2)', color: 'var(--fg-2)' }}
           >
             <Globe size={12} />
             {scenario.publishedVersion ? 'Republish' : 'Publish'}
@@ -638,8 +641,8 @@ function EditorUI({
       <div
         className="flex items-center gap-5 px-5 h-[34px] shrink-0 border-t"
         style={{
-          borderColor: 'rgba(255,255,255,0.06)',
-          background: 'rgba(8,9,13,0.75)',
+          borderColor: 'var(--line-1)',
+          background: 'var(--bg-glass-2)',
         }}
       >
         {[
@@ -654,7 +657,7 @@ function EditorUI({
           {
             label: 'Warnings',
             value: warningCount === 0 ? '✓ none' : String(warningCount),
-            color: warningCount === 0 ? '#5c6273' : 'oklch(80% 0.16 60)',
+            color: warningCount === 0 ? 'var(--fg-3)' : 'oklch(80% 0.16 60)',
           },
         ].map(stat => (
           <div key={stat.label} className="flex items-center gap-1.5">
@@ -663,7 +666,7 @@ function EditorUI({
             </span>
             <span
               className="text-[10px] font-mono"
-              style={{ color: 'color' in stat ? stat.color : '#8a90a4' }}
+              style={{ color: 'color' in stat ? stat.color : 'var(--fg-2)' }}
             >
               {stat.value}
             </span>
@@ -674,8 +677,8 @@ function EditorUI({
         <div className="ml-auto flex items-center gap-1.5">
           {isSaving ? (
             <>
-              <Loader2 size={10} className="animate-spin" style={{ color: '#5c6273' }} />
-              <span className="text-[10px] font-mono" style={{ color: '#5c6273' }}>Autosaving…</span>
+              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--fg-3)' }} />
+              <span className="text-[10px] font-mono" style={{ color: 'var(--fg-3)' }}>Autosaving…</span>
             </>
           ) : saveError ? (
             <span className="text-[10px] font-mono" style={{ color: 'oklch(70% 0.18 25)' }} title={saveError}>
@@ -686,7 +689,7 @@ function EditorUI({
               Unsaved
             </span>
           ) : savedAt ? (
-            <span className="text-[10px] font-mono" style={{ color: '#3a3f4e' }}>
+            <span className="text-[10px] font-mono" style={{ color: 'var(--fg-4)' }}>
               Saved {savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           ) : null}
@@ -730,9 +733,9 @@ function EditorUI({
 function StatusPill({ status }: { status: string }) {
   const s = {
     published: { color: 'oklch(82% 0.18 165)', bg: 'oklch(82% 0.18 165 / 0.1)', border: 'oklch(82% 0.18 165 / 0.3)' },
-    draft:     { color: '#8a90a4', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)' },
-    archived:  { color: '#5c6273', bg: 'rgba(255,255,255,0.02)', border: 'rgba(255,255,255,0.07)' },
-  }[status] ?? { color: '#8a90a4', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)' }
+    draft:     { color: 'var(--fg-2)', bg: 'var(--tint-2)', border: 'var(--line-2)' },
+    archived:  { color: 'var(--fg-3)', bg: 'var(--tint-1)', border: 'var(--line-1)' },
+  }[status] ?? { color: 'var(--fg-2)', bg: 'var(--tint-2)', border: 'var(--line-2)' }
 
   return (
     <span

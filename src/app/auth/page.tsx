@@ -44,7 +44,7 @@ export default function AuthPage() {
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: '#08090d' }}
+      style={{ background: 'var(--bg-0)' }}
     >
       {/* Background glow */}
       <div
@@ -75,8 +75,8 @@ export default function AuthPage() {
         <div
           className="rounded-2xl p-7"
           style={{
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'var(--tint-1)',
+            border: '1px solid var(--line-2)',
           }}
         >
           <h1 className="text-base font-semibold text-ink-0 mb-1">
@@ -99,9 +99,9 @@ export default function AuthPage() {
                 placeholder="you@example.com"
                 className="w-full rounded-xl px-3.5 py-2.5 text-sm outline-none transition-all"
                 style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#e4e6ed',
+                  background: 'var(--tint-2)',
+                  border: '1px solid var(--line-2)',
+                  color: 'var(--fg-1)',
                 }}
               />
             </div>
@@ -120,9 +120,9 @@ export default function AuthPage() {
                   placeholder="••••••••"
                   className="w-full rounded-xl px-3.5 py-2.5 text-sm outline-none transition-all pr-10"
                   style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: '#e4e6ed',
+                    background: 'var(--tint-2)',
+                    border: '1px solid var(--line-2)',
+                    color: 'var(--fg-1)',
                   }}
                 />
                 <button

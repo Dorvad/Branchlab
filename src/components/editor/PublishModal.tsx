@@ -115,8 +115,8 @@ export function PublishModal({
       <div
         className="w-full max-w-[460px] rounded-2xl overflow-hidden flex flex-col"
         style={{
-          background: '#0e0f16',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'var(--bg-1)',
+          border: '1px solid var(--line-2)',
           boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
           maxHeight: 'min(680px, 90vh)',
         }}
@@ -186,10 +186,10 @@ function FormStep({
       {/* Header */}
       <div
         className="flex items-center justify-between px-5 h-[52px] shrink-0 border-b"
-        style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+        style={{ borderColor: 'var(--line-1)' }}
       >
         <div className="flex items-center gap-2.5">
-          <Globe size={14} style={{ color: hasErrors ? 'oklch(70% 0.18 25)' : '#8a90a4' }} />
+          <Globe size={14} style={{ color: hasErrors ? 'oklch(70% 0.18 25)' : 'var(--fg-2)' }} />
           <span className="text-sm font-medium text-ink-0">
             {isRepublish ? 'Republish scenario' : 'Publish scenario'}
           </span>
@@ -219,12 +219,12 @@ function FormStep({
                 </p>
                 <ul className="mt-2 space-y-1">
                   {errors.slice(0, 3).map((e: { id: string; message: string }) => (
-                    <li key={e.id} className="text-[11px] leading-relaxed" style={{ color: '#8a90a4' }}>
+                    <li key={e.id} className="text-[11px] leading-relaxed" style={{ color: 'var(--fg-2)' }}>
                       · {e.message}
                     </li>
                   ))}
                   {errors.length > 3 && (
-                    <li className="text-[11px]" style={{ color: '#5c6273' }}>
+                    <li className="text-[11px]" style={{ color: 'var(--fg-3)' }}>
                       · and {errors.length - 3} more…
                     </li>
                   )}
@@ -251,13 +251,13 @@ function FormStep({
                 {warnings.length} warning{warnings.length !== 1 ? 's' : ''} — you can still publish
               </span>
               {showWarnings
-                ? <ChevronUp size={12} style={{ color: '#5c6273' }} />
-                : <ChevronDown size={12} style={{ color: '#5c6273' }} />}
+                ? <ChevronUp size={12} style={{ color: 'var(--fg-3)' }} />
+                : <ChevronDown size={12} style={{ color: 'var(--fg-3)' }} />}
             </button>
             {showWarnings && (
               <div className="px-4 pb-3 space-y-1 border-t" style={{ borderColor: 'oklch(80% 0.16 60 / 0.15)' }}>
                 {warnings.map((w: { id: string; message: string }) => (
-                  <p key={w.id} className="text-[11px] leading-relaxed pt-1" style={{ color: '#8a90a4' }}>
+                  <p key={w.id} className="text-[11px] leading-relaxed pt-1" style={{ color: 'var(--fg-2)' }}>
                     · {w.message}
                   </p>
                 ))}
@@ -286,30 +286,30 @@ function FormStep({
           <div>
             <p
               className="text-[9px] font-mono tracking-[0.16em] uppercase mb-1"
-              style={{ color: '#5c6273' }}
+              style={{ color: 'var(--fg-3)' }}
             >
               Public URL
             </p>
-            <p className="text-[10px] mb-2" style={{ color: '#3a3f4e' }}>
+            <p className="text-[10px] mb-2" style={{ color: 'var(--fg-4)' }}>
               Share this link with anyone. Only lowercase letters, numbers, and hyphens.
             </p>
 
             <div
               className="flex items-center rounded-xl overflow-hidden"
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: `1px solid ${slugError ? 'oklch(70% 0.18 25 / 0.5)' : 'rgba(255,255,255,0.1)'}`,
+                background: 'var(--tint-1)',
+                border: `1px solid ${slugError ? 'oklch(70% 0.18 25 / 0.5)' : 'var(--line-2)'}`,
               }}
             >
               <span
                 className="shrink-0 pl-3 pr-1 font-mono text-[12px] select-none"
-                style={{ color: '#5c6273' }}
+                style={{ color: 'var(--fg-3)' }}
               >
                 /play/
               </span>
               <input
                 className="flex-1 bg-transparent py-2.5 pr-3 font-mono text-[12px] outline-none"
-                style={{ color: '#e8eaf0' }}
+                style={{ color: 'var(--fg-1)' }}
                 value={slug}
                 onChange={onSlugChange}
                 placeholder="my-scenario"
@@ -318,7 +318,7 @@ function FormStep({
               />
               {slugState === 'checking' && (
                 <span className="pr-3">
-                  <Loader2 size={12} className="animate-spin" style={{ color: '#5c6273' }} />
+                  <Loader2 size={12} className="animate-spin" style={{ color: 'var(--fg-3)' }} />
                 </span>
               )}
             </div>
@@ -332,7 +332,7 @@ function FormStep({
                 ✓ Available
               </p>
             ) : slugState === 'checking' ? (
-              <p className="text-[10px] font-mono mt-1.5" style={{ color: '#5c6273' }}>
+              <p className="text-[10px] font-mono mt-1.5" style={{ color: 'var(--fg-3)' }}>
                 Checking availability…
               </p>
             ) : null}
@@ -343,24 +343,24 @@ function FormStep({
         {!hasErrors && (
           <div
             className="px-3.5 py-3 rounded-xl space-y-1.5"
-            style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}
+            style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}
           >
             {isRepublish && scenario.publishedVersion ? (
               <>
-                <p className="text-[11px] leading-relaxed" style={{ color: '#5c6273' }}>
+                <p className="text-[11px] leading-relaxed" style={{ color: 'var(--fg-3)' }}>
                   Currently live at{' '}
-                  <span className="font-mono" style={{ color: '#8a90a4' }}>
+                  <span className="font-mono" style={{ color: 'var(--fg-2)' }}>
                     /play/{scenario.publishedVersion.slug}
                   </span>
                   {' '}· v{scenario.publishedVersion.version}
                   {' '}· {new Date(scenario.publishedVersion.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </p>
-                <p className="text-[11px] leading-relaxed" style={{ color: '#3a3f4e' }}>
+                <p className="text-[11px] leading-relaxed" style={{ color: 'var(--fg-4)' }}>
                   Republishing replaces the live version at this URL. All edits made since the last publish will go live. Your previous draft is unaffected.
                 </p>
               </>
             ) : (
-              <p className="text-[11px] leading-relaxed" style={{ color: '#5c6273' }}>
+              <p className="text-[11px] leading-relaxed" style={{ color: 'var(--fg-3)' }}>
                 Publishing creates a permanent snapshot of your scenario. The public link stays stable — you can keep editing the draft without affecting what players see.
               </p>
             )}
@@ -378,13 +378,13 @@ function FormStep({
       {/* Footer */}
       <div
         className="shrink-0 px-5 py-3.5 border-t flex items-center justify-end gap-2"
-        style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+        style={{ borderColor: 'var(--line-1)' }}
       >
         <button
           onClick={onClose}
           disabled={isPublishing}
-          className="px-4 py-2 rounded-xl text-xs font-mono transition-all hover:bg-white/5 disabled:opacity-50"
-          style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#8a90a4' }}
+          className="px-4 py-2 rounded-xl text-xs font-mono transition-all hover:bg-[var(--tint-3)] disabled:opacity-50"
+          style={{ border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
         >
           Cancel
         </button>
@@ -397,9 +397,9 @@ function FormStep({
             color: '#052916',
             boxShadow: '0 0 20px oklch(82% 0.18 165 / 0.35)',
           } : {
-            background: 'rgba(255,255,255,0.04)',
-            color: '#3a3f4e',
-            border: '1px solid rgba(255,255,255,0.07)',
+            background: 'var(--tint-2)',
+            color: 'var(--fg-4)',
+            border: '1px solid var(--line-1)',
             cursor: 'not-allowed',
           }}
         >
@@ -433,7 +433,7 @@ function SuccessStep({ scenario, slug, copied, onCopy, onClose }: SuccessStepPro
       {/* Header */}
       <div
         className="flex items-center justify-between px-5 h-[52px] shrink-0 border-b"
-        style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+        style={{ borderColor: 'var(--line-1)' }}
       >
         <div className="flex items-center gap-2.5">
           <CheckCircle2 size={14} style={{ color: 'oklch(82% 0.18 165)' }} />
@@ -466,7 +466,7 @@ function SuccessStep({ scenario, slug, copied, onCopy, onClose }: SuccessStepPro
           }}
         >
           <Globe size={12} style={{ color: 'oklch(82% 0.18 165)', flexShrink: 0 }} />
-          <span className="flex-1 font-mono text-[12px] truncate" style={{ color: '#c9cdda' }}>
+          <span className="flex-1 font-mono text-[12px] truncate" style={{ color: 'var(--fg-1)' }}>
             {publicUrl}
           </span>
         </div>
@@ -475,8 +475,8 @@ function SuccessStep({ scenario, slug, copied, onCopy, onClose }: SuccessStepPro
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={onCopy}
-            className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
-            style={{ borderColor: 'rgba(255,255,255,0.1)', color: copied ? 'oklch(82% 0.18 165)' : '#c9cdda' }}
+            className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
+            style={{ borderColor: 'var(--line-2)', color: copied ? 'oklch(82% 0.18 165)' : 'var(--fg-1)' }}
           >
             <Copy size={12} />
             {copied ? 'Copied!' : 'Copy link'}
@@ -501,12 +501,12 @@ function SuccessStep({ scenario, slug, copied, onCopy, onClose }: SuccessStepPro
       {/* Footer */}
       <div
         className="shrink-0 px-5 py-3.5 border-t flex justify-end"
-        style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+        style={{ borderColor: 'var(--line-1)' }}
       >
         <button
           onClick={onClose}
-          className="px-4 py-2 rounded-xl text-xs font-mono transition-all hover:bg-white/5"
-          style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#8a90a4' }}
+          className="px-4 py-2 rounded-xl text-xs font-mono transition-all hover:bg-[var(--tint-3)]"
+          style={{ border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
         >
           Continue editing
         </button>

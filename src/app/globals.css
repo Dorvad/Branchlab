@@ -2,68 +2,150 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --neon-mint: oklch(82% 0.18 165);
+/* ── Color tokens ──────────────────────────────────────────────────────────── */
+/* Dark theme (default) */
+:root,
+[data-theme="dark"] {
+  /* Backgrounds */
+  --bg-0: #08090d;
+  --bg-1: #0c0e14;
+  --bg-2: #11141c;
+  --bg-3: #171b26;
+  --bg-canvas: #0c0e14;
+  --bg-glass:   rgba(8,9,13,0.92);
+  --bg-glass-2: rgba(8,9,13,0.75);
+  --bg-thumbnail: #0b0d13; /* media areas — always dark */
+
+  /* Foreground / text */
+  --fg-0: #f5f6fa;
+  --fg-1: #c9cdda;
+  --fg-2: #8a90a4;
+  --fg-3: #5c6273;
+  --fg-4: #3a3f4e;
+
+  /* Surface tints */
+  --tint-1: rgba(255,255,255,0.03);
+  --tint-2: rgba(255,255,255,0.05);
+  --tint-3: rgba(255,255,255,0.08);
+
+  /* Borders / strokes */
+  --line-1: rgba(255,255,255,0.06);
+  --line-2: rgba(255,255,255,0.08);
+  --line-3: rgba(255,255,255,0.13);
+  --line-4: rgba(255,255,255,0.18);
+  --line-active: rgba(255,255,255,0.25);
+
+  /* Accent glow helpers */
+  --neon-mint:   oklch(82% 0.18 165);
   --neon-violet: oklch(78% 0.18 285);
-  --neon-amber: oklch(80% 0.16 60);
+  --neon-amber:  oklch(80% 0.16 60);
   --neon-danger: oklch(70% 0.18 25);
-  --glow-mint: 0 0 24px oklch(82% 0.18 165 / 0.4);
+  --glow-mint:   0 0 24px oklch(82% 0.18 165 / 0.4);
   --glow-violet: 0 0 24px oklch(78% 0.18 285 / 0.4);
-  --glow-amber: 0 0 24px oklch(80% 0.16 60 / 0.4);
-  --stroke: rgba(255, 255, 255, 0.07);
-  --stroke-2: rgba(255, 255, 255, 0.12);
+  --glow-amber:  0 0 24px oklch(80% 0.16 60 / 0.4);
+
+  /* Legacy aliases used in older inline styles */
+  --stroke:   rgba(255,255,255,0.07);
+  --stroke-2: rgba(255,255,255,0.12);
 }
 
-html,
-body {
-  background: #08090d;
-  color: #f5f6fa;
+/* Light theme */
+[data-theme="light"] {
+  --bg-0: #f0f2f8;
+  --bg-1: #ffffff;
+  --bg-2: #eaecf3;
+  --bg-3: #dde2ed;
+  --bg-canvas: #e0e4ef;
+  --bg-glass:   rgba(240,242,248,0.92);
+  --bg-glass-2: rgba(240,242,248,0.85);
+  --bg-thumbnail: #0b0d13; /* media areas stay dark even in light mode */
+
+  --fg-0: #090c1a;
+  --fg-1: #1c2038;
+  --fg-2: #3d4462;
+  --fg-3: #6e7690;
+  --fg-4: #9aa0b8;
+
+  --tint-1: rgba(0,0,0,0.02);
+  --tint-2: rgba(0,0,0,0.04);
+  --tint-3: rgba(0,0,0,0.07);
+
+  --line-1: rgba(0,0,0,0.06);
+  --line-2: rgba(0,0,0,0.08);
+  --line-3: rgba(0,0,0,0.11);
+  --line-4: rgba(0,0,0,0.16);
+  --line-active: rgba(0,0,0,0.22);
+
+  --stroke:   rgba(0,0,0,0.07);
+  --stroke-2: rgba(0,0,0,0.11);
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-::-webkit-scrollbar-track {
-  background: #08090d;
-}
-::-webkit-scrollbar-thumb {
-  background: #3a3f4e;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #5c6273;
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+html, body {
+  background: var(--bg-0);
+  color: var(--fg-0);
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-/* ReactFlow canvas overrides */
-.react-flow__background {
-  background: #0c0e14 !important;
+/* ── Inspector inputs ──────────────────────────────────────────────────────── */
+.inspector-input {
+  width: 100%;
+  background: var(--tint-1);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--fg-1);
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: inherit;
 }
+.inspector-input:focus {
+  border-color: var(--line-4);
+  background: var(--tint-2);
+}
+.inspector-input::placeholder {
+  color: var(--fg-4);
+}
+select.inspector-input option {
+  background: var(--bg-1);
+  color: var(--fg-1);
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-0); }
+::-webkit-scrollbar-thumb { background: var(--fg-4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-3); }
+
+/* ── ReactFlow overrides ───────────────────────────────────────────────────── */
+.react-flow__background { background: var(--bg-canvas) !important; }
+
 .react-flow__controls {
-  background: #11141c !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--bg-2) !important;
+  border: 1px solid var(--line-2) !important;
   border-radius: 10px !important;
   overflow: hidden;
 }
 .react-flow__controls-button {
   background: transparent !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
-  color: #8a90a4 !important;
-  fill: #8a90a4 !important;
+  border-bottom: 1px solid var(--line-1) !important;
+  color: var(--fg-2) !important;
+  fill: var(--fg-2) !important;
 }
 .react-flow__controls-button:hover {
-  background: rgba(255, 255, 255, 0.05) !important;
+  background: var(--tint-2) !important;
 }
 .react-flow__minimap {
-  background: #0c0e14 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--bg-1) !important;
+  border: 1px solid var(--line-2) !important;
   border-radius: 10px !important;
   overflow: hidden;
 }
-.react-flow__edge-path {
-  stroke: rgba(255, 255, 255, 0.2) !important;
-}
-.react-flow__edge.selected .react-flow__edge-path {
-  stroke: #5ef5a8 !important;
+.react-flow__edge-path { stroke: var(--line-3) !important; }
+.react-flow__edge.selected .react-flow__edge-path { stroke: oklch(82% 0.18 165) !important; }
+
+/* Connection line while dragging */
+.react-flow__connection-path {
+  stroke: oklch(82% 0.18 165 / 0.6) !important;
 }

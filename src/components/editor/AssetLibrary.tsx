@@ -109,18 +109,18 @@ export function AssetLibrary({
       transition={{ type: 'spring', stiffness: 380, damping: 38 }}
       className="fixed top-[52px] right-0 bottom-[34px] z-40 flex flex-col w-[340px] border-l overflow-hidden"
       style={{
-        background: '#09090e',
-        borderColor: 'rgba(255,255,255,0.07)',
+        background: 'var(--bg-0)',
+        borderColor: 'var(--line-1)',
         boxShadow: '-8px 0 32px rgba(0,0,0,0.4)',
       }}
     >
       {/* Header */}
       <div
         className="flex items-center justify-between px-4 h-[44px] shrink-0 border-b"
-        style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+        style={{ borderColor: 'var(--line-1)' }}
       >
         <div className="flex items-center gap-2">
-          <Film size={13} style={{ color: '#8a90a4' }} />
+          <Film size={13} style={{ color: 'var(--fg-2)' }} />
           <span className="text-xs font-mono text-ink-2 tracking-wider uppercase">
             Asset Library
           </span>
@@ -137,8 +137,8 @@ export function AssetLibrary({
           <div
             className="relative flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-dashed cursor-pointer transition-all"
             style={{
-              borderColor: isDragging ? 'oklch(82% 0.18 165 / 0.5)' : 'rgba(255,255,255,0.1)',
-              background: isDragging ? 'oklch(82% 0.18 165 / 0.04)' : 'rgba(255,255,255,0.02)',
+              borderColor: isDragging ? 'oklch(82% 0.18 165 / 0.5)' : 'var(--line-2)',
+              background: isDragging ? 'oklch(82% 0.18 165 / 0.04)' : 'var(--tint-1)',
               pointerEvents: isUploading ? 'none' : undefined,
               opacity: isUploading ? 0.6 : 1,
             }}
@@ -158,19 +158,19 @@ export function AssetLibrary({
             />
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+              style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)' }}
             >
               {isUploading ? (
                 <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white/60 animate-spin" />
               ) : (
-                <Upload size={16} style={{ color: '#8a90a4' }} />
+                <Upload size={16} style={{ color: 'var(--fg-2)' }} />
               )}
             </div>
             <div className="text-center">
-              <p className="text-[12px] font-medium" style={{ color: '#c9cdda' }}>
+              <p className="text-[12px] font-medium" style={{ color: 'var(--fg-1)' }}>
                 {isUploading ? 'Uploading…' : 'Add videos'}
               </p>
-              <p className="text-[10px] mt-0.5 font-mono" style={{ color: '#5c6273' }}>
+              <p className="text-[10px] mt-0.5 font-mono" style={{ color: 'var(--fg-3)' }}>
                 MP4 · WebM · MOV · max 500 MB
               </p>
             </div>
@@ -198,7 +198,7 @@ export function AssetLibrary({
                       )}
                     </div>
                     {!u.error && (
-                      <div className="h-0.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                      <div className="h-0.5 rounded-full overflow-hidden" style={{ background: 'var(--tint-3)' }}>
                         <div
                           className="h-full rounded-full transition-all duration-100"
                           style={{
@@ -234,16 +234,16 @@ export function AssetLibrary({
           )}
 
           {!canAttach && clips.length > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <Info size={11} style={{ color: '#5c6273', flexShrink: 0 }} />
-              <p className="text-[11px]" style={{ color: '#5c6273' }}>Select a node to attach clips</p>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}>
+              <Info size={11} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
+              <p className="text-[11px]" style={{ color: 'var(--fg-3)' }}>Select a node to attach clips</p>
             </div>
           )}
 
           {/* Clip list */}
           {clips.length === 0 && uploads.length === 0 ? (
             <div className="py-8 text-center">
-              <Film size={24} className="mx-auto mb-3 opacity-20" style={{ color: '#8a90a4' }} />
+              <Film size={24} className="mx-auto mb-3 opacity-20" style={{ color: 'var(--fg-2)' }} />
               <p className="text-[11px] font-mono text-ink-4">No clips yet</p>
             </div>
           ) : (
@@ -281,10 +281,10 @@ function ClipCard({ clip, canAttach, onAttach, onRemove }: ClipCardProps) {
   return (
     <div
       className="rounded-xl overflow-hidden"
-      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
+      style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}
     >
       {/* Video thumbnail */}
-      <div className="relative h-28 overflow-hidden" style={{ background: '#0c0d12' }}>
+      <div className="relative h-28 overflow-hidden" style={{ background: 'var(--bg-1)' }}>
         <video
           className="w-full h-full object-cover opacity-90"
           src={clip.url}
@@ -296,13 +296,13 @@ function ClipCard({ clip, canAttach, onAttach, onRemove }: ClipCardProps) {
         />
         <div
           className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded font-mono text-[10px]"
-          style={{ background: 'rgba(0,0,0,0.7)', color: '#c9cdda' }}
+          style={{ background: 'rgba(0,0,0,0.7)', color: 'var(--fg-1)' }}
         >
           {formatDuration(clip.duration)}
         </div>
         <div
           className="absolute top-2 left-2 px-1.5 py-0.5 rounded font-mono text-[9px] tracking-wider"
-          style={{ background: 'rgba(0,0,0,0.6)', color: '#8a90a4', border: '1px solid rgba(255,255,255,0.1)' }}
+          style={{ background: 'rgba(0,0,0,0.6)', color: 'var(--fg-2)', border: '1px solid var(--line-2)' }}
         >
           {ext}
         </div>
@@ -310,10 +310,10 @@ function ClipCard({ clip, canAttach, onAttach, onRemove }: ClipCardProps) {
 
       {/* Metadata */}
       <div className="px-3 py-2.5">
-        <p className="text-[12px] font-medium leading-snug mb-1" style={{ color: '#c9cdda' }} title={clip.name}>
+        <p className="text-[12px] font-medium leading-snug mb-1" style={{ color: 'var(--fg-1)' }} title={clip.name}>
           {truncatedName}
         </p>
-        <p className="text-[10px] font-mono" style={{ color: '#5c6273' }}>
+        <p className="text-[10px] font-mono" style={{ color: 'var(--fg-3)' }}>
           {formatFileSize(clip.size)}
         </p>
       </div>
@@ -337,7 +337,7 @@ function ClipCard({ clip, canAttach, onAttach, onRemove }: ClipCardProps) {
         <button
           onClick={onRemove}
           className="flex items-center justify-center w-7 h-7 rounded-lg transition-colors hover:text-red-400"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: '#5c6273' }}
+          style={{ background: 'var(--tint-2)', border: '1px solid var(--line-1)', color: 'var(--fg-3)' }}
           title="Remove clip"
         >
           <Trash2 size={11} />

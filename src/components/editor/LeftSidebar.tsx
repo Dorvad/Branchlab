@@ -5,7 +5,7 @@ import type { Scenario, NodeType } from '@/types'
 
 const TYPE_DOT: Record<NodeType, string> = {
   start:    'oklch(82% 0.18 165)',
-  scene:    '#5c6273',
+  scene:    'var(--fg-3)',
   feedback: 'oklch(78% 0.18 285)',
   ending:   'oklch(80% 0.16 60)',
 }
@@ -44,12 +44,12 @@ export function LeftSidebar({
   return (
     <aside
       className="flex flex-col w-[240px] shrink-0 border-r overflow-hidden"
-      style={{ borderColor: 'rgba(255,255,255,0.06)', background: '#09090e' }}
+      style={{ borderColor: 'var(--line-1)', background: 'var(--bg-1)' }}
     >
       <div className="flex-1 overflow-y-auto">
 
         {/* ── Scenario header ──────────────────────────────────────────────── */}
-        <div className="px-4 pt-4 pb-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+        <div className="px-4 pt-4 pb-3 border-b" style={{ borderColor: 'var(--tint-2)' }}>
           <p className="text-xs font-semibold text-ink-0 leading-snug mb-1 line-clamp-2">
             {scenario.title}
           </p>
@@ -78,7 +78,7 @@ export function LeftSidebar({
               className="group relative"
               title="Each scene is one video in the story. Players progress by making choices at the end of each video."
             >
-              <Info size={10} style={{ color: '#3a3f4e', cursor: 'help' }} />
+              <Info size={10} style={{ color: 'var(--fg-4)', cursor: 'help' }} />
             </div>
           </div>
 
@@ -100,9 +100,9 @@ export function LeftSidebar({
                     key={node.id}
                     onClick={() => onSelectNode(node.id)}
                     className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors"
-                    style={{ background: isSelected ? 'rgba(255,255,255,0.07)' : undefined }}
+                    style={{ background: isSelected ? 'var(--tint-3)' : undefined }}
                     onMouseEnter={e => {
-                      if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                      if (!isSelected) e.currentTarget.style.background = 'var(--tint-1)'
                     }}
                     onMouseLeave={e => {
                       if (!isSelected) e.currentTarget.style.background = ''
@@ -119,9 +119,9 @@ export function LeftSidebar({
                     {/* Title */}
                     <span
                       className="flex-1 text-[12px] leading-snug truncate"
-                      style={{ color: isSelected ? '#f5f6fa' : '#8a90a4' }}
+                      style={{ color: isSelected ? 'var(--fg-0)' : 'var(--fg-2)' }}
                     >
-                      {node.title || <span style={{ color: '#3a3f4e', fontStyle: 'italic' }}>Untitled</span>}
+                      {node.title || <span style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>Untitled</span>}
                     </span>
                     {/* Status indicators */}
                     {status === 'error' && (
@@ -132,11 +132,11 @@ export function LeftSidebar({
                     )}
                     {/* Clip indicator */}
                     {!status && node.clip && (
-                      <Film size={9} style={{ color: '#3a3f4e', flexShrink: 0 }} />
+                      <Film size={9} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
                     )}
                     {/* Choice count */}
                     {!status && !node.clip && node.choices.length > 0 && (
-                      <span className="shrink-0 font-mono text-[9px]" style={{ color: '#3a3f4e' }}>
+                      <span className="shrink-0 font-mono text-[9px]" style={{ color: 'var(--fg-4)' }}>
                         {node.choices.length}
                       </span>
                     )}
@@ -148,7 +148,7 @@ export function LeftSidebar({
         </div>
 
         {/* ── Assets summary ───────────────────────────────────────────────── */}
-        <div className="px-3 pt-2 pb-3 mt-1 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+        <div className="px-3 pt-2 pb-3 mt-1 border-t" style={{ borderColor: 'var(--line-1)' }}>
           <SectionLabel>Attached Clips</SectionLabel>
           {clips.length === 0 ? (
             <p className="text-[11px] text-ink-4 mt-2 px-1 leading-relaxed">
@@ -160,14 +160,14 @@ export function LeftSidebar({
                 <div
                   key={clip.id}
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
-                  style={{ background: 'rgba(255,255,255,0.02)' }}
+                  style={{ background: 'var(--tint-1)' }}
                 >
-                  <Film size={10} style={{ color: '#5c6273', flexShrink: 0 }} />
+                  <Film size={10} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
                   <div className="min-w-0">
                     <p className="font-mono text-[10px] text-ink-3 truncate">
                       {clip.nodeTitle}
                     </p>
-                    <p className="font-mono text-[9px]" style={{ color: '#3a3f4e' }}>
+                    <p className="font-mono text-[9px]" style={{ color: 'var(--fg-4)' }}>
                       {clip.duration}s
                     </p>
                   </div>
@@ -179,9 +179,9 @@ export function LeftSidebar({
 
         {/* ── Graph info ───────────────────────────────────────────────────── */}
         {startNode && (
-          <div className="px-3 pb-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+          <div className="px-3 pb-3 border-t" style={{ borderColor: 'var(--line-1)' }}>
             <div className="flex items-center gap-2 mt-3">
-              <GitBranch size={11} style={{ color: '#5c6273' }} />
+              <GitBranch size={11} style={{ color: 'var(--fg-3)' }} />
               <span className="text-[11px] text-ink-3">
                 Entry: <span className="text-ink-1">{startNode.title}</span>
               </span>
@@ -190,7 +190,7 @@ export function LeftSidebar({
         )}
 
         {/* ── Keyboard hints ───────────────────────────────────────────────── */}
-        <div className="px-4 pb-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+        <div className="px-4 pb-4 border-t" style={{ borderColor: 'var(--line-1)' }}>
           <div className="mt-3 space-y-1">
             <KeyHint keys={['Del']} label="Delete selected" />
             <KeyHint keys={['⌘', 'D']} label="Duplicate" />
@@ -201,7 +201,7 @@ export function LeftSidebar({
       </div>
 
       {/* ── Add scene button ──────────────────────────────────────────────── */}
-      <div className="shrink-0 p-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+      <div className="shrink-0 p-3 border-t" style={{ borderColor: 'var(--line-1)' }}>
         <button
           onClick={onAddNode}
           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-all hover:brightness-110 active:scale-[0.98]"
@@ -214,7 +214,7 @@ export function LeftSidebar({
           <Plus size={14} />
           Add Scene
         </button>
-        <p className="text-center text-[9px] font-mono mt-1.5" style={{ color: '#3a3f4e' }}>
+        <p className="text-center text-[9px] font-mono mt-1.5" style={{ color: 'var(--fg-4)' }}>
           Scenes play in sequence based on player choices
         </p>
       </div>
@@ -235,9 +235,9 @@ function StatChip({ label, color }: { label: string; color?: string }) {
     <span
       className="text-[10px] font-mono px-2 py-0.5 rounded-full"
       style={{
-        background: color ? `${color}14` : 'rgba(255,255,255,0.05)',
-        border: `1px solid ${color ? `${color}30` : 'rgba(255,255,255,0.07)'}`,
-        color: color ?? '#5c6273',
+        background: color ? `${color}14` : 'var(--tint-2)',
+        border: `1px solid ${color ? `${color}30` : 'var(--line-1)'}`,
+        color: color ?? 'var(--fg-3)',
       }}
     >
       {label}
@@ -254,16 +254,16 @@ function KeyHint({ keys, label }: { keys: string[]; label: string }) {
             key={i}
             className="px-1 py-0.5 rounded text-[8px] font-mono"
             style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: '#3a3f4e',
+              background: 'var(--tint-2)',
+              border: '1px solid var(--line-2)',
+              color: 'var(--fg-4)',
             }}
           >
             {k}
           </span>
         ))}
       </div>
-      <span className="text-[10px]" style={{ color: '#3a3f4e' }}>{label}</span>
+      <span className="text-[10px]" style={{ color: 'var(--fg-4)' }}>{label}</span>
     </div>
   )
 }

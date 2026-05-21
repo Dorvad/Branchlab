@@ -34,8 +34,8 @@ export function ValidationPanel({ result, onClose, onSelectNode }: ValidationPan
       <div
         className="w-full max-w-[480px] rounded-2xl overflow-hidden flex flex-col"
         style={{
-          background: '#0e0f16',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'var(--bg-1)',
+          border: '1px solid var(--line-2)',
           boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
           maxHeight: 'min(680px, 90vh)',
         }}
@@ -43,7 +43,7 @@ export function ValidationPanel({ result, onClose, onSelectNode }: ValidationPan
         {/* ── Header ────────────────────────────────────────────────────────── */}
         <div
           className="flex items-center justify-between px-5 h-[52px] shrink-0 border-b"
-          style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+          style={{ borderColor: 'var(--line-1)' }}
         >
           <div className="flex items-center gap-2.5">
             {valid ? (
@@ -114,7 +114,7 @@ export function ValidationPanel({ result, onClose, onSelectNode }: ValidationPan
         {/* ── Footer ────────────────────────────────────────────────────────── */}
         <div
           className="shrink-0 px-5 py-3 border-t flex items-center justify-between"
-          style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+          style={{ borderColor: 'var(--line-1)' }}
         >
           {!valid && (
             <span className="text-[10px] font-mono text-ink-4">
@@ -125,8 +125,8 @@ export function ValidationPanel({ result, onClose, onSelectNode }: ValidationPan
           )}
           <button
             onClick={onClose}
-            className="ml-auto px-4 py-2 rounded-xl text-xs font-mono transition-all hover:bg-white/5"
-            style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#8a90a4' }}
+            className="ml-auto px-4 py-2 rounded-xl text-xs font-mono transition-all hover:bg-[var(--tint-3)]"
+            style={{ border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
           >
             Close
           </button>
@@ -217,14 +217,14 @@ function IssueCard({ issue, accentColor, onSelectNode, onClose }: IssueCardProps
           style={{ color: accentColor }}
         />
         <div className="flex-1 min-w-0">
-          <p className="text-[12px] leading-relaxed" style={{ color: '#c9cdda' }}>
+          <p className="text-[12px] leading-relaxed" style={{ color: 'var(--fg-1)' }}>
             {issue.message}
           </p>
 
           {issue.suggestedFix && (
             <div className="flex items-start gap-1.5 mt-2">
-              <Lightbulb size={10} className="mt-0.5 shrink-0" style={{ color: '#5c6273' }} />
-              <p className="text-[10px] leading-relaxed" style={{ color: '#5c6273' }}>
+              <Lightbulb size={10} className="mt-0.5 shrink-0" style={{ color: 'var(--fg-3)' }} />
+              <p className="text-[10px] leading-relaxed" style={{ color: 'var(--fg-3)' }}>
                 {issue.suggestedFix}
               </p>
             </div>
