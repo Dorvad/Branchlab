@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor } from 'lucide-react'
@@ -171,6 +171,13 @@ function EditorUI({
   setShowAssets,
 }: EditorUIProps) {
   const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Refs so the autosave timeout always reads the latest state without stale closures
+  const scenarioRef = useRef(scenario)
+  const edgesRef = useRef<ScenarioEdge[]>([])
+  useEffect(() => { scenarioRef.current = scenario }, [scenario])
+
 
   const selectedNode = useMemo(
     () => scenario.nodes.find(n => n.id === selectedNodeId) ?? null,
@@ -324,16 +331,40 @@ function EditorUI({
 
   const handleSave = useCallback(async () => {
     if (isSaving) return
+    setSaveError(null)
     setIsSaving(true)
     try {
-      const stored = await saveScenario({ ...scenario, edges: derivedEdges })
+      const stored = await saveScenario({
+        ...scenarioRef.current,
+        edges: edgesRef.current,
+      })
       setScenario(stored)
       setSavedAt(new Date(stored.updatedAt))
       setIsDirty(false)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Save failed')
     } finally {
       setIsSaving(false)
     }
-  }, [scenario, derivedEdges, isSaving, setScenario, setSavedAt, setIsDirty])
+  // isSaving intentionally omitted — we guard with the ref pattern instead
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setScenario, setSavedAt, setIsDirty])
+
+  // ── Autosave: debounce 2.5 s after last change ────────────────────────────
+  useEffect(() => {
+    edgesRef.current = derivedEdges
+  }, [derivedEdges])
+
+  useEffect(() => {
+    if (!isDirty || isSaving) return
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+    autoSaveTimerRef.current = setTimeout(handleSave, 2500)
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+    }
+  // scenario in deps so the timer resets on every content change (debounce)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty, scenario, handleSave])
 
   const handlePublish = useCallback(async (slug: string) => {
     const updated = await publishScenario({ ...scenario, edges: derivedEdges }, slug)
@@ -448,11 +479,6 @@ function EditorUI({
             {scenario.title}
           </span>
           <StatusPill status={scenario.status} />
-          {isDirty && (
-            <span className="text-[10px] font-mono text-ink-3 tracking-wider">
-              unsaved
-            </span>
-          )}
         </div>
 
         {/* Right */}
@@ -493,15 +519,16 @@ function EditorUI({
 
           <button
             onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5 disabled:opacity-50"
+            disabled={isSaving || !isDirty}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5 disabled:opacity-40"
             style={{
-              borderColor: isDirty ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.08)',
-              color: isDirty ? '#c9cdda' : '#5c6273',
+              borderColor: isDirty && !isSaving ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)',
+              color: isDirty && !isSaving ? '#c9cdda' : '#5c6273',
             }}
+            title={isSaving ? 'Saving…' : isDirty ? 'Save now (⌘S)' : 'All changes saved'}
           >
             {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-            {isSaving ? 'Saving…' : 'Save draft'}
+            {isSaving ? 'Saving…' : isDirty ? 'Save now' : 'Saved'}
           </button>
 
           <Link
@@ -573,7 +600,7 @@ function EditorUI({
         }}
       >
         {[
-          { label: 'Nodes', value: scenario.nodes.length },
+          { label: 'Scenes', value: scenario.nodes.length },
           { label: 'Edges', value: derivedEdges.length },
           { label: 'Endings', value: scenario.nodes.filter(n => n.type === 'ending').length },
           {
@@ -585,12 +612,6 @@ function EditorUI({
             label: 'Warnings',
             value: warningCount === 0 ? '✓ none' : String(warningCount),
             color: warningCount === 0 ? '#5c6273' : 'oklch(80% 0.16 60)',
-          },
-          {
-            label: 'Saved',
-            value: savedAt
-              ? savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : 'never',
           },
         ].map(stat => (
           <div key={stat.label} className="flex items-center gap-1.5">
@@ -605,6 +626,28 @@ function EditorUI({
             </span>
           </div>
         ))}
+
+        {/* Save status — right-aligned */}
+        <div className="ml-auto flex items-center gap-1.5">
+          {isSaving ? (
+            <>
+              <Loader2 size={10} className="animate-spin" style={{ color: '#5c6273' }} />
+              <span className="text-[10px] font-mono" style={{ color: '#5c6273' }}>Autosaving…</span>
+            </>
+          ) : saveError ? (
+            <span className="text-[10px] font-mono" style={{ color: 'oklch(70% 0.18 25)' }} title={saveError}>
+              Save failed
+            </span>
+          ) : isDirty ? (
+            <span className="text-[10px] font-mono" style={{ color: 'oklch(80% 0.16 60)' }}>
+              Unsaved
+            </span>
+          ) : savedAt ? (
+            <span className="text-[10px] font-mono" style={{ color: '#3a3f4e' }}>
+              Saved {savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {showValidation && (
