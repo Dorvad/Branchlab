@@ -14,6 +14,7 @@ import {
   ChevronDown, Check, SortAsc, Upload,
   Eye,
 } from 'lucide-react'
+import { BranchLabLoader } from '@/components/BranchLabLoader'
 import {
   getAllScenarios,
   saveScenario,
@@ -153,7 +154,7 @@ export default function DashboardPage() {
         <div className="flex-1 overflow-auto">
           {loading ? (
             <div className="flex items-center justify-center h-64">
-              <Loader2 size={22} className="animate-spin" style={{ color: 'var(--fg-4)' }} />
+              <BranchLabLoader fullscreen={false} size={180} showCaption={false} />
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-64 gap-3">

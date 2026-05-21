@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Loader2, Smartphone, Monitor, ArrowLeft } from 'lucide-react'
+import { BranchLabLoader } from '@/components/BranchLabLoader'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScenarioPlayer } from './ScenarioPlayer'
 import { getScenario } from '@/lib/scenario-store'
@@ -28,11 +29,7 @@ export function PreviewClient({ scenarioId, initialDevice = 'mobile' }: PreviewC
   }, [scenarioId])
 
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center" style={{ background: 'var(--bg-0)' }}>
-        <Loader2 size={22} className="animate-spin" style={{ color: 'var(--fg-3)' }} />
-      </div>
-    )
+    return <BranchLabLoader size={260} />
   }
 
   if (!scenario) {

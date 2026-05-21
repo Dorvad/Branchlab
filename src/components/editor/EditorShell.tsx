@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor, Smartphone, ChevronDown } from 'lucide-react'
+import { BranchLabLoader } from '@/components/BranchLabLoader'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScenarioCanvas } from './ScenarioCanvas'
@@ -85,11 +86,8 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
     return (
       <>
         {mobileWarning}
-        <div className="hidden md:flex h-screen items-center justify-center" style={{ background: 'var(--bg-0)' }}>
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 size={22} className="animate-spin text-ink-3" />
-            <p className="text-[11px] font-mono text-ink-4">Loading scenario…</p>
-          </div>
+        <div className="hidden md:block" style={{ background: 'var(--bg-0)' }}>
+          <BranchLabLoader size={260} />
         </div>
       </>
     )
