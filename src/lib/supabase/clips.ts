@@ -47,6 +47,10 @@ export async function uploadClip(
   const { data: { user } } = await sb.auth.getUser()
   if (!user) throw new Error('Not signed in.')
 
+  // Get the session JWT — RLS on storage requires the user's access token, not the anon key
+  const { data: { session } } = await sb.auth.getSession()
+  if (!session?.access_token) throw new Error('No active session.')
+
   const duration = await probeVideoDuration(file)
   const ext = file.name.split('.').pop() ?? 'mp4'
   const uuid = crypto.randomUUID()
@@ -55,12 +59,11 @@ export async function uploadClip(
   // Upload to Supabase Storage using XMLHttpRequest for progress tracking
   const publicUrl = await new Promise<string>((resolve, reject) => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     const uploadUrl = `${supabaseUrl}/storage/v1/object/${BUCKET}/${storagePath}`
 
     const xhr = new XMLHttpRequest()
     xhr.open('POST', uploadUrl)
-    xhr.setRequestHeader('Authorization', `Bearer ${anonKey}`)
+    xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
     xhr.setRequestHeader('x-upsert', 'false')
     // Content-Type is set by the browser from FormData
 
