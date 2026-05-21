@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor } from 'lucide-react'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor, Smartphone, ChevronDown } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScenarioCanvas } from './ScenarioCanvas'
@@ -16,7 +16,7 @@ import { getScenario, saveScenario, publishScenario } from '@/lib/scenario-store
 import { fetchClips } from '@/lib/supabase/clips'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
-import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip } from '@/types'
+import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, PublishConfig } from '@/types'
 
 interface EditorShellProps {
   scenarioId: string
@@ -173,6 +173,7 @@ function EditorUI({
 }: EditorUIProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [showPreviewMenu, setShowPreviewMenu] = useState(false)
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Refs so the autosave timeout always reads the latest state without stale closures
   const scenarioRef = useRef(scenario)
@@ -404,8 +405,8 @@ function EditorUI({
     setSelectedNodeId(sourceNodeId)
   }, [setSelectedNodeId])
 
-  const handlePublish = useCallback(async (slug: string) => {
-    const updated = await publishScenario({ ...scenario, edges: derivedEdges }, slug)
+  const handlePublish = useCallback(async (config: PublishConfig) => {
+    const updated = await publishScenario({ ...scenario, edges: derivedEdges }, config)
     setScenario(updated)
     setSavedAt(new Date(updated.updatedAt))
     setIsDirty(false)
@@ -571,17 +572,67 @@ function EditorUI({
 
           <ThemeToggle />
 
-          <button
-            onClick={async () => {
-              if (isDirty) await handleSave()
-              window.open(`/preview/${scenario.id}`, '_blank', 'noopener,noreferrer')
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
-            style={{ borderColor: 'var(--line-2)', color: 'var(--fg-1)' }}
-          >
-            <Eye size={12} />
-            Preview
-          </button>
+          {/* ── Preview split button ──────────────────────────────────────── */}
+          <div className="relative">
+            <div
+              className="flex items-stretch rounded-xl overflow-hidden border"
+              style={{ borderColor: 'var(--line-2)' }}
+            >
+              <button
+                onClick={async () => {
+                  if (isDirty) await handleSave()
+                  window.open(`/preview/${scenario.id}?device=mobile`, '_blank', 'noopener,noreferrer')
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono transition-all hover:bg-[var(--tint-3)]"
+                style={{ color: 'var(--fg-1)' }}
+              >
+                <Eye size={12} />
+                Preview
+              </button>
+              <div style={{ width: 1, background: 'var(--line-2)' }} />
+              <button
+                onClick={() => setShowPreviewMenu(v => !v)}
+                className="flex items-center px-2 py-1.5 text-xs transition-all hover:bg-[var(--tint-3)]"
+                style={{ color: 'var(--fg-3)' }}
+              >
+                <ChevronDown size={11} />
+              </button>
+            </div>
+
+            {showPreviewMenu && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowPreviewMenu(false)} />
+                <div
+                  className="absolute right-0 top-full mt-1.5 rounded-xl overflow-hidden z-40"
+                  style={{
+                    background: 'var(--bg-1)',
+                    border: '1px solid var(--line-2)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                    minWidth: 170,
+                  }}
+                >
+                  {[
+                    { icon: <Smartphone size={13} />, label: 'Mobile preview', device: 'mobile' },
+                    { icon: <Monitor size={13} />, label: 'Desktop preview', device: 'desktop' },
+                  ].map(({ icon, label, device }) => (
+                    <button
+                      key={device}
+                      onClick={async () => {
+                        setShowPreviewMenu(false)
+                        if (isDirty) await handleSave()
+                        window.open(`/preview/${scenario.id}?device=${device}`, '_blank', 'noopener,noreferrer')
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-mono text-left transition-colors hover:bg-[var(--tint-3)]"
+                      style={{ color: 'var(--fg-1)' }}
+                    >
+                      <span style={{ color: 'var(--fg-3)' }}>{icon}</span>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
 
           <button
             onClick={() => setShowPublish(true)}
@@ -708,7 +759,7 @@ function EditorUI({
         <PublishModal
           scenario={scenario}
           validationResult={validationResult}
-          onPublish={handlePublish}
+          onPublish={(config) => handlePublish(config)}
           onClose={() => setShowPublish(false)}
         />
       )}

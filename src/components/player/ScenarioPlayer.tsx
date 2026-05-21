@@ -27,9 +27,10 @@ interface ScenarioPlayerProps {
   scenario: ScenarioLike
   mode?: 'play' | 'preview'
   backHref?: string
+  contained?: boolean // when true: relative positioning instead of fixed inset-0
 }
 
-export function ScenarioPlayer({ scenario, mode = 'play', backHref }: ScenarioPlayerProps) {
+export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = false }: ScenarioPlayerProps) {
   const [session, setSession] = useState<PlayerSessionState>(() => createSession(scenario))
   const [phase, setPhase] = useState<PlayerPhase>('watching')
   const [pendingChoice, setPendingChoice] = useState<ScenarioChoice | null>(null)
@@ -100,7 +101,7 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref }: ScenarioPl
   if (!currentNode) return null
 
   return (
-    <div className="fixed inset-0 bg-bg-0 overflow-hidden">
+    <div className={contained ? 'absolute inset-0 bg-bg-0 overflow-hidden' : 'fixed inset-0 bg-bg-0 overflow-hidden'}>
       {/* Wide-screen ambient background */}
       <div
         className="absolute inset-0 pointer-events-none"

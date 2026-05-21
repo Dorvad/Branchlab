@@ -3,7 +3,7 @@
  * Replaces src/lib/local-store/index.ts with async equivalents.
  */
 import { getSupabaseClient } from './supabase/client'
-import type { Scenario, ScenarioVersion, ScenarioNode, ScenarioEdge } from '@/types'
+import type { Scenario, ScenarioVersion, ScenarioNode, ScenarioEdge, PublishConfig } from '@/types'
 
 // ── Re-export pure utilities that have no persistence dependency ───────────────
 
@@ -172,7 +172,8 @@ export async function deleteScenario(id: string): Promise<void> {
  *
  * Returns the updated Scenario so callers can update React state.
  */
-export async function publishScenario(scenario: Scenario, slug: string): Promise<Scenario> {
+export async function publishScenario(scenario: Scenario, config: PublishConfig): Promise<Scenario> {
+  const { slug, orientation, passwordProtected, password } = config
   const userId = await requireUserId()
   const sb = getSupabaseClient()
   const now = new Date().toISOString()
@@ -204,7 +205,13 @@ export async function publishScenario(scenario: Scenario, slug: string): Promise
 
   if (versionError) throw versionError
 
-  const publishedVersion = rowToVersion(versionRow)
+  // Enrich the stored version with config metadata (stored in the JSONB field on scenarios)
+  const publishedVersion: ScenarioVersion = {
+    ...rowToVersion(versionRow),
+    orientation,
+    passwordProtected,
+    password: passwordProtected ? password : undefined,
+  }
 
   // Step 2 — update the draft scenario's status
   const { data: scenarioRow, error: scenarioError } = await sb
