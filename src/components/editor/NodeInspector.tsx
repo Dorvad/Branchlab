@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy } from 'lucide-react'
+import { useState, useRef, useCallback } from 'react'
+import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy, Play, Pause, RotateCcw } from 'lucide-react'
 import type { ScenarioNode, ScenarioChoice, NodeType, Clip } from '@/types'
 import { formatDuration } from '@/lib/supabase/clips'
 
@@ -218,25 +218,10 @@ export function NodeInspector({
                   </button>
                 </div>
               ) : (
-                <div className="space-y-1.5">
-                  {/* Currently attached clip preview */}
+                <div className="space-y-2">
+                  {/* Inline video player when clip is attached */}
                   {node.clip && (
-                    <div
-                      className="flex items-center gap-2 px-2.5 py-2 rounded-lg mb-2"
-                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                    >
-                      <Film size={11} style={{ color: 'oklch(82% 0.18 165)', flexShrink: 0 }} />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] truncate" style={{ color: '#c9cdda' }}>
-                          {currentClip?.name ?? 'Attached clip'}
-                        </p>
-                        {currentClip && (
-                          <p className="text-[9px] font-mono" style={{ color: '#5c6273' }}>
-                            {formatDuration(currentClip.duration)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    <ClipPreviewPlayer url={node.clip.url} name={currentClip?.name} />
                   )}
                   <div className="relative">
                     <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#5c6273' }}>
@@ -610,6 +595,118 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
               Shown as an overlay before advancing to the next scene.
             </p>
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── ClipPreviewPlayer ─────────────────────────────────────────────────────────
+
+interface ClipPreviewPlayerProps {
+  url: string
+  name?: string
+}
+
+function ClipPreviewPlayer({ url, name }: ClipPreviewPlayerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
+
+  const toggle = useCallback(() => {
+    const v = videoRef.current
+    if (!v) return
+    if (v.paused) { v.play(); setPlaying(true) }
+    else { v.pause(); setPlaying(false) }
+  }, [])
+
+  const restart = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    const v = videoRef.current
+    if (!v) return
+    v.currentTime = 0
+    v.play()
+    setPlaying(true)
+  }, [])
+
+  const handleTimeUpdate = useCallback(() => {
+    const v = videoRef.current
+    if (!v || !v.duration) return
+    setCurrentTime(v.currentTime)
+    setProgress(v.currentTime / v.duration)
+  }, [])
+
+  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = videoRef.current
+    if (!v) return
+    const t = Number(e.target.value) / 1000 * v.duration
+    v.currentTime = t
+    setProgress(Number(e.target.value) / 1000)
+  }, [])
+
+  const fmt = (s: number) => {
+    if (!s || !isFinite(s)) return '0:00'
+    const m = Math.floor(s / 60)
+    return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+  }
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: '#000', border: '1px solid rgba(255,255,255,0.08)' }}>
+      {/* Video */}
+      <div className="relative" style={{ aspectRatio: '16/9' }} onClick={toggle}>
+        <video
+          ref={videoRef}
+          src={url}
+          className="w-full h-full object-contain"
+          preload="metadata"
+          playsInline
+          onLoadedMetadata={e => setDuration((e.target as HTMLVideoElement).duration)}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={() => setPlaying(false)}
+        />
+        {/* Play/pause overlay */}
+        <div
+          className="absolute inset-0 flex items-center justify-center transition-opacity"
+          style={{ opacity: playing ? 0 : 1, background: 'rgba(0,0,0,0.35)' }}
+        >
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)' }}
+          >
+            <Play size={16} style={{ color: '#fff', marginLeft: 2 }} />
+          </div>
+        </div>
+      </div>
+      {/* Controls */}
+      <div className="px-2.5 py-2" style={{ background: 'rgba(0,0,0,0.6)' }}>
+        <input
+          type="range"
+          min={0}
+          max={1000}
+          value={Math.round(progress * 1000)}
+          onChange={handleSeek}
+          className="w-full h-0.5 rounded-full appearance-none cursor-pointer mb-2"
+          style={{ accentColor: 'oklch(82% 0.18 165)' }}
+        />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <button onClick={toggle} className="text-white/70 hover:text-white transition-colors">
+              {playing ? <Pause size={11} /> : <Play size={11} />}
+            </button>
+            <button onClick={restart} className="text-white/40 hover:text-white/70 transition-colors">
+              <RotateCcw size={10} />
+            </button>
+          </div>
+          <span className="text-[9px] font-mono" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            {fmt(currentTime)} / {fmt(duration)}
+          </span>
+        </div>
+        {name && (
+          <p className="text-[9px] font-mono mt-1.5 truncate" style={{ color: 'rgba(255,255,255,0.25)' }}>
+            {name}
+          </p>
         )}
       </div>
     </div>
