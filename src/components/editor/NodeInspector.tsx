@@ -89,6 +89,9 @@ export function NodeInspector({
       className="flex flex-col w-[320px] shrink-0 border-l overflow-hidden"
       style={{ borderColor: 'rgba(255,255,255,0.07)', background: '#09090e' }}
     >
+      {/* ── Colored type accent line ──────────────────────────────────────── */}
+      <div style={{ height: 2, background: TYPE_COLOR[node.type], opacity: 0.7 }} />
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-4 h-[44px] border-b shrink-0"
@@ -96,11 +99,17 @@ export function NodeInspector({
       >
         <div className="flex items-center gap-2">
           <span
-            className="w-2 h-2 rounded-full"
-            style={{ background: TYPE_COLOR[node.type] }}
-          />
-          <span className="text-xs font-mono text-ink-2 tracking-wider uppercase">
-            Scene Inspector
+            className="px-2 py-0.5 rounded-md text-[9px] font-mono tracking-[0.14em] uppercase font-medium"
+            style={{
+              background: `${TYPE_COLOR[node.type]}18`,
+              border: `1px solid ${TYPE_COLOR[node.type]}35`,
+              color: TYPE_COLOR[node.type],
+            }}
+          >
+            {node.type}
+          </span>
+          <span className="text-xs font-mono text-ink-3 truncate max-w-[140px]">
+            {node.title || 'Untitled'}
           </span>
         </div>
         <div className="flex items-center gap-0.5">

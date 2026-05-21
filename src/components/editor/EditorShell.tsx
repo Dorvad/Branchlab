@@ -366,6 +366,43 @@ function EditorUI({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDirty, scenario, handleSave])
 
+  // ── Canvas connection handlers ────────────────────────────────────────────
+
+  const connectNodes = useCallback((sourceNodeId: string, targetNodeId: string) => {
+    const newChoice: ScenarioChoice = {
+      id: `choice-${Date.now()}`,
+      label: 'New choice',
+      targetNodeId,
+    }
+    setScenario(prev => prev ? ({
+      ...prev,
+      nodes: prev.nodes.map(n =>
+        n.id === sourceNodeId ? { ...n, choices: [...n.choices, newChoice] } : n
+      ),
+    }) : prev)
+    setSelectedNodeId(sourceNodeId)
+    setIsDirty(true)
+  }, [setScenario, setSelectedNodeId, setIsDirty])
+
+  const reconnectEdge = useCallback((edgeId: string, newTargetNodeId: string) => {
+    const parts = edgeId.split('__')
+    if (parts.length < 2) return
+    const [sourceNodeId, choiceId] = parts
+    setScenario(prev => prev ? ({
+      ...prev,
+      nodes: prev.nodes.map(n =>
+        n.id === sourceNodeId
+          ? { ...n, choices: n.choices.map(c => c.id === choiceId ? { ...c, targetNodeId: newTargetNodeId } : c) }
+          : n
+      ),
+    }) : prev)
+    setIsDirty(true)
+  }, [setScenario, setIsDirty])
+
+  const onEdgeClick = useCallback((sourceNodeId: string) => {
+    setSelectedNodeId(sourceNodeId)
+  }, [setSelectedNodeId])
+
   const handlePublish = useCallback(async (slug: string) => {
     const updated = await publishScenario({ ...scenario, edges: derivedEdges }, slug)
     setScenario(updated)
@@ -531,14 +568,17 @@ function EditorUI({
             {isSaving ? 'Saving…' : isDirty ? 'Save now' : 'Saved'}
           </button>
 
-          <Link
-            href={`/preview/${scenario.id}`}
+          <button
+            onClick={async () => {
+              if (isDirty) await handleSave()
+              window.open(`/preview/${scenario.id}`, '_blank', 'noopener,noreferrer')
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
             style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#c9cdda' }}
           >
             <Eye size={12} />
             Preview
-          </Link>
+          </button>
 
           <button
             onClick={() => setShowPublish(true)}
@@ -571,6 +611,9 @@ function EditorUI({
             onNodePositionChange={updateNodePosition}
             nodeStatusMap={nodeStatusMap}
             startNodeId={scenario.startNodeId}
+            onConnect={connectNodes}
+            onEdgeClick={onEdgeClick}
+            onEdgeReconnect={reconnectEdge}
           />
         </div>
 

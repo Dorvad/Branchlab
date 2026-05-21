@@ -52,12 +52,25 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
   const videoRef = useRef<HTMLVideoElement>(null)
   const [videoProgress, setVideoProgress] = useState(0)
   const [showFallback, setShowFallback] = useState(false)
+  const [needsInteraction, setNeedsInteraction] = useState(false)
 
-  // Reset video state when node changes
+  // Reset video state when node changes and explicitly trigger playback.
+  // autoPlay alone can be blocked (e.g. new tab); we call play() imperatively
+  // so we can detect the block and show a tap-to-play overlay.
   useEffect(() => {
     setDone(false)
     setVideoProgress(0)
     setShowFallback(false)
+    setNeedsInteraction(false)
+
+    const v = videoRef.current
+    if (!v || !clip) return
+    v.load()
+    const p = v.play()
+    if (p) p.catch(err => {
+      if (err.name === 'NotAllowedError') setNeedsInteraction(true)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id])
 
   // Show manual "Show choices" button after 1.5s — user shouldn't be trapped
@@ -99,6 +112,26 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleVideoEnded}
         />
+
+        {/* Tap-to-play overlay — shown when browser blocks autoplay */}
+        {needsInteraction && (
+          <button
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3"
+            style={{ background: 'rgba(0,0,0,0.55)' }}
+            onClick={() => {
+              videoRef.current?.play().catch(() => {})
+              setNeedsInteraction(false)
+            }}
+          >
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}
+            >
+              <ChevronRight size={28} style={{ color: 'white', marginLeft: 4 }} />
+            </div>
+            <span className="text-white/80 text-sm font-medium">Tap to play</span>
+          </button>
+        )}
 
         {/* Top gradient + status */}
         <div
