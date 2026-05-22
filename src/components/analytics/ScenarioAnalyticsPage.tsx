@@ -26,7 +26,9 @@ export function ScenarioAnalyticsPage({ scenarioId }: Props) {
   if (error || !data) return <ErrorState message={error ?? 'Unknown error'} />
 
   const { scenario, publishedVersion, summary, funnel, choices, endings, dropOffs, recentSessions } = data
-  const playUrl = publishedVersion ? `${typeof window !== 'undefined' ? window.location.origin : ''}/play/${publishedVersion.slug}` : null
+  const origin = (typeof window !== 'undefined' ? window.location.origin : null)
+    ?? (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
+  const playUrl = publishedVersion ? `${origin}/play/${publishedVersion.slug}` : null
   const hasData = summary.totalPlays > 0
 
   return (

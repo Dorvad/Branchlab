@@ -291,7 +291,8 @@ function rowToScenario(row: Record<string, unknown>): Scenario {
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
     thumbnailUrl: row.thumbnail_url as string | undefined,
-    publishedVersion: row.published_version ? rowToVersion(row.published_version as Record<string, unknown>) : undefined,
+    // published_version is stored as a ScenarioVersion JSON blob (camelCase), not a DB row
+    publishedVersion: (row.published_version as ScenarioVersion | undefined) ?? undefined,
   }
 }
 
