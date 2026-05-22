@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
@@ -19,9 +19,15 @@ import {
   isEndingNode,
 } from '@/lib/scenario-engine'
 
+import { createPlayerSession, trackPlayerEvent } from '@/lib/analytics/track'
+
 import type { Scenario, ScenarioVersion, PlayerSessionState, PlayerPhase, ScenarioChoice } from '@/types'
 
 type ScenarioLike = Scenario | ScenarioVersion
+
+function isScenarioVersion(s: ScenarioLike): s is ScenarioVersion {
+  return 'scenarioId' in s && 'publishedAt' in s
+}
 
 interface ScenarioPlayerProps {
   scenario: ScenarioLike
@@ -36,6 +42,40 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const [pendingChoice, setPendingChoice] = useState<ScenarioChoice | null>(null)
   const [frozenFrame, setFrozenFrame] = useState<string | null>(null)
 
+  // Analytics refs — stable across renders, never cause re-renders
+  const analyticsSessionId = useRef<string | null>(null)
+  const sessionStartedAt = useRef<number>(Date.now())
+  const sessionInitialized = useRef(false)
+  const trackedNodes = useRef<Set<string>>(new Set())
+  const sessionCompleted = useRef(false)
+
+  // Initialize analytics session once on mount (play mode only)
+  useEffect(() => {
+    if (mode !== 'play' || sessionInitialized.current) return
+    if (!isScenarioVersion(scenario)) return
+    sessionInitialized.current = true
+
+    const sid = crypto.randomUUID()
+    analyticsSessionId.current = sid
+    sessionStartedAt.current = Date.now()
+
+    const base = {
+      sessionId: sid,
+      scenarioVersionId: scenario.id,
+      scenarioId: scenario.scenarioId,
+    }
+
+    createPlayerSession({ ...base, slug: scenario.slug }).then(() => {
+      trackPlayerEvent({ ...base, eventType: 'session_started' })
+      const startNodeId = scenario.startNodeId
+      if (startNodeId && !trackedNodes.current.has(startNodeId)) {
+        trackedNodes.current.add(startNodeId)
+        trackPlayerEvent({ ...base, eventType: 'node_viewed', nodeId: startNodeId })
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const currentNode = getNodeById(scenario, session.currentNodeId)!
   const choices = getAvailableChoices(scenario, session.currentNodeId)
 
@@ -48,6 +88,15 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const scenarioTitle = 'title' in scenario
     ? (scenario as Scenario).title
     : 'Scenario'
+
+  function getAnalyticsBase() {
+    if (mode !== 'play' || !isScenarioVersion(scenario) || !analyticsSessionId.current) return null
+    return {
+      sessionId: analyticsSessionId.current,
+      scenarioVersionId: scenario.id,
+      scenarioId: scenario.scenarioId,
+    }
+  }
 
   // ── Called by VideoScene when the clip finishes ─────────────────────────────
   const handleVideoComplete = useCallback((frame?: string) => {
@@ -62,6 +111,17 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
 
   // ── Called by ChoicePanel when the player picks a choice ────────────────────
   const handleChoiceSelect = useCallback((choice: ScenarioChoice) => {
+    const base = getAnalyticsBase()
+    if (base) {
+      trackPlayerEvent({
+        ...base,
+        eventType: 'choice_selected',
+        nodeId: session.currentNodeId,
+        choiceId: choice.id,
+        targetNodeId: choice.targetNodeId,
+        metadata: choice.scoreEffects ? { scoreEffects: choice.scoreEffects } : {},
+      })
+    }
     if (choice.feedback) {
       setPendingChoice(choice)
       setPhase('feedback')
@@ -75,6 +135,15 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const handleFeedbackContinue = useCallback(() => {
     if (!pendingChoice) return
     const choice = pendingChoice
+    const base = getAnalyticsBase()
+    if (base) {
+      trackPlayerEvent({
+        ...base,
+        eventType: 'feedback_viewed',
+        nodeId: session.currentNodeId,
+        choiceId: choice.id,
+      })
+    }
     setPendingChoice(null)
     commitAndAdvance(choice)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,6 +152,35 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   // ── Core: apply the choice, update session, trigger node transition ──────────
   function commitAndAdvance(choice: ScenarioChoice) {
     const newSession = advanceSession(session, scenario, choice.id)
+
+    // Track next node viewed (after advancing)
+    const base = getAnalyticsBase()
+    if (base && newSession.currentNodeId && !trackedNodes.current.has(newSession.currentNodeId)) {
+      trackedNodes.current.add(newSession.currentNodeId)
+      const nextNode = getNodeById(scenario, newSession.currentNodeId)
+      if (nextNode?.type === 'ending') {
+        const durationSeconds = Math.round((Date.now() - sessionStartedAt.current) / 1000)
+        if (!sessionCompleted.current) {
+          sessionCompleted.current = true
+          trackPlayerEvent({
+            ...base,
+            eventType: 'ending_reached',
+            endingNodeId: newSession.currentNodeId,
+            score: Object.keys(newSession.score).length > 0 ? newSession.score : undefined,
+            metadata: { durationSeconds, path: newSession.history },
+          })
+          trackPlayerEvent({
+            ...base,
+            eventType: 'session_completed',
+            score: Object.keys(newSession.score).length > 0 ? newSession.score : undefined,
+            metadata: { durationSeconds },
+          })
+        }
+      } else {
+        trackPlayerEvent({ ...base, eventType: 'node_viewed', nodeId: newSession.currentNodeId })
+      }
+    }
+
     setSession(newSession)
     setFrozenFrame(null)
     setPhase('transitioning')
@@ -92,6 +190,9 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
 
   // ── Restart ──────────────────────────────────────────────────────────────────
   const handleRestart = useCallback(() => {
+    // Reset analytics tracking for a new run through the same session connection
+    trackedNodes.current = new Set()
+    sessionCompleted.current = false
     setSession(createSession(scenario))
     setPendingChoice(null)
     setFrozenFrame(null)

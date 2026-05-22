@@ -12,7 +12,7 @@ import {
   LogOut, Sun, Moon, FileEdit, Trash2, Copy,
   GitBranch, Clock, ExternalLink, X, Play,
   ChevronDown, Check, Upload,
-  Eye,
+  Eye, BarChart3,
 } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import {
@@ -864,6 +864,7 @@ function DashboardCard({
     { icon: <FileEdit size={12} />, label: 'Open editor', href: `/editor/${scenario.id}` },
     { icon: <Eye size={12} />, label: 'Preview', href: `/preview/${scenario.id}?device=mobile` },
     ...(pub ? [{ icon: <Play size={12} />, label: 'View published', href: `/play/${pub.slug}` }] : []),
+    ...(pub ? [{ icon: <BarChart3 size={12} />, label: 'Analytics', href: `/dashboard/scenario/${scenario.id}/analytics` }] : []),
     null, // divider
     { icon: <Copy size={12} />, label: 'Duplicate', action: onDuplicate },
     { icon: <Trash2 size={12} />, label: 'Delete', action: onDelete, danger: true },
