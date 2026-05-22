@@ -163,8 +163,8 @@ async function compressVideo(
     { type: 'video/mp4' },
   )
 
-  // Only use the compressed version if it's actually smaller
-  return compressed.size < file.size ? compressed : file
+  // Only use the compressed version if it's valid and actually smaller
+  return (compressed.size > 0 && compressed.size < file.size) ? compressed : file
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -222,6 +222,7 @@ export async function uploadClip(
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `${supabaseUrl}/storage/v1/object/${BUCKET}/${storagePath}`)
     xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
+    xhr.setRequestHeader('Content-Type', uploadFile.type || 'application/octet-stream')
     xhr.setRequestHeader('x-upsert', 'false')
 
     if (onProgress) {
@@ -240,9 +241,7 @@ export async function uploadClip(
     }
     xhr.onerror = () => reject(new Error('Network error during upload.'))
 
-    const fd = new FormData()
-    fd.append('', uploadFile)
-    xhr.send(fd)
+    xhr.send(uploadFile)
   })
 
   // ── Phase 2: generate thumbnail from original file, upload as JPEG ────────
