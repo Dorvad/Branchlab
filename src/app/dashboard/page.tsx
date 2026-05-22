@@ -1041,7 +1041,7 @@ function AssetsView({
     ? 'oklch(80% 0.16 60)'
     : 'oklch(82% 0.18 165)'
 
-  const isUploading = uploadState !== null && (uploadState.status === 'uploading' || uploadState.status === 'processing')
+  const isUploading = uploadState !== null && (uploadState.status === 'compressing' || uploadState.status === 'uploading' || uploadState.status === 'processing')
 
   const visibleClips = useMemo(() => {
     let list = [...clips]
@@ -1170,6 +1170,11 @@ function AssetsView({
               <UploadStatusBadge status={uploadState.status} progress={uploadState.progress} />
             </div>
 
+            {uploadState.status === 'compressing' && (
+              <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--tint-4)' }}>
+                <div className="h-full rounded-full transition-all duration-100" style={{ width: `${uploadState.progress}%`, background: 'oklch(80% 0.16 60)' }} />
+              </div>
+            )}
             {uploadState.status === 'uploading' && (
               <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--tint-4)' }}>
                 <div className="h-full rounded-full transition-all duration-100" style={{ width: `${uploadState.progress}%`, background: 'oklch(82% 0.18 165)' }} />
@@ -1203,7 +1208,7 @@ function AssetsView({
             <Upload size={22} style={{ color: 'var(--fg-4)' }} />
           </div>
           <p className="text-sm font-medium" style={{ color: 'var(--fg-1)' }}>Upload your first clip</p>
-          <p className="text-xs mt-1.5 max-w-xs leading-relaxed" style={{ color: 'var(--fg-3)' }}>MP4, WebM, or MOV · max 500 MB</p>
+          <p className="text-xs mt-1.5 max-w-xs leading-relaxed" style={{ color: 'var(--fg-3)' }}>MP4, WebM, or MOV · max 5 GB (Pro plan)</p>
           <p className="text-[11px] font-mono mt-3 px-3 py-1.5 rounded-lg" style={{ color: 'var(--fg-3)', background: 'var(--tint-2)' }}>Click to browse</p>
         </div>
       ) : clips.length > 0 && (
@@ -1280,10 +1285,11 @@ function AssetsView({
 
 function UploadStatusBadge({ status, progress }: { status: ClipUploadStatus; progress: number }) {
   const cfg: Record<ClipUploadStatus, { label: string; color: string }> = {
-    uploading:  { label: `${progress}%`,            color: 'var(--fg-3)' },
-    processing: { label: 'Generating thumbnail…',   color: 'oklch(78% 0.18 285)' },
-    ready:      { label: 'Ready',                   color: 'oklch(82% 0.18 165)' },
-    failed:     { label: 'Failed',                  color: 'oklch(70% 0.18 25)' },
+    compressing: { label: `${progress}%`,            color: 'oklch(80% 0.16 60)' },
+    uploading:   { label: `${progress}%`,            color: 'var(--fg-3)' },
+    processing:  { label: 'Generating thumbnail…',   color: 'oklch(78% 0.18 285)' },
+    ready:       { label: 'Ready',                   color: 'oklch(82% 0.18 165)' },
+    failed:      { label: 'Failed',                  color: 'oklch(70% 0.18 25)' },
   }
   const { label, color } = cfg[status]
   return <span className="text-[10px] font-mono shrink-0" style={{ color }}>{label}</span>

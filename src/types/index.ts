@@ -20,7 +20,7 @@ export interface VideoClip {
   addedAt: string;    // ISO timestamp
 }
 
-export type ClipUploadStatus = 'uploading' | 'processing' | 'ready' | 'failed'
+export type ClipUploadStatus = 'compressing' | 'uploading' | 'processing' | 'ready' | 'failed'
 
 export interface Clip {
   id: string;

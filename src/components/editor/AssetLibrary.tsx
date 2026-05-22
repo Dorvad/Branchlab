@@ -107,7 +107,7 @@ export function AssetLibrary({
     }
   }, [onRemoveClip])
 
-  const isUploading = uploads.some(u => u.status === 'uploading' || u.status === 'processing')
+  const isUploading = uploads.some(u => u.status === 'compressing' || u.status === 'uploading' || u.status === 'processing')
 
   return (
     <motion.aside
@@ -162,10 +162,12 @@ export function AssetLibrary({
             </div>
             <div className="text-center">
               <p className="text-[12px] font-medium" style={{ color: 'var(--fg-1)' }}>
-                {isUploading ? 'Uploading…' : 'Add videos'}
+                {uploads.some(u => u.status === 'compressing') ? 'Compressing…'
+                  : isUploading ? 'Uploading…'
+                  : 'Add videos'}
               </p>
               <p className="text-[10px] mt-0.5 font-mono" style={{ color: 'var(--fg-3)' }}>
-                MP4 · WebM · MOV · max 500 MB
+                MP4 · WebM · MOV · max 5 GB
               </p>
             </div>
           </div>
@@ -246,16 +248,18 @@ export function AssetLibrary({
 
 function UploadStatusRow({ item }: { item: UploadItem }) {
   const STATUS_LABEL: Record<ClipUploadStatus, string> = {
-    uploading:  'Uploading…',
-    processing: 'Generating thumbnail…',
-    ready:      'Ready',
-    failed:     'Failed',
+    compressing: 'Compressing…',
+    uploading:   'Uploading…',
+    processing:  'Generating thumbnail…',
+    ready:       'Ready',
+    failed:      'Failed',
   }
   const STATUS_COLOR: Record<ClipUploadStatus, string> = {
-    uploading:  'var(--fg-3)',
-    processing: 'oklch(78% 0.18 285)',
-    ready:      'oklch(82% 0.18 165)',
-    failed:     'oklch(70% 0.18 25)',
+    compressing: 'oklch(80% 0.16 60)',
+    uploading:   'var(--fg-3)',
+    processing:  'oklch(78% 0.18 285)',
+    ready:       'oklch(82% 0.18 165)',
+    failed:      'oklch(70% 0.18 25)',
   }
 
   return (
@@ -265,10 +269,20 @@ function UploadStatusRow({ item }: { item: UploadItem }) {
           {item.name.length > 28 ? item.name.slice(0, 25) + '…' : item.name}
         </span>
         <span className="text-[10px] font-mono shrink-0" style={{ color: STATUS_COLOR[item.status] }}>
-          {item.status === 'uploading' ? `${item.progress}%` : STATUS_LABEL[item.status]}
+          {item.status === 'uploading' ? `${item.progress}%`
+            : item.status === 'compressing' ? `${item.progress}%`
+            : STATUS_LABEL[item.status]}
         </span>
       </div>
 
+      {item.status === 'compressing' && (
+        <div className="h-0.5 rounded-full overflow-hidden" style={{ background: 'var(--tint-3)' }}>
+          <div
+            className="h-full rounded-full transition-all duration-100"
+            style={{ width: `${item.progress}%`, background: 'oklch(80% 0.16 60 / 0.7)' }}
+          />
+        </div>
+      )}
       {item.status === 'uploading' && (
         <div className="h-0.5 rounded-full overflow-hidden" style={{ background: 'var(--tint-3)' }}>
           <div
