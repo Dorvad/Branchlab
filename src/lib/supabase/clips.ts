@@ -18,8 +18,10 @@ export const LARGE_FILE_WARNING_BYTES = 150 * 1024 * 1024  // 150 MB — show pr
 // ── Compression thresholds ────────────────────────────────────────────────────
 // Files smaller than this are uploaded as-is (compression overhead not worth it).
 const COMPRESSION_MIN_BYTES = 20 * 1024 * 1024   // 20 MB
-// Files larger than this are uploaded as-is (browser compression would take too long).
-const COMPRESSION_MAX_BYTES = 800 * 1024 * 1024  // 800 MB
+// Files larger than this are uploaded as-is. FFmpeg WASM needs to hold the input
+// and output simultaneously in the browser WASM heap; beyond ~300 MB this reliably
+// causes OOM errors in the browser.
+const COMPRESSION_MAX_BYTES = 300 * 1024 * 1024  // 300 MB
 
 const BUCKET = 'Assets'
 
@@ -135,18 +137,27 @@ async function compressVideo(
   ffmpeg.on('progress', handler)
 
   try {
-    await ffmpeg.exec([
-      '-i', inName,
-      '-c:v', 'libx264',
-      '-crf', '26',
-      '-preset', 'fast',
-      // Scale width to max 1920 px, auto height (divisible by 2 for H.264)
-      '-vf', 'scale=w=trunc(if(gt(iw,1920),1920,iw)/2)*2:h=-2',
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-movflags', '+faststart',
-      '-y', outName,
+    // Race the encode against a 10-minute timeout so the UI never stalls indefinitely.
+    // ultrafast is 3-5× faster than fast in WASM with negligible quality difference at CRF 26.
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Compression timed out after 10 minutes')), 10 * 60 * 1000)
+    )
+    const exitCode = await Promise.race([
+      ffmpeg.exec([
+        '-i', inName,
+        '-c:v', 'libx264',
+        '-crf', '26',
+        '-preset', 'ultrafast',
+        // Scale width to max 1920 px, auto height (divisible by 2 for H.264)
+        '-vf', 'scale=w=trunc(if(gt(iw,1920),1920,iw)/2)*2:h=-2',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-movflags', '+faststart',
+        '-y', outName,
+      ]),
+      timeout,
     ])
+    if (exitCode !== 0) throw new Error(`FFmpeg exited with code ${exitCode}`)
   } finally {
     ffmpeg.off('progress', handler)
     await ffmpeg.deleteFile(inName).catch(() => {})
