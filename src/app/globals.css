@@ -112,6 +112,25 @@ select.inspector-input option {
   color: var(--fg-1);
 }
 
+/* ── Focus rings (keyboard accessibility) ────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid oklch(82% 0.18 165);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Inspector inputs have a visible border change on focus — suppress duplicate outline */
+.inspector-input:focus-visible {
+  outline: none;
+}
+
+/* ReactFlow canvas nodes */
+.react-flow__node:focus-within {
+  outline: 2px solid oklch(82% 0.18 165 / 0.55);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--bg-0); }

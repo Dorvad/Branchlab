@@ -53,6 +53,7 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
   const [videoProgress, setVideoProgress] = useState(0)
   const [showFallback, setShowFallback] = useState(false)
   const [needsInteraction, setNeedsInteraction] = useState(false)
+  const [videoError, setVideoError] = useState(false)
 
   // Reset video state when node changes and explicitly trigger playback.
   // autoPlay alone can be blocked (e.g. new tab); we call play() imperatively
@@ -62,6 +63,7 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
     setVideoProgress(0)
     setShowFallback(false)
     setNeedsInteraction(false)
+    setVideoError(false)
 
     const v = videoRef.current
     if (!v || !clip) return
@@ -101,6 +103,27 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
   }, [done, onComplete])
 
   if (clip) {
+    // Video failed to load — show placeholder content with error indicator
+    if (videoError) {
+      return (
+        <div className="relative w-full h-full">
+          <PlaceholderScene node={node} color={color} duration={null} onComplete={onComplete} />
+          <div className="absolute top-14 left-5 right-5 z-30 pointer-events-none">
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-mono"
+              style={{
+                background: 'oklch(70% 0.18 25 / 0.15)',
+                border: '1px solid oklch(70% 0.18 25 / 0.4)',
+                color: 'oklch(70% 0.18 25)',
+              }}
+            >
+              ⚠ Video unavailable — click &ldquo;Finish clip&rdquo; to continue
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="relative w-full h-full overflow-hidden bg-black select-none">
         <video
@@ -111,6 +134,7 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
           playsInline
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleVideoEnded}
+          onError={() => setVideoError(true)}
         />
 
         {/* Tap-to-play overlay — shown when browser blocks autoplay */}

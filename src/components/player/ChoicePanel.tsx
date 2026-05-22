@@ -41,8 +41,17 @@ export function ChoicePanel({ choices, onSelect }: ChoicePanelProps) {
           What do you do?
         </motion.p>
 
-        {/* Choices */}
-        <div className="space-y-2.5">
+        {/* Choices — scrollable when content exceeds viewport height */}
+        <div className="relative">
+          {/* Top-fade hint when list is scrollable */}
+          <div
+            className="absolute top-0 left-0 right-0 h-6 pointer-events-none z-10"
+            style={{ background: 'linear-gradient(to bottom, #08090d, transparent)' }}
+          />
+          <div
+            className="space-y-2.5 overflow-y-auto overscroll-contain"
+            style={{ maxHeight: 'calc(55vh - 80px)' }}
+          >
           {choices.map((choice, i) => {
             const isSelected = selectedId === choice.id
             const isDimmed = selectedId !== null && !isSelected
@@ -106,6 +115,7 @@ export function ChoicePanel({ choices, onSelect }: ChoicePanelProps) {
               </motion.button>
             )
           })}
+          </div>
         </div>
       </div>
     </motion.div>
