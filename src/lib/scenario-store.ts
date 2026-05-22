@@ -65,6 +65,16 @@ function scenarioToRow(scenario: Scenario, userId: string) {
   }
 }
 
+// ── Error helper ──────────────────────────────────────────────────────────────
+
+// Supabase returns PostgrestError objects (not Error instances). Convert them
+// so callers always catch a real Error with a human-readable message.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function dbError(err: any): Error {
+  const msg = err?.message ?? err?.details ?? err?.hint ?? 'Database error'
+  return new Error(msg)
+}
+
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
 async function requireUserId(): Promise<string> {
@@ -129,7 +139,7 @@ export async function getAllScenarios(): Promise<Scenario[]> {
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
 
-  if (error) throw error
+  if (error) throw dbError(error)
   return (data ?? []).map(rowToScenario)
 }
 
@@ -158,7 +168,7 @@ export async function saveScenario(scenario: Scenario): Promise<Scenario> {
     .select()
     .single()
 
-  if (error) throw error
+  if (error) throw dbError(error)
   return rowToScenario(data)
 }
 
@@ -166,7 +176,7 @@ export async function deleteScenario(id: string): Promise<void> {
   await requireUserId()
   const sb = getSupabaseClient()
   const { error } = await sb.from('scenarios').delete().eq('id', id)
-  if (error) throw error
+  if (error) throw dbError(error)
 }
 
 // ── Publish ────────────────────────────────────────────────────────────────────
@@ -209,7 +219,7 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
     .select()
     .single()
 
-  if (versionError) throw versionError
+  if (versionError) throw dbError(versionError)
 
   // Enrich the stored version with config metadata (stored in the JSONB field on scenarios)
   const publishedVersion: ScenarioVersion = {
@@ -232,7 +242,7 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
     .select()
     .single()
 
-  if (scenarioError) throw scenarioError
+  if (scenarioError) throw dbError(scenarioError)
   return rowToScenario(scenarioRow)
 }
 
