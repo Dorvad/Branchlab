@@ -242,7 +242,7 @@ export function NodeInspector({
                           Replace clip
                         </button>
                         <button
-                          onClick={() => onUpdateNode(node.id, { clip: undefined, clipId: undefined })}
+                          onClick={() => onUpdateNode(node.id, { clip: undefined })}
                           className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:text-red-400"
                           style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-3)' }}
                           title="Remove clip"
@@ -263,7 +263,7 @@ export function NodeInspector({
                           onChange={e => {
                             const clip = clips.find(c => c.id === e.target.value)
                             if (clip) {
-                              onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration }, clipId: undefined })
+                              onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration, thumbnail: clip.thumbnailUrl } })
                             }
                           }}
                         >

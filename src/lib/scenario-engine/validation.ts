@@ -140,8 +140,8 @@ export function validateScenario(scenario: Scenario): ValidationResult {
       }))
     }
 
-    // No video clip (neither a remote ClipAsset nor a local clipId)
-    if (!node.clip && !node.clipId) {
+    // No video clip attached
+    if (!node.clip) {
       issues.push(warn(`${label} has no video clip attached.`, {
         nodeId: node.id,
         suggestedFix: 'Attach a video clip in the inspector. The scenario can still play without one.',

@@ -185,10 +185,12 @@ export async function fetchClips(): Promise<Clip[]> {
 
 export async function deleteClip(id: string, storagePath: string): Promise<void> {
   const sb = getSupabaseClient()
-  // Remove video + its thumbnail (ignore storage errors — paths may not exist)
-  await sb.storage.from(BUCKET).remove([storagePath, thumbPath(storagePath)])
+  // DB row first — if this fails we throw and nothing is deleted
   const { error } = await sb.from('clips').delete().eq('id', id)
   if (error) throw new Error(error.message)
+  // Storage cleanup after the DB delete confirms; ignore storage errors
+  // (files may already be gone, or paths may not exist for old clips)
+  await sb.storage.from(BUCKET).remove([storagePath, thumbPath(storagePath)])
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────

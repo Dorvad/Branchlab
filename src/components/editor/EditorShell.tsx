@@ -463,8 +463,7 @@ function EditorUI({
     const clip = clips.find(c => c.id === clipId)
     if (!clip) return
     updateNode(selectedNodeId, {
-      clip: { id: clip.id, url: clip.url, duration: clip.duration },
-      clipId: undefined,
+      clip: { id: clip.id, url: clip.url, duration: clip.duration, thumbnail: clip.thumbnailUrl },
     })
   }, [selectedNodeId, clips, updateNode])
 

@@ -99,8 +99,12 @@ export function AssetLibrary({
   }, [processFiles])
 
   const handleRemove = useCallback(async (clip: Clip) => {
-    try { await deleteClip(clip.id, clip.storagePath) } catch { /* ignore */ }
-    onRemoveClip(clip.id)
+    try {
+      await deleteClip(clip.id, clip.storagePath)
+      onRemoveClip(clip.id)
+    } catch (err) {
+      console.error('Failed to delete clip:', err)
+    }
   }, [onRemoveClip])
 
   const isUploading = uploads.some(u => u.status === 'uploading' || u.status === 'processing')

@@ -163,6 +163,7 @@ export async function saveScenario(scenario: Scenario): Promise<Scenario> {
 }
 
 export async function deleteScenario(id: string): Promise<void> {
+  await requireUserId()
   const sb = getSupabaseClient()
   const { error } = await sb.from('scenarios').delete().eq('id', id)
   if (error) throw error
