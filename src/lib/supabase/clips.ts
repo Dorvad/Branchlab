@@ -7,21 +7,20 @@ export const ACCEPTED_MIME_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'
 export const ACCEPTED_EXTENSIONS = '.mp4,.webm,.mov'
 
 // ── File size limits ──────────────────────────────────────────────────────────
-// Hard cap sent to the uploader. Supabase Storage enforces its own limit per plan:
-//   Free plan  →  50 MB per file
-//   Pro plan   →  5 GB per file
-// Make sure the limit in your Supabase dashboard (Storage → Buckets → Assets → Edit)
-// matches your plan. This constant reflects the Pro plan maximum.
-export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024 * 1024 // 5 GB (Pro plan max)
-export const LARGE_FILE_WARNING_BYTES = 150 * 1024 * 1024  // 150 MB — show pre-upload warning
+// Supabase free plan: 50 MB per file hard limit.
+// We accept up to 300 MB as input; everything ≥ 20 MB is compressed to fit.
+// FFmpeg WASM must hold input + output in the browser heap simultaneously —
+// beyond ~300 MB this causes OOM errors, so we reject above that.
+export const MAX_FILE_SIZE_BYTES = 300 * 1024 * 1024  // 300 MB input ceiling
+export const LARGE_FILE_WARNING_BYTES = 80 * 1024 * 1024  // 80 MB — show pre-upload warning
 
 // ── Compression thresholds ────────────────────────────────────────────────────
-// Files smaller than this are uploaded as-is (compression overhead not worth it).
+// Files smaller than this are almost certainly under 50 MB already.
 const COMPRESSION_MIN_BYTES = 20 * 1024 * 1024   // 20 MB
-// Files larger than this are uploaded as-is. FFmpeg WASM needs to hold the input
-// and output simultaneously in the browser WASM heap; beyond ~300 MB this reliably
-// causes OOM errors in the browser.
-const COMPRESSION_MAX_BYTES = 300 * 1024 * 1024  // 300 MB
+const COMPRESSION_MAX_BYTES = 300 * 1024 * 1024  // 300 MB (WASM heap ceiling)
+
+// Target output size — stay safely under the 50 MB Supabase free-plan limit.
+const UPLOAD_TARGET_BYTES = 47 * 1024 * 1024  // 47 MB
 
 const BUCKET = 'Assets'
 
@@ -113,17 +112,29 @@ async function loadFFmpeg(): Promise<import('@ffmpeg/ffmpeg').FFmpeg> {
 }
 
 /**
- * Re-encodes the video with H.264 CRF 26 (good quality / small size balance).
- * Scales down to a max of 1920 px wide while preserving aspect ratio.
- * Audio is re-encoded as AAC 128 kbps.
- * Returns a new File if the result is smaller; otherwise returns the original.
+ * Re-encodes the video targeting UPLOAD_TARGET_BYTES output size.
+ * Uses duration-aware ABR: calculates the exact video bitrate needed so the
+ * output stays under the 47 MB free-plan ceiling regardless of source length.
+ * Scales down to 1280 px wide max and encodes with H.264 ultrafast preset.
+ * Returns a new File if the result is valid and smaller; otherwise the original.
  */
 async function compressVideo(
   file: File,
+  duration: number,
   onProgress?: (pct: number) => void,
 ): Promise<File> {
   const ffmpeg = await loadFFmpeg()
   const { fetchFile } = await import('@ffmpeg/util')
+
+  // Calculate bitrate to hit UPLOAD_TARGET_BYTES.
+  // Reserve 96 kbps for audio; give the remainder to video.
+  // Floor at 100 kbps so very long clips still encode (quality will be low but playable).
+  const AUDIO_KBPS = 96
+  const safeDuration = Math.max(duration, 1)
+  const videoBitrateKbps = Math.max(
+    100,
+    Math.floor((UPLOAD_TARGET_BYTES * 8 - AUDIO_KBPS * 1000 * safeDuration) / safeDuration / 1000),
+  )
 
   const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.mp4'
   const inName = `in${ext}`
@@ -137,8 +148,6 @@ async function compressVideo(
   ffmpeg.on('progress', handler)
 
   try {
-    // Race the encode against a 10-minute timeout so the UI never stalls indefinitely.
-    // ultrafast is 3-5× faster than fast in WASM with negligible quality difference at CRF 26.
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Compression timed out after 10 minutes')), 10 * 60 * 1000)
     )
@@ -146,12 +155,14 @@ async function compressVideo(
       ffmpeg.exec([
         '-i', inName,
         '-c:v', 'libx264',
-        '-crf', '26',
+        '-b:v', `${videoBitrateKbps}k`,
+        '-maxrate', `${videoBitrateKbps * 2}k`,
+        '-bufsize', `${videoBitrateKbps * 4}k`,
         '-preset', 'ultrafast',
-        // Scale width to max 1920 px, auto height (divisible by 2 for H.264)
-        '-vf', 'scale=w=trunc(if(gt(iw,1920),1920,iw)/2)*2:h=-2',
+        // Scale to max 1280 px wide (sufficient for mobile player; saves significant size vs 1920)
+        '-vf', 'scale=w=trunc(if(gt(iw,1280),1280,iw)/2)*2:h=-2',
         '-c:a', 'aac',
-        '-b:a', '128k',
+        '-b:a', `${AUDIO_KBPS}k`,
         '-movflags', '+faststart',
         '-y', outName,
       ]),
@@ -199,27 +210,28 @@ export async function uploadClip(
   const { data: { session } } = await sb.auth.getSession()
   if (!session?.access_token) throw new Error('No active session.')
 
+  // Probe duration up-front — needed for bitrate calculation before compression.
+  const duration = await probeVideoDuration(file)
+
   // ── Phase 0: compress if within the useful size range ────────────────────
   let uploadFile = file
   const shouldCompress =
     file.size >= COMPRESSION_MIN_BYTES &&
-    file.size <= COMPRESSION_MAX_BYTES
+    file.size <= COMPRESSION_MAX_BYTES &&
+    duration > 0  // skip if probe failed — can't calculate target bitrate
 
   if (shouldCompress) {
     onStatus?.('compressing')
     try {
-      uploadFile = await compressVideo(file, pct => {
-        // Reuse onProgress to drive the compression progress bar (0–100)
+      uploadFile = await compressVideo(file, duration, pct => {
         onProgress?.({ loaded: pct, total: 100 })
       })
     } catch {
-      // Compression failed — fall back to original file silently
+      // Compression failed — fall back to original file
       uploadFile = file
     }
   }
 
-  // Probe duration from the (possibly compressed) file
-  const duration = await probeVideoDuration(uploadFile)
   const ext = uploadFile.name.split('.').pop() ?? 'mp4'
   const uuid = crypto.randomUUID()
   const storagePath = `${user.id}/${uuid}.${ext}`
