@@ -183,7 +183,9 @@ export async function deleteScenario(id: string): Promise<void> {
 
 /**
  * Publishes a scenario:
- *   1. Upserts an immutable snapshot into scenario_versions (ON CONFLICT slug → UPDATE)
+ *   1. Inserts or updates a snapshot in scenario_versions
+ *      - Republish to same slug → UPDATE existing row by id
+ *      - New publish or new slug → INSERT with a fresh UUID
  *   2. Updates the draft status/slug/published_version
  *
  * Returns the updated Scenario so callers can update React state.
@@ -196,11 +198,35 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
   const prevVersion = scenario.publishedVersion
   const versionNumber = prevVersion ? prevVersion.version + 1 : 1
 
-  // Step 1 — upsert the version snapshot
-  const { data: versionRow, error: versionError } = await sb
-    .from('scenario_versions')
-    .upsert(
-      {
+  // Step 1 — write the version snapshot
+  // Upsert via ON CONFLICT doesn't work reliably because PostgREST includes id=null
+  // in the generated INSERT, overriding the gen_random_uuid() default. Use explicit
+  // INSERT vs UPDATE instead.
+  const isRepublish = !!prevVersion?.id && prevVersion.slug === slug
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let versionRow: any
+  if (isRepublish) {
+    const { data, error } = await sb
+      .from('scenario_versions')
+      .update({
+        version: versionNumber,
+        title: scenario.title,
+        nodes: scenario.nodes,
+        edges: scenario.edges,
+        start_node_id: scenario.startNodeId,
+        published_at: now,
+      })
+      .eq('id', prevVersion!.id)
+      .select()
+      .single()
+    if (error) throw dbError(error)
+    versionRow = data
+  } else {
+    const { data, error } = await sb
+      .from('scenario_versions')
+      .insert({
+        id: crypto.randomUUID(),
         scenario_id: scenario.id,
         user_id: userId,
         version: versionNumber,
@@ -210,16 +236,12 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
         start_node_id: scenario.startNodeId,
         slug,
         published_at: now,
-      },
-      {
-        onConflict: 'slug',
-        ignoreDuplicates: false,
-      }
-    )
-    .select()
-    .single()
-
-  if (versionError) throw dbError(versionError)
+      })
+      .select()
+      .single()
+    if (error) throw dbError(error)
+    versionRow = data
+  }
 
   // Enrich the stored version with config metadata (stored in the JSONB field on scenarios)
   const publishedVersion: ScenarioVersion = {
