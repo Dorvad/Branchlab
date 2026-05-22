@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy, Play, Pause, RotateCcw } from 'lucide-react'
+import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy, Play, Pause, RotateCcw, RefreshCw } from 'lucide-react'
 import type { ScenarioNode, ScenarioChoice, NodeType, Clip } from '@/types'
 import { formatDuration } from '@/lib/supabase/clips'
 
@@ -228,46 +228,63 @@ export function NodeInspector({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {/* Inline video player when clip is attached */}
-                  {node.clip && (
-                    <ClipPreviewPlayer url={node.clip.url} name={currentClip?.name} />
+                  {/* Preview + replace/remove when clip is attached */}
+                  {node.clip ? (
+                    <>
+                      <ClipPreviewPlayer url={node.clip.url} name={currentClip?.name} thumbnailUrl={currentClip?.thumbnailUrl} />
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={onOpenLibrary}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
+                          style={{ background: 'oklch(78% 0.18 285 / 0.08)', border: '1px solid oklch(78% 0.18 285 / 0.25)', color: 'oklch(78% 0.18 285)' }}
+                        >
+                          <RefreshCw size={10} />
+                          Replace clip
+                        </button>
+                        <button
+                          onClick={() => onUpdateNode(node.id, { clip: undefined, clipId: undefined })}
+                          className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:text-red-400"
+                          style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-3)' }}
+                          title="Remove clip"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-3)' }}>
+                          <Film size={12} />
+                        </div>
+                        <select
+                          className="inspector-input pl-7 appearance-none pr-8"
+                          value=""
+                          onChange={e => {
+                            const clip = clips.find(c => c.id === e.target.value)
+                            if (clip) {
+                              onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration }, clipId: undefined })
+                            }
+                          }}
+                        >
+                          <option value="">— Pick a clip —</option>
+                          {clips.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name.length > 26 ? c.name.slice(0, 23) + '…' : c.name} · {formatDuration(c.duration)}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-3)' }} />
+                      </div>
+                      <button
+                        onClick={onOpenLibrary}
+                        className="text-[10px] font-mono transition-opacity hover:opacity-80"
+                        style={{ color: 'var(--fg-4)' }}
+                      >
+                        Upload clips in Asset Library →
+                      </button>
+                    </>
                   )}
-                  <div className="relative">
-                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-3)' }}>
-                      <Film size={12} />
-                    </div>
-                    <select
-                      className="inspector-input pl-7 appearance-none pr-8"
-                      value={node.clip?.id ?? ''}
-                      onChange={e => {
-                        const clip = clips.find(c => c.id === e.target.value)
-                        if (clip) {
-                          onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration }, clipId: undefined })
-                        } else {
-                          onUpdateNode(node.id, { clip: undefined, clipId: undefined })
-                        }
-                      }}
-                    >
-                      <option value="">— No clip —</option>
-                      {clips.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name.length > 26 ? c.name.slice(0, 23) + '…' : c.name} · {formatDuration(c.duration)}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={12}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                      style={{ color: 'var(--fg-3)' }}
-                    />
-                  </div>
-                  <button
-                    onClick={onOpenLibrary}
-                    className="text-[10px] font-mono transition-opacity hover:opacity-80"
-                    style={{ color: 'var(--fg-4)' }}
-                  >
-                    Manage clips in Asset Library →
-                  </button>
                 </div>
               )}
             </Field>
@@ -615,9 +632,10 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
 interface ClipPreviewPlayerProps {
   url: string
   name?: string
+  thumbnailUrl?: string
 }
 
-function ClipPreviewPlayer({ url, name }: ClipPreviewPlayerProps) {
+function ClipPreviewPlayer({ url, name, thumbnailUrl }: ClipPreviewPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -668,6 +686,7 @@ function ClipPreviewPlayer({ url, name }: ClipPreviewPlayerProps) {
         <video
           ref={videoRef}
           src={url}
+          poster={thumbnailUrl}
           className="w-full h-full object-contain"
           preload="metadata"
           playsInline

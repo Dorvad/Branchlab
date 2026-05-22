@@ -44,16 +44,20 @@ create index if not exists scenario_versions_scenario_id_idx on public.scenario_
 -- ── clips ────────────────────────────────────────────────────────────────────
 
 create table if not exists public.clips (
-  id           uuid        primary key default gen_random_uuid(),
-  user_id      uuid        references auth.users(id) on delete cascade not null,
-  name         text        not null,
-  size         bigint      not null,
-  mime_type    text        not null,
-  url          text        not null,
-  storage_path text        not null,
-  duration     integer     not null default 0,
-  created_at   timestamptz not null default now()
+  id            uuid        primary key default gen_random_uuid(),
+  user_id       uuid        references auth.users(id) on delete cascade not null,
+  name          text        not null,
+  size          bigint      not null,
+  mime_type     text        not null,
+  url           text        not null,
+  storage_path  text        not null,
+  thumbnail_url text,
+  duration      integer     not null default 0,
+  created_at    timestamptz not null default now()
 );
+
+-- If the clips table already exists without thumbnail_url, run:
+-- alter table public.clips add column if not exists thumbnail_url text;
 
 create index if not exists clips_user_id_idx on public.clips(user_id);
 

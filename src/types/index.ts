@@ -20,15 +20,18 @@ export interface VideoClip {
   addedAt: string;    // ISO timestamp
 }
 
+export type ClipUploadStatus = 'uploading' | 'processing' | 'ready' | 'failed'
+
 export interface Clip {
   id: string;
   name: string;
   size: number;
   mimeType: string;
-  url: string;         // permanent Supabase public URL
-  storagePath: string; // used for deletion
-  duration: number;    // seconds
-  createdAt: string;   // ISO timestamp
+  url: string;          // permanent Supabase public URL
+  storagePath: string;  // used for deletion
+  duration: number;     // seconds
+  createdAt: string;    // ISO timestamp
+  thumbnailUrl?: string;
 }
 
 export interface ScoreEffects {

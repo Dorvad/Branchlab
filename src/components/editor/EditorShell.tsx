@@ -768,6 +768,7 @@ function EditorUI({
             clips={clips}
             selectedNodeTitle={selectedNode?.title ?? null}
             canAttach={!!selectedNodeId}
+            nodeClipId={selectedNode?.clip?.id}
             onAddClip={addClip}
             onRemoveClip={removeClip}
             onAttachToNode={attachClipToNode}

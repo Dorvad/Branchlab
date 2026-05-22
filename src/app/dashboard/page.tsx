@@ -11,7 +11,7 @@ import {
   Plus, Globe, Film, Home, Loader2, Search,
   LogOut, Sun, Moon, FileEdit, Trash2, Copy,
   GitBranch, Clock, ExternalLink, X, Play,
-  ChevronDown, Check, SortAsc, Upload,
+  ChevronDown, Check, Upload,
   Eye,
 } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
@@ -25,7 +25,8 @@ import {
 } from '@/lib/scenario-store'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
-import { fetchClips, uploadClip, deleteClip, ACCEPTED_EXTENSIONS, type UploadProgress } from '@/lib/supabase/clips'
+import { fetchClips, uploadClip, deleteClip, formatFileSize, formatDuration, ACCEPTED_EXTENSIONS, LARGE_FILE_WARNING_BYTES } from '@/lib/supabase/clips'
+import type { ClipUploadStatus } from '@/types'
 import { useTheme } from '@/lib/theme'
 import type { Scenario, Clip } from '@/types'
 import type { User } from '@supabase/supabase-js'
@@ -48,8 +49,14 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>('updated')
   const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null)
-  const [clipUploadProgress, setClipUploadProgress] = useState<UploadProgress | null>(null)
-  const [clipUploadError, setClipUploadError] = useState<string | null>(null)
+
+  // Per-file upload state for the assets view
+  const [uploadState, setUploadState] = useState<{
+    fileName: string
+    status: import('@/types').ClipUploadStatus
+    progress: number
+    error?: string
+  } | null>(null)
 
   // Auth guard + initial load
   useEffect(() => {
@@ -111,15 +118,18 @@ export default function DashboardPage() {
   }, [deleteTarget])
 
   const handleClipUpload = useCallback(async (file: File) => {
-    setClipUploadError(null)
-    setClipUploadProgress({ loaded: 0, total: file.size })
+    setUploadState({ fileName: file.name, status: 'uploading', progress: 0 })
     try {
-      const clip = await uploadClip(file, p => setClipUploadProgress(p))
+      const clip = await uploadClip(
+        file,
+        p => setUploadState(s => s ? { ...s, progress: Math.round((p.loaded / p.total) * 100) } : s),
+        status => setUploadState(s => s ? { ...s, status } : s),
+      )
       setClips(prev => [clip, ...prev])
+      setTimeout(() => setUploadState(null), 1500)
     } catch (e) {
-      setClipUploadError(e instanceof Error ? e.message : 'Upload failed')
-    } finally {
-      setClipUploadProgress(null)
+      setUploadState(s => s ? { ...s, status: 'failed', error: e instanceof Error ? e.message : 'Upload failed' } : s)
+      setTimeout(() => setUploadState(null), 4000)
     }
   }, [])
 
@@ -197,8 +207,7 @@ export default function DashboardPage() {
                 <motion.div key="assets" {...fadeProps}>
                   <AssetsView
                     clips={clips}
-                    uploadProgress={clipUploadProgress}
-                    uploadError={clipUploadError}
+                    uploadState={uploadState}
                     onUpload={handleClipUpload}
                     onClipDelete={handleClipDelete}
                   />
@@ -539,7 +548,7 @@ function UserMenu({ user }: { user: User | null }) {
 
 const SORT_OPTIONS: { key: SortKey; label: string; icon: React.ReactNode }[] = [
   { key: 'updated', label: 'Last edited', icon: <Clock size={12} /> },
-  { key: 'name', label: 'Name A–Z', icon: <SortAsc size={12} /> },
+  { key: 'name', label: 'Name A–Z', icon: <Search size={12} /> },
   { key: 'created', label: 'Date created', icon: <Clock size={12} /> },
 ]
 
@@ -1005,213 +1014,320 @@ function DashboardCard({
 
 // ── AssetsView ────────────────────────────────────────────────────────────────
 
+const STORAGE_WARN_BYTES  = 5  * 1024 * 1024 * 1024 // 5 GB  — yellow
+const STORAGE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024 // 10 GB — display ceiling
+
+type ClipSort = 'date' | 'name' | 'duration' | 'size'
+type DurationBucket = 'all' | 'short' | 'medium' | 'long'
+
 function AssetsView({
-  clips, uploadProgress, uploadError, onUpload, onClipDelete,
+  clips, uploadState, onUpload, onClipDelete,
 }: {
   clips: Clip[]
-  uploadProgress: UploadProgress | null
-  uploadError: string | null
+  uploadState: { fileName: string; status: ClipUploadStatus; progress: number; error?: string } | null
   onUpload: (file: File) => void
   onClipDelete: (clip: Clip) => void
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const isUploading = uploadProgress !== null
-  const uploadPct = uploadProgress
-    ? Math.round((uploadProgress.loaded / uploadProgress.total) * 100)
-    : 0
+  const [search, setSearch]           = useState('')
+  const [sort, setSort]               = useState<ClipSort>('date')
+  const [durFilter, setDurFilter]     = useState<DurationBucket>('all')
+  const [sizeWarn, setSizeWarn]       = useState<{ file: File } | null>(null)
 
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-  }
+  const totalBytes = clips.reduce((s, c) => s + c.size, 0)
+  const storagePercent = Math.min(100, (totalBytes / STORAGE_LIMIT_BYTES) * 100)
+  const storageColor = totalBytes >= STORAGE_WARN_BYTES
+    ? 'oklch(80% 0.16 60)'
+    : 'oklch(82% 0.18 165)'
 
-  const formatDuration = (s: number) => {
-    const m = Math.floor(s / 60)
-    const sec = Math.floor(s % 60)
-    return `${m}:${sec.toString().padStart(2, '0')}`
-  }
+  const isUploading = uploadState !== null && (uploadState.status === 'uploading' || uploadState.status === 'processing')
+
+  const visibleClips = useMemo(() => {
+    let list = [...clips]
+    if (search.trim()) list = list.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+    if (durFilter === 'short')  list = list.filter(c => c.duration < 60)
+    if (durFilter === 'medium') list = list.filter(c => c.duration >= 60 && c.duration < 300)
+    if (durFilter === 'long')   list = list.filter(c => c.duration >= 300)
+    list.sort((a, b) => {
+      if (sort === 'name')     return a.name.localeCompare(b.name)
+      if (sort === 'duration') return a.duration - b.duration
+      if (sort === 'size')     return b.size - a.size
+      return b.createdAt.localeCompare(a.createdAt)
+    })
+    return list
+  }, [clips, search, sort, durFilter])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
+    if (!file) return
+    e.target.value = ''
+    if (file.size > LARGE_FILE_WARNING_BYTES) {
+      setSizeWarn({ file })
+    } else {
       onUpload(file)
-      e.target.value = ''
     }
   }
 
   return (
-    <div className="px-8 py-6">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={ACCEPTED_EXTENSIONS}
-        className="hidden"
-        onChange={handleFileChange}
-      />
+    <div className="px-8 py-6 space-y-5">
+      <input ref={fileInputRef} type="file" accept={ACCEPTED_EXTENSIONS} className="hidden" onChange={handleFileChange} />
 
-      <div className="flex items-center gap-3 mb-6">
+      {/* Header row */}
+      <div className="flex items-center gap-3">
         <div className="flex-1">
           <h2 className="text-sm font-semibold" style={{ color: 'var(--fg-0)' }}>Asset Library</h2>
           <p className="text-xs mt-0.5" style={{ color: 'var(--fg-3)' }}>
-            {clips.length} clip{clips.length !== 1 ? 's' : ''} · MP4, WebM, or MOV up to 500 MB
+            {clips.length} clip{clips.length !== 1 ? 's' : ''} · {formatFileSize(totalBytes)} used
           </p>
         </div>
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium transition-all disabled:opacity-50"
-          style={{
-            background: 'oklch(82% 0.18 165)',
-            color: '#052916',
-            boxShadow: isUploading ? 'none' : '0 0 16px oklch(82% 0.18 165 / 0.3)',
-          }}
+          style={{ background: 'oklch(82% 0.18 165)', color: '#052916', boxShadow: isUploading ? 'none' : '0 0 16px oklch(82% 0.18 165 / 0.3)' }}
         >
           <Upload size={12} />
           Upload clip
         </button>
       </div>
 
-      {/* Upload progress */}
+      {/* Storage meter */}
+      {clips.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-[10px] font-mono" style={{ color: 'var(--fg-3)' }}>
+            <span>Storage used</span>
+            <span style={{ color: totalBytes >= STORAGE_WARN_BYTES ? storageColor : 'var(--fg-3)' }}>
+              {formatFileSize(totalBytes)} / {formatFileSize(STORAGE_LIMIT_BYTES)}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--tint-3)' }}>
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${storagePercent}%`, background: storageColor }}
+            />
+          </div>
+          {totalBytes >= STORAGE_WARN_BYTES && (
+            <p className="text-[10px] font-mono" style={{ color: storageColor }}>
+              Storage is getting full — consider removing unused clips.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Large-file confirmation */}
       <AnimatePresence>
-        {isUploading && (
+        {sizeWarn && (
           <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-            className="mb-4 rounded-xl p-3.5"
-            style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)' }}
+            initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            className="rounded-xl px-4 py-3.5 space-y-3"
+            style={{ background: 'oklch(80% 0.16 60 / 0.07)', border: '1px solid oklch(80% 0.16 60 / 0.3)' }}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono" style={{ color: 'var(--fg-2)' }}>Uploading…</span>
-              <span className="text-xs font-mono" style={{ color: 'var(--fg-3)' }}>{uploadPct}%</span>
+            <div className="flex items-start gap-2.5">
+              <span className="text-base leading-none" style={{ color: 'oklch(80% 0.16 60)' }}>⚠</span>
+              <div>
+                <p className="text-xs font-medium" style={{ color: 'oklch(80% 0.16 60)' }}>
+                  Large file — {formatFileSize(sizeWarn.file.size)}
+                </p>
+                <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--fg-2)' }}>
+                  <span className="font-mono">{sizeWarn.file.name}</span> is larger than 150 MB and may take a few minutes to upload depending on your connection.
+                </p>
+              </div>
             </div>
-            <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--tint-3)' }}>
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: 'oklch(82% 0.18 165)', width: `${uploadPct}%` }}
-                transition={{ duration: 0.1 }}
-              />
+            <div className="flex gap-2">
+              <button
+                onClick={() => { onUpload(sizeWarn.file); setSizeWarn(null) }}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
+                style={{ background: 'oklch(80% 0.16 60)', color: '#1a0f00' }}
+              >
+                Upload anyway
+              </button>
+              <button
+                onClick={() => setSizeWarn(null)}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-mono transition-colors hover:bg-[var(--tint-3)]"
+                style={{ border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
+              >
+                Cancel
+              </button>
             </div>
-          </motion.div>
-        )}
-        {uploadError && !isUploading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mb-4 px-4 py-3 rounded-xl text-xs font-mono"
-            style={{ background: 'oklch(70% 0.18 25 / 0.08)', border: '1px solid oklch(70% 0.18 25 / 0.25)', color: 'oklch(70% 0.18 25)' }}
-          >
-            {uploadError}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {clips.length === 0 && !isUploading ? (
+      {/* Upload status */}
+      <AnimatePresence>
+        {uploadState && (
+          <motion.div
+            key="upload-status"
+            initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            className="rounded-xl px-4 py-3 space-y-2"
+            style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)' }}
+          >
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-[11px] font-mono truncate" style={{ color: 'var(--fg-1)' }}>
+                {uploadState.fileName.length > 40 ? uploadState.fileName.slice(0, 37) + '…' : uploadState.fileName}
+              </span>
+              <UploadStatusBadge status={uploadState.status} progress={uploadState.progress} />
+            </div>
+
+            {uploadState.status === 'uploading' && (
+              <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--tint-4)' }}>
+                <div className="h-full rounded-full transition-all duration-100" style={{ width: `${uploadState.progress}%`, background: 'oklch(82% 0.18 165)' }} />
+              </div>
+            )}
+            {uploadState.status === 'processing' && (
+              <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--tint-4)' }}>
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: 'oklch(78% 0.18 285)' }}
+                  animate={{ width: ['20%', '80%', '20%'] }}
+                  transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                />
+              </div>
+            )}
+            {uploadState.error && (
+              <p className="text-[10px] font-mono" style={{ color: 'oklch(70% 0.18 25)' }}>{uploadState.error}</p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Empty state */}
+      {clips.length === 0 && !uploadState ? (
         <div
           className="flex flex-col items-center justify-center py-20 rounded-2xl border border-dashed text-center cursor-pointer transition-colors hover:border-[var(--line-3)]"
           style={{ borderColor: 'var(--line-2)' }}
           onClick={() => fileInputRef.current?.click()}
         >
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-            style={{ background: 'var(--tint-2)' }}
-          >
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'var(--tint-2)' }}>
             <Upload size={22} style={{ color: 'var(--fg-4)' }} />
           </div>
-          <p className="text-sm font-medium" style={{ color: 'var(--fg-1)' }}>Drop a video clip here</p>
-          <p className="text-xs mt-1.5 max-w-xs leading-relaxed" style={{ color: 'var(--fg-3)' }}>
-            MP4, WebM, or MOV · max 500 MB
-          </p>
-          <p className="text-[11px] font-mono mt-3 px-3 py-1.5 rounded-lg" style={{ color: 'var(--fg-3)', background: 'var(--tint-2)' }}>
-            Click to browse
-          </p>
+          <p className="text-sm font-medium" style={{ color: 'var(--fg-1)' }}>Upload your first clip</p>
+          <p className="text-xs mt-1.5 max-w-xs leading-relaxed" style={{ color: 'var(--fg-3)' }}>MP4, WebM, or MOV · max 500 MB</p>
+          <p className="text-[11px] font-mono mt-3 px-3 py-1.5 rounded-lg" style={{ color: 'var(--fg-3)', background: 'var(--tint-2)' }}>Click to browse</p>
         </div>
-      ) : (
-        <div
-          className="rounded-2xl overflow-hidden"
-          style={{ border: '1px solid var(--line-1)' }}
-        >
-          <div
-            className="grid gap-4 px-5 py-2.5 text-[10px] font-mono tracking-widest uppercase border-b"
-            style={{ gridTemplateColumns: '1fr 80px 80px 100px 40px', borderColor: 'var(--line-1)', color: 'var(--fg-4)', background: 'var(--tint-1)' }}
-          >
-            <span>Name</span>
-            <span>Duration</span>
-            <span>Size</span>
-            <span>Uploaded</span>
-            <span />
+      ) : clips.length > 0 && (
+        <>
+          {/* Search + filter bar */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search clips…"
+                className="w-full pl-7 pr-3 py-1.5 rounded-lg text-xs outline-none"
+                style={{ background: 'var(--tint-1)', border: '1px solid var(--line-2)', color: 'var(--fg-1)' }}
+              />
+            </div>
+
+            <select
+              value={sort}
+              onChange={e => setSort(e.target.value as ClipSort)}
+              className="py-1.5 pl-2 pr-6 rounded-lg text-xs appearance-none outline-none"
+              style={{ background: 'var(--tint-1)', border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
+            >
+              <option value="date">Newest</option>
+              <option value="name">Name</option>
+              <option value="duration">Duration</option>
+              <option value="size">Size</option>
+            </select>
+
+            <select
+              value={durFilter}
+              onChange={e => setDurFilter(e.target.value as DurationBucket)}
+              className="py-1.5 pl-2 pr-6 rounded-lg text-xs appearance-none outline-none"
+              style={{ background: 'var(--tint-1)', border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
+            >
+              <option value="all">All durations</option>
+              <option value="short">&lt; 1 min</option>
+              <option value="medium">1–5 min</option>
+              <option value="long">&gt; 5 min</option>
+            </select>
           </div>
-          {clips.map((clip, i) => (
-            <ClipRow
-              key={clip.id}
-              clip={clip}
-              formatSize={formatSize}
-              formatDuration={formatDuration}
-              isLast={i === clips.length - 1}
-              onDelete={() => onClipDelete(clip)}
-            />
-          ))}
-        </div>
+
+          {/* Clip table */}
+          {visibleClips.length === 0 ? (
+            <p className="py-8 text-center text-xs font-mono" style={{ color: 'var(--fg-4)' }}>No clips match your filters.</p>
+          ) : (
+            <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--line-1)' }}>
+              <div
+                className="grid gap-3 px-5 py-2.5 text-[10px] font-mono tracking-widest uppercase border-b"
+                style={{ gridTemplateColumns: '48px 1fr 72px 72px 90px 40px', borderColor: 'var(--line-1)', color: 'var(--fg-4)', background: 'var(--tint-1)' }}
+              >
+                <span />
+                <span>Name</span>
+                <span>Duration</span>
+                <span>Size</span>
+                <span>Uploaded</span>
+                <span />
+              </div>
+              {visibleClips.map((clip, i) => (
+                <ClipRow
+                  key={clip.id}
+                  clip={clip}
+                  isLast={i === visibleClips.length - 1}
+                  onDelete={() => onClipDelete(clip)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
 }
 
-function ClipRow({
-  clip, formatSize, formatDuration, isLast, onDelete,
-}: {
-  clip: Clip
-  formatSize: (n: number) => string
-  formatDuration: (n: number) => string
-  isLast: boolean
-  onDelete: () => void
-}) {
+function UploadStatusBadge({ status, progress }: { status: ClipUploadStatus; progress: number }) {
+  const cfg: Record<ClipUploadStatus, { label: string; color: string }> = {
+    uploading:  { label: `${progress}%`,            color: 'var(--fg-3)' },
+    processing: { label: 'Generating thumbnail…',   color: 'oklch(78% 0.18 285)' },
+    ready:      { label: 'Ready',                   color: 'oklch(82% 0.18 165)' },
+    failed:     { label: 'Failed',                  color: 'oklch(70% 0.18 25)' },
+  }
+  const { label, color } = cfg[status]
+  return <span className="text-[10px] font-mono shrink-0" style={{ color }}>{label}</span>
+}
+
+function ClipRow({ clip, isLast, onDelete }: { clip: Clip; isLast: boolean; onDelete: () => void }) {
   const [hovered, setHovered] = useState(false)
   const uploadedDate = new Date(clip.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const ext = clip.name.split('.').pop()?.toUpperCase() ?? 'MP4'
 
   return (
     <div
-      className="grid gap-4 px-5 py-3 items-center transition-colors"
+      className="grid gap-3 px-5 py-2.5 items-center transition-colors"
       style={{
-        gridTemplateColumns: '1fr 80px 80px 100px 40px',
+        gridTemplateColumns: '48px 1fr 72px 72px 90px 40px',
         borderBottom: isLast ? 'none' : '1px solid var(--line-1)',
         background: hovered ? 'var(--tint-1)' : 'transparent',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Name */}
-      <div className="flex items-center gap-3 min-w-0">
-        <div
-          className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[9px] font-mono font-bold"
-          style={{ background: 'var(--tint-3)', color: 'var(--fg-2)' }}
-        >
-          {ext}
-        </div>
-        <span className="text-sm truncate" style={{ color: 'var(--fg-1)' }}>{clip.name}</span>
+      {/* Thumbnail */}
+      <div className="w-11 h-8 rounded-md overflow-hidden shrink-0" style={{ background: 'var(--tint-3)' }}>
+        {clip.thumbnailUrl ? (
+          <img src={clip.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <video
+            src={clip.url}
+            className="w-full h-full object-cover"
+            muted playsInline preload="metadata"
+            onLoadedMetadata={e => { (e.target as HTMLVideoElement).currentTime = 1 }}
+          />
+        )}
       </div>
 
-      <span className="text-xs font-mono" style={{ color: 'var(--fg-3)' }}>
-        {formatDuration(clip.duration)}
-      </span>
-      <span className="text-xs font-mono" style={{ color: 'var(--fg-3)' }}>
-        {formatSize(clip.size)}
-      </span>
-      <span className="text-xs font-mono" style={{ color: 'var(--fg-3)' }}>
-        {uploadedDate}
-      </span>
+      {/* Name */}
+      <span className="text-xs truncate" style={{ color: 'var(--fg-1)' }} title={clip.name}>{clip.name}</span>
+
+      <span className="text-xs font-mono" style={{ color: 'var(--fg-3)' }}>{formatDuration(clip.duration)}</span>
+      <span className="text-xs font-mono" style={{ color: 'var(--fg-3)' }}>{formatFileSize(clip.size)}</span>
+      <span className="text-xs font-mono" style={{ color: 'var(--fg-3)' }}>{uploadedDate}</span>
 
       <button
         onClick={onDelete}
         className="flex items-center justify-center w-7 h-7 rounded-lg transition-all"
-        style={{
-          opacity: hovered ? 1 : 0,
-          color: 'oklch(70% 0.18 25)',
-          background: 'oklch(70% 0.18 25 / 0.1)',
-        }}
+        style={{ opacity: hovered ? 1 : 0, color: 'oklch(70% 0.18 25)', background: 'oklch(70% 0.18 25 / 0.1)' }}
         title="Delete clip"
       >
         <Trash2 size={12} />
