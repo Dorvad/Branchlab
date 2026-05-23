@@ -211,12 +211,12 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
         }}
       />
 
-      {/* Content column — centered, phone-width on desktop */}
-      <div className="relative h-full flex flex-col max-w-[520px] mx-auto">
+      {/* Content column — full width; choice panel constrains its own inner width */}
+      <div className="relative h-full flex flex-col">
 
         {/* ── Header ─────────────────────────────────────────────────────────── */}
         <header
-          className="flex items-center justify-between px-5 py-4 shrink-0"
+          className="flex items-center justify-between px-5 py-4 shrink-0 max-w-[900px] mx-auto w-full"
           style={{ borderBottom: '1px solid var(--line-1)' }}
         >
           <div className="flex items-center gap-3 min-w-0">

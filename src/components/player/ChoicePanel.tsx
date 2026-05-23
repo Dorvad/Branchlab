@@ -30,7 +30,7 @@ export function ChoicePanel({ choices, onSelect }: ChoicePanelProps) {
         background: 'linear-gradient(to bottom, rgba(8,9,13,0) 0%, rgba(8,9,13,0.96) 14%, #08090d 100%)',
       }}
     >
-      <div className="px-5 pt-6 pb-8">
+      <div className="px-5 pt-6 pb-8 max-w-[600px] mx-auto w-full">
         {/* Header */}
         <motion.p
           initial={{ opacity: 0 }}
