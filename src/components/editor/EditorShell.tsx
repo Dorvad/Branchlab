@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor, Smartphone, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor, Smartphone, ChevronDown, Download } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -17,6 +17,9 @@ import { getScenario, saveScenario, publishScenario } from '@/lib/scenario-store
 import { fetchClips } from '@/lib/supabase/clips'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
+import { exportToBlab } from '@/lib/blab-format'
+import { exportToZip } from '@/lib/zip-export'
+import { exportScorm12, exportXapiStatements } from '@/lib/scorm-export'
 import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, PublishConfig } from '@/types'
 
 interface EditorShellProps {
@@ -172,6 +175,8 @@ function EditorUI({
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [showPreviewMenu, setShowPreviewMenu] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Refs so the autosave timeout always reads the latest state without stale closures
   const scenarioRef = useRef(scenario)
@@ -643,6 +648,81 @@ function EditorUI({
                     >
                       <span style={{ color: 'var(--fg-3)' }}>{icon}</span>
                       {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ── Export dropdown ───────────────────────────────────────────── */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(v => !v)}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)] disabled:opacity-40"
+              style={{ borderColor: 'var(--line-2)', color: 'var(--fg-3)' }}
+            >
+              {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+              Export
+              <ChevronDown size={10} />
+            </button>
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowExportMenu(false)} />
+                <div
+                  className="absolute right-0 top-full mt-1.5 rounded-xl overflow-hidden z-40"
+                  style={{
+                    background: 'var(--bg-1)',
+                    border: '1px solid var(--line-2)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                    minWidth: 185,
+                  }}
+                >
+                  {[
+                    {
+                      label: 'Export .blab',
+                      description: 'Scenario data (no videos)',
+                      action: () => { setShowExportMenu(false); exportToBlab(scenario) },
+                      disabled: false,
+                    },
+                    {
+                      label: 'Export ZIP',
+                      description: 'Scenario + video files',
+                      action: async () => {
+                        setShowExportMenu(false)
+                        setIsExporting(true)
+                        try { await exportToZip(scenario) } finally { setIsExporting(false) }
+                      },
+                      disabled: false,
+                    },
+                    {
+                      label: 'Export SCORM 1.2',
+                      description: 'LMS package (must be published)',
+                      action: async () => {
+                        setShowExportMenu(false)
+                        setIsExporting(true)
+                        try { await exportScorm12(scenario) }
+                        catch (e) { alert((e as Error).message) }
+                        finally { setIsExporting(false) }
+                      },
+                      disabled: !scenario.publishedVersion,
+                    },
+                    {
+                      label: 'Export xAPI',
+                      description: 'Statement templates (.json)',
+                      action: () => { setShowExportMenu(false); exportXapiStatements(scenario) },
+                      disabled: false,
+                    },
+                  ].map(({ label, description, action, disabled }) => (
+                    <button
+                      key={label}
+                      onClick={() => { void action() }}
+                      disabled={disabled}
+                      className="w-full flex flex-col items-start px-3.5 py-2.5 text-left transition-colors hover:bg-[var(--tint-3)] disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="text-xs font-mono" style={{ color: 'var(--fg-1)' }}>{label}</span>
+                      <span className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>{description}</span>
                     </button>
                   ))}
                 </div>

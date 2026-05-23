@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { RotateCcw, Share2 } from 'lucide-react'
 import { ScoreSummary } from './ScoreSummary'
@@ -15,6 +16,19 @@ interface EndingScreenProps {
 }
 
 export function EndingScreen({ endingNode, session, scenario, onRestart, mode }: EndingScreenProps) {
+  // Notify SCORM wrapper (or any parent frame) when an ending is reached
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return
+    const totalScore = Object.values(session.score).reduce((a, b) => a + b, 0)
+    window.parent.postMessage({
+      type: 'branchlab:ending_reached',
+      endingNodeId: endingNode.id,
+      endingTitle: endingNode.title,
+      score: Object.keys(session.score).length > 0 ? totalScore : undefined,
+    }, '*')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const outcome = endingNode.outcome
   const accentColor = outcome === 'correct'
     ? 'oklch(82% 0.18 165)'

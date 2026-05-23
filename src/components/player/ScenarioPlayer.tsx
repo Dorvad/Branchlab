@@ -34,9 +34,10 @@ interface ScenarioPlayerProps {
   mode?: 'play' | 'preview'
   backHref?: string
   contained?: boolean // when true: relative positioning instead of fixed inset-0
+  embed?: boolean    // when true: hide header (iframe embed mode)
 }
 
-export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = false }: ScenarioPlayerProps) {
+export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = false, embed = false }: ScenarioPlayerProps) {
   const [session, setSession] = useState<PlayerSessionState>(() => createSession(scenario))
   const [phase, setPhase] = useState<PlayerPhase>('watching')
   const [pendingChoice, setPendingChoice] = useState<ScenarioChoice | null>(null)
@@ -215,7 +216,7 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
       <div className="relative h-full flex flex-col">
 
         {/* ── Header ─────────────────────────────────────────────────────────── */}
-        <header
+        {!embed && <header
           className="flex items-center justify-between px-5 py-4 shrink-0 max-w-[900px] mx-auto w-full"
           style={{ borderBottom: '1px solid var(--line-1)' }}
         >
@@ -240,7 +241,7 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
           </div>
 
           <PlayerProgress step={stepCount} />
-        </header>
+        </header>}
 
         {/* ── Main: video + overlays ──────────────────────────────────────────── */}
         <main className="relative flex-1 overflow-hidden">

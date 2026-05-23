@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   X, CheckCircle2, AlertTriangle, AlertCircle,
   Globe, Copy, ExternalLink, ChevronDown, ChevronUp,
-  Loader2, Smartphone, Monitor, Lock, Unlock, Eye, EyeOff,
+  Loader2, Smartphone, Monitor, Lock, Unlock, Eye, EyeOff, Code2,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { slugify, validateSlugFormat, isSlugAvailable } from '@/lib/scenario-store'
@@ -752,6 +752,8 @@ function SuccessStep({
             Open player
           </a>
         </div>
+
+        <EmbedCodeBlock slug={slug} publicUrl={publicUrl} />
       </div>
 
       <div
@@ -767,5 +769,88 @@ function SuccessStep({
         </button>
       </div>
     </>
+  )
+}
+
+// ── EmbedCodeBlock ────────────────────────────────────────────────────────────
+
+function EmbedCodeBlock({ slug, publicUrl }: { slug: string; publicUrl: string }) {
+  const [open, setOpen] = useState(false)
+  const [tab, setTab] = useState<'iframe' | 'webcomponent'>('iframe')
+  const [copied, setCopied] = useState(false)
+
+  const appUrl = publicUrl.replace(`/play/${slug}`, '')
+  const iframeSnippet = `<iframe\n  src="${publicUrl}?embed=1"\n  allow="autoplay; fullscreen"\n  style="border:none;width:100%;height:100%;min-height:500px"\n></iframe>`
+  const wcSnippet = `<script src="${appUrl}/api/embed" defer></script>\n<branchlab-player slug="${slug}"></branchlab-player>`
+  const snippet = tab === 'iframe' ? iframeSnippet : wcSnippet
+
+  const handleCopy = () => {
+    navigator.clipboard?.writeText(snippet).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden border"
+      style={{ borderColor: 'var(--line-2)' }}
+    >
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-mono transition-colors hover:bg-[var(--tint-2)]"
+        style={{ color: 'var(--fg-3)' }}
+      >
+        <span className="flex items-center gap-2">
+          <Code2 size={11} />
+          Embed code
+        </span>
+        {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+      </button>
+
+      {open && (
+        <div style={{ borderTop: '1px solid var(--line-2)' }}>
+          {/* Tabs */}
+          <div className="flex" style={{ borderBottom: '1px solid var(--line-2)' }}>
+            {(['iframe', 'webcomponent'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className="px-3.5 py-2 text-[10px] font-mono transition-colors"
+                style={{
+                  color: tab === t ? 'var(--fg-0)' : 'var(--fg-4)',
+                  borderBottom: tab === t ? '1px solid oklch(82% 0.18 165)' : '1px solid transparent',
+                  marginBottom: -1,
+                }}
+              >
+                {t === 'iframe' ? 'iframe' : 'Web Component'}
+              </button>
+            ))}
+          </div>
+
+          {/* Code */}
+          <div className="relative">
+            <pre
+              className="text-[10px] font-mono leading-relaxed px-3.5 py-3 overflow-x-auto"
+              style={{ color: 'var(--fg-2)', background: 'var(--tint-1)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+            >
+              {snippet}
+            </pre>
+            <button
+              onClick={handleCopy}
+              className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono transition-all"
+              style={{
+                background: 'var(--bg-1)',
+                border: '1px solid var(--line-2)',
+                color: copied ? 'oklch(82% 0.18 165)' : 'var(--fg-3)',
+              }}
+            >
+              <Copy size={9} />
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

@@ -12,7 +12,7 @@ import {
   LogOut, Sun, Moon, FileEdit, Trash2, Copy,
   GitBranch, Clock, ExternalLink, X, Play,
   ChevronDown, Check, Upload,
-  Eye, BarChart3,
+  Eye, BarChart3, Download, FolderOpen,
 } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import {
@@ -26,6 +26,8 @@ import {
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
 import { fetchClips, uploadClip, deleteClip, formatFileSize, formatDuration, ACCEPTED_EXTENSIONS, LARGE_FILE_WARNING_BYTES } from '@/lib/supabase/clips'
+import { exportToBlab, importFromBlab, blabToScenario } from '@/lib/blab-format'
+import { exportToZip, importFromZip } from '@/lib/zip-export'
 import type { ClipUploadStatus } from '@/types'
 import { useTheme } from '@/lib/theme'
 import type { Scenario, Clip } from '@/types'
@@ -142,6 +144,32 @@ export default function DashboardPage() {
     }
   }, [])
 
+  const [zipImportProgress, setZipImportProgress] = useState<{ pct: number; label: string } | null>(null)
+
+  const handleImportBlab = useCallback(async (file: File) => {
+    try {
+      const blab = await importFromBlab(file)
+      const draft = blabToScenario(blab)
+      const saved = await saveScenario(draft)
+      router.push(`/editor/${saved.id}`)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Import failed')
+    }
+  }, [router])
+
+  const handleImportZip = useCallback(async (file: File) => {
+    setZipImportProgress({ pct: 0, label: 'Starting…' })
+    try {
+      const draft = await importFromZip(file, (pct, label) => setZipImportProgress({ pct, label }))
+      const saved = await saveScenario(draft)
+      setZipImportProgress(null)
+      router.push(`/editor/${saved.id}`)
+    } catch (e) {
+      setZipImportProgress(null)
+      alert(e instanceof Error ? e.message : 'ZIP import failed')
+    }
+  }, [router])
+
   const drafts = useMemo(() => scenarios.filter(s => s.status !== 'published'), [scenarios])
   const published = useMemo(() => scenarios.filter(s => s.status === 'published'), [scenarios])
 
@@ -170,6 +198,8 @@ export default function DashboardPage() {
         onCreateBlank={handleCreate}
         onCreateFromTemplate={handleCreateFromTemplate}
         isPending={isPending}
+        onImportBlab={handleImportBlab}
+        onImportZip={handleImportZip}
       />
 
       {/* ── Main content ── */}
@@ -263,6 +293,39 @@ export default function DashboardPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* ── ZIP import progress modal ── */}
+      <AnimatePresence>
+        {zipImportProgress && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="rounded-2xl px-8 py-6 flex flex-col items-center gap-4"
+              style={{ background: 'var(--bg-1)', border: '1px solid var(--line-2)', minWidth: 280 }}
+            >
+              <Loader2 size={24} className="animate-spin" style={{ color: 'oklch(82% 0.18 165)' }} />
+              <div className="text-center">
+                <p className="text-sm font-medium" style={{ color: 'var(--fg-0)' }}>Importing ZIP</p>
+                <p className="text-xs mt-1 font-mono" style={{ color: 'var(--fg-3)' }}>{zipImportProgress.label}</p>
+              </div>
+              <div className="w-full rounded-full overflow-hidden" style={{ height: 4, background: 'var(--tint-3)' }}>
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${zipImportProgress.pct}%`, background: 'oklch(82% 0.18 165)' }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -286,13 +349,18 @@ interface SidebarProps {
   onCreateBlank: () => void
   onCreateFromTemplate: () => void
   isPending: boolean
+  onImportBlab: (file: File) => void
+  onImportZip: (file: File) => void
 }
 
 function Sidebar({
   section, onSectionChange,
   draftCount, publishedCount, assetCount,
   user, onCreateBlank, onCreateFromTemplate, isPending,
+  onImportBlab, onImportZip,
 }: SidebarProps) {
+  const blabInputRef = useRef<HTMLInputElement>(null)
+  const zipInputRef = useRef<HTMLInputElement>(null)
   const [showCreateMenu, setShowCreateMenu] = useState(false)
   const createRef = useRef<HTMLDivElement>(null)
 
@@ -394,6 +462,42 @@ function Sidebar({
                     <p className="text-[11px] mt-0.5" style={{ color: 'var(--fg-3)' }}>Empty canvas, start from scratch</p>
                   </div>
                 </button>
+                <div style={{ height: 1, background: 'var(--line-1)' }} />
+                <button
+                  onClick={() => { setShowCreateMenu(false); blabInputRef.current?.click() }}
+                  className="w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--tint-2)]"
+                >
+                  <FolderOpen size={14} className="mt-0.5 shrink-0" style={{ color: 'var(--fg-3)' }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--fg-0)' }}>Import .blab</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--fg-3)' }}>Restore from scenario file</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { setShowCreateMenu(false); zipInputRef.current?.click() }}
+                  className="w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--tint-2)]"
+                >
+                  <Download size={14} className="mt-0.5 shrink-0" style={{ color: 'var(--fg-3)' }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--fg-0)' }}>Import ZIP</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--fg-3)' }}>Scenario + video bundle</p>
+                  </div>
+                </button>
+                {/* Hidden file inputs */}
+                <input
+                  ref={blabInputRef}
+                  type="file"
+                  accept=".blab,.json"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) { onImportBlab(f); e.target.value = '' } }}
+                />
+                <input
+                  ref={zipInputRef}
+                  type="file"
+                  accept=".zip"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) { onImportZip(f); e.target.value = '' } }}
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -867,6 +971,9 @@ function DashboardCard({
     ...(pub ? [{ icon: <BarChart3 size={12} />, label: 'Analytics', href: `/dashboard/scenario/${scenario.id}/analytics` }] : []),
     null, // divider
     { icon: <Copy size={12} />, label: 'Duplicate', action: onDuplicate },
+    { icon: <Download size={12} />, label: 'Export .blab', action: () => exportToBlab(scenario) },
+    { icon: <Download size={12} />, label: 'Export ZIP', action: () => exportToZip(scenario) },
+    null, // divider
     { icon: <Trash2 size={12} />, label: 'Delete', action: onDelete, danger: true },
   ]
 

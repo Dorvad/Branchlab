@@ -31,7 +31,7 @@ export interface UploadProgress {
 
 // ── Internal utilities ────────────────────────────────────────────────────────
 
-function probeVideoDuration(file: File): Promise<number> {
+export function probeVideoDuration(file: File): Promise<number> {
   return new Promise(resolve => {
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
@@ -326,6 +326,63 @@ export async function deleteClip(id: string, storagePath: string): Promise<void>
   // Storage cleanup after the DB delete confirms; ignore storage errors
   // (files may already be gone, or paths may not exist for old clips)
   await sb.storage.from(BUCKET).remove([storagePath, thumbPath(storagePath)])
+}
+
+// ── Upload from raw buffer (used by ZIP import — skips FFmpeg compression) ────
+
+export async function uploadClipFromBuffer(
+  buffer: Uint8Array,
+  fileName: string,
+  mimeType: string,
+  duration: number,
+): Promise<Clip> {
+  const sb = getSupabaseClient()
+  const { data: { user } } = await sb.auth.getUser()
+  if (!user) throw new Error('Not signed in.')
+
+  const { data: { session } } = await sb.auth.getSession()
+  if (!session?.access_token) throw new Error('No active session.')
+
+  const ext = fileName.split('.').pop() ?? 'mp4'
+  const uuid = crypto.randomUUID()
+  const storagePath = `${user.id}/${uuid}.${ext}`
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const publicUrl = await new Promise<string>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${supabaseUrl}/storage/v1/object/${BUCKET}/${storagePath}`)
+    xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
+    xhr.setRequestHeader('Content-Type', mimeType || 'video/mp4')
+    xhr.setRequestHeader('x-upsert', 'false')
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(`${supabaseUrl}/storage/v1/object/public/${BUCKET}/${storagePath}`)
+      } else {
+        try { reject(new Error(JSON.parse(xhr.responseText)?.message ?? `Upload failed (${xhr.status})`)) }
+        catch { reject(new Error(`Upload failed (${xhr.status})`)) }
+      }
+    }
+    xhr.onerror = () => reject(new Error('Network error during upload.'))
+    xhr.send(buffer.buffer as ArrayBuffer)
+  })
+
+  const { data, error } = await sb
+    .from('clips')
+    .insert({
+      user_id: user.id,
+      name: fileName,
+      size: buffer.byteLength,
+      mime_type: mimeType,
+      url: publicUrl,
+      storage_path: storagePath,
+      duration,
+      thumbnail_url: null,
+    })
+    .select()
+    .single()
+
+  if (error) throw new Error(error.message)
+  return rowToClip(data as Record<string, unknown>)
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────

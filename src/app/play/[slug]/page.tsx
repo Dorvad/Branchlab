@@ -6,6 +6,7 @@ import type { ScenarioNode, ScenarioEdge, ScenarioVersion } from '@/types'
 
 interface PlayPageProps {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ embed?: string }>
 }
 
 type VersionRow = {
@@ -52,8 +53,9 @@ export async function generateMetadata({ params }: PlayPageProps): Promise<Metad
   }
 }
 
-export default async function PlayPage({ params }: PlayPageProps) {
+export default async function PlayPage({ params, searchParams }: PlayPageProps) {
   const { slug } = await params
+  const { embed } = await searchParams
   const sb = getSupabaseServer()
 
   const { data } = await sb
@@ -95,5 +97,5 @@ export default async function PlayPage({ params }: PlayPageProps) {
     slug: row.slug,
   }
 
-  return <ScenarioPlayer scenario={version} mode="play" />
+  return <ScenarioPlayer scenario={version} mode="play" embed={embed === '1'} />
 }

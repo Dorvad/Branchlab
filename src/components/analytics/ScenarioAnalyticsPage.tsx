@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ExternalLink, Copy, Check, BarChart3 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Copy, Check, BarChart3, Download, ChevronDown, Loader2 } from 'lucide-react'
 import { getScenarioAnalytics } from '@/lib/analytics/read'
+import { exportSessionsCsv, exportEventsCsv } from '@/lib/analytics/csv-export'
 import type { ScenarioAnalytics } from '@/types/analytics'
 
 interface Props {
@@ -24,6 +25,9 @@ export function ScenarioAnalyticsPage({ scenarioId }: Props) {
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'Unknown error'} />
+
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [exportingEvents, setExportingEvents] = useState(false)
 
   const { scenario, publishedVersion, summary, funnel, choices, endings, dropOffs, recentSessions } = data
   const origin = (typeof window !== 'undefined' ? window.location.origin : null)
@@ -71,6 +75,60 @@ export function ScenarioAnalyticsPage({ scenarioId }: Props) {
                 </Link>
               </>
             )}
+
+            {/* CSV export dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-colors hover:bg-[var(--tint-2)]"
+                style={{ color: 'var(--fg-3)', border: '1px solid var(--line-2)' }}
+              >
+                <Download size={11} />
+                Export
+                <ChevronDown size={10} />
+              </button>
+              {showExportMenu && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowExportMenu(false)} />
+                  <div
+                    className="absolute right-0 top-full mt-1.5 rounded-xl overflow-hidden z-40"
+                    style={{
+                      background: 'var(--bg-1)',
+                      border: '1px solid var(--line-2)',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                      minWidth: 170,
+                    }}
+                  >
+                    <button
+                      onClick={() => { setShowExportMenu(false); exportSessionsCsv(data) }}
+                      className="w-full flex flex-col items-start px-3.5 py-2.5 text-left transition-colors hover:bg-[var(--tint-3)]"
+                    >
+                      <span className="text-xs font-mono" style={{ color: 'var(--fg-1)' }}>Sessions CSV</span>
+                      <span className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>Recent 50 sessions</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setShowExportMenu(false)
+                        setExportingEvents(true)
+                        try {
+                          await exportEventsCsv(scenarioId, publishedVersion?.slug)
+                        } finally {
+                          setExportingEvents(false)
+                        }
+                      }}
+                      disabled={exportingEvents}
+                      className="w-full flex flex-col items-start px-3.5 py-2.5 text-left transition-colors hover:bg-[var(--tint-3)] disabled:opacity-40"
+                    >
+                      <span className="flex items-center gap-1.5 text-xs font-mono" style={{ color: 'var(--fg-1)' }}>
+                        {exportingEvents && <Loader2 size={10} className="animate-spin" />}
+                        Raw events CSV
+                      </span>
+                      <span className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>All events (up to 10k)</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
