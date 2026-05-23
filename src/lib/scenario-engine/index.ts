@@ -61,14 +61,19 @@ export function isEndingNode(scenario: ScenarioLike, nodeId: string): boolean {
 // ─── Session management ──────────────────────────────────────────────────────
 
 export function createSession(scenario: ScenarioLike): PlayerSessionState {
-  // Apply the start node's own scoreEffects on entry
-  const startNode = getNodeById(scenario, scenario.startNodeId)
+  // Fall back to the first node in the array if startNodeId is missing or stale.
+  const startNodeId =
+    (scenario.startNodeId && getNodeById(scenario, scenario.startNodeId))
+      ? scenario.startNodeId
+      : scenario.nodes[0]?.id ?? ''
+
+  const startNode = getNodeById(scenario, startNodeId)
   const initialScore = applyScoreEffects({}, startNode?.scoreEffects)
 
   return {
     scenarioId: getScenarioId(scenario),
-    currentNodeId: scenario.startNodeId,
-    history: [scenario.startNodeId],
+    currentNodeId: startNodeId,
+    history: [startNodeId],
     score: initialScore,
     startedAt: new Date().toISOString(),
   }

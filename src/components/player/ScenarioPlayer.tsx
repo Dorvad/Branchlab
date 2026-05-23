@@ -76,11 +76,11 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const currentNode = getNodeById(scenario, session.currentNodeId)!
+  const currentNode = getNodeById(scenario, session.currentNodeId)
   const choices = getAvailableChoices(scenario, session.currentNodeId)
 
   // The background shown behind choices: custom thumbnail takes priority over captured frame
-  const choiceBackground = currentNode.thumbnailUrl ?? frozenFrame ?? null
+  const choiceBackground = currentNode?.thumbnailUrl ?? frozenFrame ?? null
 
   // Step count: non-ending nodes visited so far
   const stepCount = session.history.filter(id => !isEndingNode(scenario, id)).length
@@ -100,14 +100,14 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
 
   // ── Called by VideoScene when the clip finishes ─────────────────────────────
   const handleVideoComplete = useCallback((frame?: string) => {
-    if (currentNode.type === 'ending') {
+    if (currentNode?.type === 'ending') {
       setPhase('ending')
     } else if (choices.length > 0) {
       if (frame) setFrozenFrame(frame)
       setPhase('choices')
     }
     // If no choices (incomplete draft node), stay showing the scene
-  }, [currentNode.type, choices.length])
+  }, [currentNode?.type, choices.length])
 
   // ── Called by ChoicePanel when the player picks a choice ────────────────────
   const handleChoiceSelect = useCallback((choice: ScenarioChoice) => {
@@ -278,9 +278,9 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
                 className="absolute inset-0"
               >
                 <VideoScene
-                  node={currentNode}
+                  node={currentNode!}
                   onComplete={handleVideoComplete}
-                  autoAdvanceSeconds={currentNode.type === 'ending' ? 4 : 5}
+                  autoAdvanceSeconds={currentNode?.type === 'ending' ? 4 : 5}
                 />
               </motion.div>
             )}
