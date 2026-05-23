@@ -196,6 +196,8 @@ function EditorUI({
             sourceNodeId: node.id,
             targetNodeId: choice.targetNodeId,
             choiceId: choice.id,
+            sourceHandle: choice.sourceHandle,
+            targetHandle: choice.targetHandle,
           })
         }
       }
@@ -368,11 +370,13 @@ function EditorUI({
 
   // ── Canvas connection handlers ────────────────────────────────────────────
 
-  const connectNodes = useCallback((sourceNodeId: string, targetNodeId: string) => {
+  const connectNodes = useCallback((sourceNodeId: string, targetNodeId: string, sourceHandle: string, targetHandle: string) => {
     const newChoice: ScenarioChoice = {
       id: `choice-${Date.now()}`,
       label: 'New choice',
       targetNodeId,
+      sourceHandle,
+      targetHandle,
     }
     setScenario(prev => prev ? ({
       ...prev,
@@ -384,7 +388,7 @@ function EditorUI({
     setIsDirty(true)
   }, [setScenario, setSelectedNodeId, setIsDirty])
 
-  const reconnectEdge = useCallback((edgeId: string, newTargetNodeId: string) => {
+  const reconnectEdge = useCallback((edgeId: string, newTargetNodeId: string, newTargetHandle?: string) => {
     const parts = edgeId.split('__')
     if (parts.length < 2) return
     const [sourceNodeId, choiceId] = parts
@@ -392,12 +396,27 @@ function EditorUI({
       ...prev,
       nodes: prev.nodes.map(n =>
         n.id === sourceNodeId
-          ? { ...n, choices: n.choices.map(c => c.id === choiceId ? { ...c, targetNodeId: newTargetNodeId } : c) }
+          ? { ...n, choices: n.choices.map(c => c.id === choiceId ? { ...c, targetNodeId: newTargetNodeId, targetHandle: newTargetHandle ?? c.targetHandle } : c) }
           : n
       ),
     }) : prev)
     setIsDirty(true)
   }, [setScenario, setIsDirty])
+
+  const toggleOutcomeMode = useCallback(() => {
+    setScenario(prev => {
+      if (!prev) return prev
+      const turningOff = prev.outcomeMode
+      return {
+        ...prev,
+        outcomeMode: !prev.outcomeMode,
+        nodes: turningOff
+          ? prev.nodes.map(n => ({ ...n, outcome: undefined }))
+          : prev.nodes,
+      }
+    })
+    setIsDirty(true)
+  }, [])
 
   const onEdgeClick = useCallback((sourceNodeId: string) => {
     setSelectedNodeId(sourceNodeId)
@@ -681,6 +700,8 @@ function EditorUI({
             onDuplicateNode={() => duplicateNode(selectedNode.id)}
             onOpenLibrary={() => setShowAssets(true)}
             onClose={() => setSelectedNodeId(null)}
+            outcomeMode={scenario.outcomeMode}
+            onToggleOutcomeMode={toggleOutcomeMode}
           />
         )}
       </div>

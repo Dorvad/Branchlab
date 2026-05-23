@@ -51,6 +51,8 @@ export interface ScenarioChoice {
   targetNodeId: string;
   scoreEffects?: ScoreEffects;
   feedback?: string; // shown as overlay after selecting this choice
+  sourceHandle?: string;
+  targetHandle?: string;
 }
 
 export interface ScenarioNode {
@@ -63,6 +65,7 @@ export interface ScenarioNode {
   choices: ScenarioChoice[];
   position: { x: number; y: number };
   scoreEffects?: ScoreEffects; // applied when this node is entered
+  outcome?: 'correct' | 'incorrect';
 }
 
 export interface ScenarioEdge {
@@ -70,6 +73,8 @@ export interface ScenarioEdge {
   sourceNodeId: string;
   targetNodeId: string;
   choiceId: string;
+  sourceHandle?: string;
+  targetHandle?: string;
 }
 
 export interface ScenarioVersion {
@@ -99,6 +104,7 @@ export interface Scenario {
   createdAt: string;
   updatedAt: string;
   thumbnailUrl?: string;
+  outcomeMode?: boolean;
   publishedVersion?: ScenarioVersion;
 }
 

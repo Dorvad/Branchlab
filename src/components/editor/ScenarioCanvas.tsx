@@ -342,8 +342,8 @@ function buildRFEdges(
       id: e.id,
       source: e.sourceNodeId,
       target: e.targetNodeId,
-      sourceHandle: 'src-bottom',
-      targetHandle: 'tgt-top',
+      sourceHandle: e.sourceHandle ?? 'src-bottom',
+      targetHandle: e.targetHandle ?? 'tgt-top',
       type: 'choiceEdge',
       data: {
         choiceLabel: choice?.label ?? '',
@@ -437,9 +437,9 @@ interface ScenarioCanvasProps {
   onNodePositionChange: (id: string, position: { x: number; y: number }) => void
   nodeStatusMap: Record<string, 'error' | 'warning'>
   startNodeId?: string
-  onConnect: (sourceNodeId: string, targetNodeId: string) => void
+  onConnect: (sourceNodeId: string, targetNodeId: string, sourceHandle: string, targetHandle: string) => void
   onEdgeClick: (sourceNodeId: string) => void
-  onEdgeReconnect: (edgeId: string, newTargetNodeId: string) => void
+  onEdgeReconnect: (edgeId: string, newTargetNodeId: string, newTargetHandle: string) => void
 }
 
 export function ScenarioCanvas({
@@ -489,7 +489,12 @@ export function ScenarioCanvas({
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (connection.source && connection.target) {
-        onConnect(connection.source, connection.target)
+        onConnect(
+          connection.source,
+          connection.target,
+          connection.sourceHandle ?? 'src-bottom',
+          connection.targetHandle ?? 'tgt-top',
+        )
       }
     },
     [onConnect]
@@ -506,7 +511,11 @@ export function ScenarioCanvas({
   const handleReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
       if (newConnection.target) {
-        onEdgeReconnect(oldEdge.id, newConnection.target)
+        onEdgeReconnect(
+          oldEdge.id,
+          newConnection.target,
+          newConnection.targetHandle ?? 'tgt-top',
+        )
       }
     },
     [onEdgeReconnect]

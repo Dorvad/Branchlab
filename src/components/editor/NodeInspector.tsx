@@ -56,6 +56,8 @@ interface NodeInspectorProps {
   onDuplicateNode?: () => void
   onOpenLibrary: () => void
   onClose: () => void
+  outcomeMode?: boolean
+  onToggleOutcomeMode?: () => void
 }
 
 export function NodeInspector({
@@ -70,6 +72,8 @@ export function NodeInspector({
   onDuplicateNode,
   onOpenLibrary,
   onClose,
+  outcomeMode,
+  onToggleOutcomeMode,
 }: NodeInspectorProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -360,12 +364,78 @@ export function NodeInspector({
 
           {/* ── Ending note ─────────────────────────────────────────────────── */}
           {isEnding && (
-            <div
-              className="px-3 py-3.5 rounded-xl text-[11px] leading-relaxed"
-              style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)', color: 'var(--fg-3)' }}
-            >
-              <p className="font-medium mb-1" style={{ color: 'var(--fg-2)' }}>Ending scenes don&apos;t have choices.</p>
-              <p>The player sees a summary screen after this scene plays. Add multiple endings to give players different outcomes based on their path.</p>
+            <div className="space-y-3">
+              {/* Outcome mode toggle */}
+              <div
+                className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+                style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}
+              >
+                <div>
+                  <p className="text-[11px] font-medium" style={{ color: 'var(--fg-1)' }}>Outcome feedback</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>Show players if they chose correctly</p>
+                </div>
+                <button
+                  onClick={onToggleOutcomeMode}
+                  className="relative shrink-0 w-8 h-4.5 rounded-full transition-colors"
+                  style={{
+                    width: 32,
+                    height: 18,
+                    background: outcomeMode ? 'oklch(82% 0.18 165)' : 'var(--line-3)',
+                  }}
+                >
+                  <span
+                    className="absolute top-0.5 rounded-full transition-transform"
+                    style={{
+                      width: 14,
+                      height: 14,
+                      background: 'white',
+                      left: 2,
+                      transform: outcomeMode ? 'translateX(14px)' : 'translateX(0)',
+                      transition: 'transform 0.15s ease',
+                    }}
+                  />
+                </button>
+              </div>
+
+              {/* Per-node outcome picker — only shown when outcomeMode is on */}
+              {outcomeMode && (
+                <div>
+                  <p className="text-[10px] font-mono text-ink-3 tracking-[0.14em] uppercase mb-2">This ending is</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(['correct', undefined, 'incorrect'] as const).map((val) => {
+                      const isActive = node.outcome === val
+                      const label = val === 'correct' ? '✓ Correct' : val === 'incorrect' ? '✗ Incorrect' : '— Neutral'
+                      const activeColor = val === 'correct'
+                        ? 'oklch(82% 0.18 165)'
+                        : val === 'incorrect'
+                        ? 'oklch(70% 0.18 25)'
+                        : 'var(--fg-2)'
+                      return (
+                        <button
+                          key={String(val)}
+                          onClick={() => onUpdateNode(node.id, { outcome: val })}
+                          className="py-1.5 rounded-lg text-[10px] font-mono transition-all"
+                          style={{
+                            background: isActive ? `${activeColor}18` : 'var(--tint-1)',
+                            border: `1px solid ${isActive ? activeColor + '55' : 'var(--line-2)'}`,
+                            color: isActive ? activeColor : 'var(--fg-3)',
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Info note */}
+              <div
+                className="px-3 py-2.5 rounded-xl text-[11px] leading-relaxed"
+                style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)', color: 'var(--fg-3)' }}
+              >
+                <p>The player sees a summary screen after this scene plays. Add multiple endings to give players different outcomes.</p>
+              </div>
             </div>
           )}
         </div>
