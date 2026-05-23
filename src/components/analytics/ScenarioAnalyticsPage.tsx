@@ -15,6 +15,8 @@ export function ScenarioAnalyticsPage({ scenarioId }: Props) {
   const [data, setData] = useState<ScenarioAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [exportingEvents, setExportingEvents] = useState(false)
 
   useEffect(() => {
     getScenarioAnalytics(scenarioId)
@@ -25,9 +27,6 @@ export function ScenarioAnalyticsPage({ scenarioId }: Props) {
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'Unknown error'} />
-
-  const [showExportMenu, setShowExportMenu] = useState(false)
-  const [exportingEvents, setExportingEvents] = useState(false)
 
   const { scenario, publishedVersion, summary, funnel, choices, endings, dropOffs, recentSessions } = data
   const origin = (typeof window !== 'undefined' ? window.location.origin : null)
