@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy, Play, Pause, RotateCcw, RefreshCw } from 'lucide-react'
-import type { ScenarioNode, ScenarioChoice, NodeType, Clip } from '@/types'
+import type { ScenarioNode, ScenarioChoice, NodeType, Clip, OpeningInstructions } from '@/types'
 import { formatDuration } from '@/lib/supabase/clips'
 
 async function compressImage(file: File, maxWidth = 1280, quality = 0.82): Promise<string> {
@@ -56,6 +56,7 @@ interface NodeInspectorProps {
   onDuplicateNode?: () => void
   onOpenLibrary: () => void
   onClose: () => void
+  isStartNode?: boolean
   outcomeMode?: boolean
   onToggleOutcomeMode?: () => void
 }
@@ -72,6 +73,7 @@ export function NodeInspector({
   onDuplicateNode,
   onOpenLibrary,
   onClose,
+  isStartNode,
   outcomeMode,
   onToggleOutcomeMode,
 }: NodeInspectorProps) {
@@ -360,6 +362,25 @@ export function NodeInspector({
                 </div>
               )}
             </div>
+          )}
+
+          {/* ── Opening Instructions (start node only) ──────────────────────── */}
+          {isStartNode && (
+            <>
+              <div style={{ height: 1, background: 'var(--tint-2)' }} />
+              <OpeningInstructionsEditor
+                value={node.openingInstructions}
+                onChange={updates => {
+                  const current: OpeningInstructions = node.openingInstructions ?? {
+                    enabled: false,
+                    title: 'Before you begin',
+                    body: '',
+                    startButtonText: 'Start simulation',
+                  }
+                  onUpdateNode(node.id, { openingInstructions: { ...current, ...updates } })
+                }}
+              />
+            </>
           )}
 
           {/* ── Ending note ─────────────────────────────────────────────────── */}
@@ -807,6 +828,98 @@ function ClipPreviewPlayer({ url, name, thumbnailUrl }: ClipPreviewPlayerProps) 
           </p>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── OpeningInstructionsEditor ─────────────────────────────────────────────────
+
+interface OpeningInstructionsEditorProps {
+  value?: OpeningInstructions
+  onChange: (updates: Partial<OpeningInstructions>) => void
+}
+
+function OpeningInstructionsEditor({ value, onChange }: OpeningInstructionsEditorProps) {
+  const enabled = value?.enabled ?? false
+  const title = value?.title ?? ''
+  const body = value?.body ?? ''
+  const startButtonText = value?.startButtonText ?? ''
+
+  return (
+    <div className="space-y-3.5">
+      <SectionHeader>Opening Instructions</SectionHeader>
+      <p className="text-[10px] leading-relaxed -mt-1" style={{ color: 'var(--fg-4)' }}>
+        Show an instruction screen to players before the first video plays.
+      </p>
+
+      {/* Enabled toggle */}
+      <div
+        className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+        style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}
+      >
+        <div>
+          <p className="text-[11px] font-medium" style={{ color: 'var(--fg-1)' }}>Show instructions screen</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>Appears before the scenario begins</p>
+        </div>
+        <button
+          onClick={() => onChange({ enabled: !enabled })}
+          style={{
+            width: 32,
+            height: 18,
+            borderRadius: 9,
+            background: enabled ? 'oklch(82% 0.18 165)' : 'var(--line-3)',
+            position: 'relative',
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              position: 'absolute',
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              background: 'white',
+              top: 2,
+              left: 2,
+              transform: enabled ? 'translateX(14px)' : 'translateX(0)',
+              transition: 'transform 0.15s ease',
+            }}
+          />
+        </button>
+      </div>
+
+      {/* Fields — only shown when enabled */}
+      {enabled && (
+        <div className="space-y-3">
+          <Field label="Title">
+            <input
+              className="inspector-input"
+              value={title}
+              onChange={e => onChange({ title: e.target.value })}
+              placeholder="Before you begin"
+            />
+          </Field>
+
+          <Field label="Body">
+            <textarea
+              className="inspector-input resize-none"
+              rows={4}
+              value={body}
+              onChange={e => onChange({ body: e.target.value })}
+              placeholder="Explain the scenario context, the player's role, or how choices work…"
+            />
+          </Field>
+
+          <Field label="Start Button Text">
+            <input
+              className="inspector-input"
+              value={startButtonText}
+              onChange={e => onChange({ startButtonText: e.target.value })}
+              placeholder="Start simulation"
+            />
+          </Field>
+        </div>
+      )}
     </div>
   )
 }

@@ -9,14 +9,13 @@ import { VideoScene } from './VideoScene'
 import { ChoicePanel } from './ChoicePanel'
 import { FeedbackOverlay } from './FeedbackOverlay'
 import { EndingScreen } from './EndingScreen'
-import { PlayerProgress } from './PlayerProgress'
+import { OpeningInstructionsScreen } from './OpeningInstructionsScreen'
 
 import {
   createSession,
   advanceSession,
   getNodeById,
   getAvailableChoices,
-  isEndingNode,
 } from '@/lib/scenario-engine'
 
 import { createPlayerSession, trackPlayerEvent } from '@/lib/analytics/track'
@@ -41,7 +40,12 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const [session, setSession] = useState<PlayerSessionState>(() => createSession(scenario))
   const [phase, setPhase] = useState<PlayerPhase>('watching')
   const [pendingChoice, setPendingChoice] = useState<ScenarioChoice | null>(null)
-  const [frozenFrame, setFrozenFrame] = useState<string | null>(null)
+
+  // Opening instructions — only shown at the very start when enabled on the start node
+  const [showInstructions, setShowInstructions] = useState<boolean>(() => {
+    const sNode = getNodeById(scenario, scenario.startNodeId)
+    return !!(sNode?.openingInstructions?.enabled)
+  })
 
   // Analytics refs — stable across renders, never cause re-renders
   const analyticsSessionId = useRef<string | null>(null)
@@ -80,12 +84,6 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const currentNode = getNodeById(scenario, session.currentNodeId)
   const choices = getAvailableChoices(scenario, session.currentNodeId)
 
-  // The background shown behind choices: custom thumbnail takes priority over captured frame
-  const choiceBackground = currentNode?.thumbnailUrl ?? frozenFrame ?? null
-
-  // Step count: non-ending nodes visited so far
-  const stepCount = session.history.filter(id => !isEndingNode(scenario, id)).length
-
   const scenarioTitle = 'title' in scenario
     ? (scenario as Scenario).title
     : 'Scenario'
@@ -100,11 +98,10 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   }
 
   // ── Called by VideoScene when the clip finishes ─────────────────────────────
-  const handleVideoComplete = useCallback((frame?: string) => {
+  const handleVideoComplete = useCallback(() => {
     if (currentNode?.type === 'ending') {
       setPhase('ending')
     } else if (choices.length > 0) {
-      if (frame) setFrozenFrame(frame)
       setPhase('choices')
     }
     // If no choices (incomplete draft node), stay showing the scene
@@ -183,7 +180,6 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
     }
 
     setSession(newSession)
-    setFrozenFrame(null)
     setPhase('transitioning')
     // Short gap so AnimatePresence can exit the old VideoScene before mounting new
     setTimeout(() => setPhase('watching'), 350)
@@ -191,16 +187,16 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
 
   // ── Restart ──────────────────────────────────────────────────────────────────
   const handleRestart = useCallback(() => {
-    // Reset analytics tracking for a new run through the same session connection
     trackedNodes.current = new Set()
     sessionCompleted.current = false
     setSession(createSession(scenario))
     setPendingChoice(null)
-    setFrozenFrame(null)
     setPhase('watching')
   }, [scenario])
 
   if (!currentNode) return null
+
+  const startNode = getNodeById(scenario, scenario.startNodeId)
 
   return (
     <div className={contained ? 'absolute inset-0 bg-bg-0 overflow-hidden' : 'fixed inset-0 bg-bg-0 overflow-hidden'}>
@@ -212,68 +208,58 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
         }}
       />
 
-      {/* Content column — full width; choice panel constrains its own inner width */}
+      {/* Content column */}
       <div className="relative h-full flex flex-col">
 
-        {/* ── Header ─────────────────────────────────────────────────────────── */}
-        {!embed && <header
-          className="flex items-center justify-between px-5 py-4 shrink-0 max-w-[900px] mx-auto w-full"
-          style={{ borderBottom: '1px solid var(--line-1)' }}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            {backHref && (
-              <Link
-                href={backHref}
-                className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-[var(--tint-3)]"
-                style={{ color: 'var(--fg-3)' }}
-              >
-                <ArrowLeft size={16} />
-              </Link>
-            )}
-            <div className="min-w-0">
-              {mode === 'preview' && (
+        {/* ── Header — preview mode only ──────────────────────────────────────── */}
+        {mode === 'preview' && !embed && (
+          <header
+            className="flex items-center justify-between px-5 py-4 shrink-0 max-w-[900px] mx-auto w-full"
+            style={{ borderBottom: '1px solid var(--line-1)' }}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              {backHref && (
+                <Link
+                  href={backHref}
+                  className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-[var(--tint-3)]"
+                  style={{ color: 'var(--fg-3)' }}
+                >
+                  <ArrowLeft size={16} />
+                </Link>
+              )}
+              <div className="min-w-0">
                 <p className="text-[9px] font-mono text-neon-amber tracking-[0.18em] uppercase mb-0.5">
                   ⚠ Preview
                 </p>
-              )}
-              <p className="text-sm font-medium text-ink-1 truncate">{scenarioTitle}</p>
+                <p className="text-sm font-medium text-ink-1 truncate">{scenarioTitle}</p>
+              </div>
             </div>
-          </div>
+          </header>
+        )}
 
-          <PlayerProgress step={stepCount} />
-        </header>}
-
-        {/* ── Main: video + overlays ──────────────────────────────────────────── */}
+        {/* ── Main: video + all overlays ──────────────────────────────────────── */}
         <main className="relative flex-1 overflow-hidden">
 
-          {/* Frozen frame / custom thumbnail backdrop — shown when choices are active */}
+          {/* Opening instructions — full overlay before first video */}
           <AnimatePresence>
-            {phase === 'choices' && choiceBackground && (
-              <motion.div
-                key="choice-bg"
-                className="absolute inset-0 z-[1]"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.35 }}
-              >
-                <img
-                  src={choiceBackground}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover"
-                  style={{ filter: 'blur(18px) brightness(0.35)', transform: 'scale(1.1)' }}
-                />
-              </motion.div>
+            {showInstructions && startNode?.openingInstructions && (
+              <OpeningInstructionsScreen
+                key="instructions"
+                title={startNode.openingInstructions.title}
+                body={startNode.openingInstructions.body}
+                startButtonText={startNode.openingInstructions.startButtonText}
+                onStart={() => setShowInstructions(false)}
+              />
             )}
           </AnimatePresence>
 
           {/* VideoScene — keyed to currentNodeId so it remounts on transition */}
           <AnimatePresence mode="wait">
-            {phase !== 'transitioning' && (
+            {!showInstructions && phase !== 'transitioning' && (
               <motion.div
                 key={session.currentNodeId}
                 initial={{ opacity: 0 }}
-                animate={{ opacity: phase === 'choices' && choiceBackground ? 0 : 1 }}
+                animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute inset-0"
@@ -283,6 +269,31 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
                   onComplete={handleVideoComplete}
                   autoAdvanceSeconds={currentNode?.type === 'ending' ? 4 : 5}
                 />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ChoicePanel — glass overlay anchored to bottom of video */}
+          <AnimatePresence>
+            {phase === 'choices' && choices.length > 0 && (
+              <ChoicePanel
+                key="choices"
+                choices={choices}
+                onSelect={handleChoiceSelect}
+              />
+            )}
+          </AnimatePresence>
+
+          {/* Dead-end notice (draft node with no choices) */}
+          <AnimatePresence>
+            {phase === 'choices' && choices.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute bottom-8 left-0 right-0 text-center pointer-events-none"
+              >
+                <p className="text-sm font-mono text-ink-3">— no choices yet —</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -313,31 +324,6 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
             )}
           </AnimatePresence>
         </main>
-
-        {/* ── ChoicePanel — slides up from below main ─────────────────────────── */}
-        <AnimatePresence>
-          {phase === 'choices' && choices.length > 0 && (
-            <ChoicePanel
-              key="choices"
-              choices={choices}
-              onSelect={handleChoiceSelect}
-            />
-          )}
-        </AnimatePresence>
-
-        {/* Dead-end notice (draft node with no choices) */}
-        <AnimatePresence>
-          {phase === 'choices' && choices.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="shrink-0 px-5 pb-8 pt-4 text-center"
-            >
-              <p className="text-sm font-mono text-ink-3">— no choices yet —</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   )

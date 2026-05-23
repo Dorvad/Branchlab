@@ -55,6 +55,13 @@ export interface ScenarioChoice {
   targetHandle?: string;
 }
 
+export interface OpeningInstructions {
+  enabled: boolean;
+  title: string;
+  body: string;
+  startButtonText: string;
+}
+
 export interface ScenarioNode {
   id: string;
   type: NodeType;
@@ -66,6 +73,7 @@ export interface ScenarioNode {
   position: { x: number; y: number };
   scoreEffects?: ScoreEffects; // applied when this node is entered
   outcome?: 'correct' | 'incorrect';
+  openingInstructions?: OpeningInstructions;
 }
 
 export interface ScenarioEdge {

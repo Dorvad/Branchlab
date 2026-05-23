@@ -780,6 +780,7 @@ function EditorUI({
             onDuplicateNode={() => duplicateNode(selectedNode.id)}
             onOpenLibrary={() => setShowAssets(true)}
             onClose={() => setSelectedNodeId(null)}
+            isStartNode={selectedNode.id === scenario.startNodeId}
             outcomeMode={scenario.outcomeMode}
             onToggleOutcomeMode={toggleOutcomeMode}
           />
