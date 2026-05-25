@@ -101,26 +101,42 @@ export default function DashboardPage() {
       .catch(e => { setError(e.message ?? 'Failed to load'); setLoading(false) })
   }
 
+  const [createError, setCreateError] = useState<string | null>(null)
+
   const handleCreate = () => {
+    setCreateError(null)
     startTransition(async () => {
-      const s = createScenario()
-      await saveScenario(s, activeOrg?.id ?? null)
-      router.push(`/editor/${s.id}`)
+      try {
+        const s = createScenario()
+        await saveScenario(s, activeOrg?.id ?? null)
+        router.push(`/editor/${s.id}`)
+      } catch (e) {
+        setCreateError(e instanceof Error ? e.message : 'Failed to create scenario')
+      }
     })
   }
 
   const handleCreateFromTemplate = () => {
+    setCreateError(null)
     startTransition(async () => {
-      const s = createFromTemplate()
-      await saveScenario(s, activeOrg?.id ?? null)
-      router.push(`/editor/${s.id}`)
+      try {
+        const s = createFromTemplate()
+        await saveScenario(s, activeOrg?.id ?? null)
+        router.push(`/editor/${s.id}`)
+      } catch (e) {
+        setCreateError(e instanceof Error ? e.message : 'Failed to create scenario')
+      }
     })
   }
 
   const handleDuplicate = useCallback(async (source: Scenario) => {
-    const copy = duplicateScenario(source)
-    await saveScenario(copy, activeOrg?.id ?? null)
-    load()
+    try {
+      const copy = duplicateScenario(source)
+      await saveScenario(copy, activeOrg?.id ?? null)
+      load()
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : 'Failed to duplicate scenario')
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeOrg?.id])
 
@@ -305,6 +321,33 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* ── Create error toast ── */}
+      <AnimatePresence>
+        {createError && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-4 py-3 rounded-xl"
+            style={{
+              background: 'oklch(70% 0.18 25 / 0.12)',
+              border: '1px solid oklch(70% 0.18 25 / 0.35)',
+              backdropFilter: 'blur(12px)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+            }}
+          >
+            <p className="text-sm font-mono" style={{ color: 'oklch(70% 0.18 25)' }}>{createError}</p>
+            <button
+              onClick={() => setCreateError(null)}
+              className="shrink-0"
+              style={{ color: 'oklch(70% 0.18 25)' }}
+            >
+              <X size={13} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Delete confirmation modal ── */}
       <AnimatePresence>

@@ -286,19 +286,23 @@ export async function uploadClip(
   } catch { /* thumbnail is optional — never fail the upload */ }
 
   // ── Phase 3: insert DB row ────────────────────────────────────────────────
+  const clipRow: Record<string, unknown> = {
+    user_id: user.id,
+    name: file.name, // keep original filename even if we compressed to .mp4
+    size: uploadFile.size,
+    mime_type: uploadFile.type,
+    url: publicUrl,
+    storage_path: storagePath,
+    duration,
+    thumbnail_url: thumbnailUrl ?? null,
+  }
+  // Only include org_id when set — avoids breaking on DBs where the migration
+  // adding this column hasn't been applied yet.
+  if (orgId) clipRow.org_id = orgId
+
   const { data, error } = await sb
     .from('clips')
-    .insert({
-      user_id: user.id,
-      org_id: orgId ?? null,
-      name: file.name, // keep original filename even if we compressed to .mp4
-      size: uploadFile.size,
-      mime_type: uploadFile.type,
-      url: publicUrl,
-      storage_path: storagePath,
-      duration,
-      thumbnail_url: thumbnailUrl ?? null,
-    })
+    .insert(clipRow)
     .select()
     .single()
 
@@ -315,9 +319,9 @@ export async function fetchClips(orgId?: string | null): Promise<Clip[]> {
 
   if (orgId) {
     query = query.eq('org_id', orgId)
-  } else {
-    query = query.is('org_id', null)
   }
+  // When no orgId, return all clips the user can see — avoids referencing
+  // org_id IS NULL when the column may not exist yet (migration not applied).
 
   const { data, error } = await query
   if (error) throw new Error(error.message)

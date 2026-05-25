@@ -50,10 +50,9 @@ function rowToVersion(row: any): ScenarioVersion {
 }
 
 function scenarioToRow(scenario: Scenario, userId: string, orgId?: string | null) {
-  return {
+  const row: Record<string, unknown> = {
     id: scenario.id,
     user_id: userId,
-    org_id: orgId ?? null,
     title: scenario.title,
     slug: scenario.slug ?? '',
     description: scenario.description ?? '',
@@ -64,6 +63,10 @@ function scenarioToRow(scenario: Scenario, userId: string, orgId?: string | null
     thumbnail_url: scenario.thumbnailUrl ?? null,
     published_version: scenario.publishedVersion ?? null,
   }
+  // Only include org_id when it has a value — avoids breaking on DBs where
+  // the 003_organizations migration hasn't been applied yet.
+  if (orgId) row.org_id = orgId
+  return row
 }
 
 // ── Error helper ──────────────────────────────────────────────────────────────
@@ -144,7 +147,9 @@ export async function getAllScenarios(orgId: string | null = null): Promise<Scen
   if (orgId) {
     query = query.eq('org_id', orgId)
   } else {
-    query = query.eq('user_id', userId).is('org_id', null)
+    // Filter by user_id only — avoids referencing org_id when the column may
+    // not exist yet (migration not yet applied to this Supabase project).
+    query = query.eq('user_id', userId)
   }
 
   const { data, error } = await query
