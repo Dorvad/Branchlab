@@ -52,12 +52,27 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
   const videoRef = useRef<HTMLVideoElement>(null)
   const [videoProgress, setVideoProgress] = useState(0)
   const [showFallback, setShowFallback] = useState(false)
+  const [needsInteraction, setNeedsInteraction] = useState(false)
+  const [videoError, setVideoError] = useState(false)
 
-  // Reset video state when node changes
+  // Reset video state when node changes and explicitly trigger playback.
+  // autoPlay alone can be blocked (e.g. new tab); we call play() imperatively
+  // so we can detect the block and show a tap-to-play overlay.
   useEffect(() => {
     setDone(false)
     setVideoProgress(0)
     setShowFallback(false)
+    setNeedsInteraction(false)
+    setVideoError(false)
+
+    const v = videoRef.current
+    if (!v || !clip) return
+    v.load()
+    const p = v.play()
+    if (p) p.catch(err => {
+      if (err.name === 'NotAllowedError') setNeedsInteraction(true)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id])
 
   // Show manual "Show choices" button after 1.5s — user shouldn't be trapped
@@ -88,6 +103,27 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
   }, [done, onComplete])
 
   if (clip) {
+    // Video failed to load — show placeholder content with error indicator
+    if (videoError) {
+      return (
+        <div className="relative w-full h-full">
+          <PlaceholderScene node={node} color={color} duration={null} onComplete={onComplete} />
+          <div className="absolute top-14 left-5 right-5 z-30 pointer-events-none">
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-mono"
+              style={{
+                background: 'oklch(70% 0.18 25 / 0.15)',
+                border: '1px solid oklch(70% 0.18 25 / 0.4)',
+                color: 'oklch(70% 0.18 25)',
+              }}
+            >
+              ⚠ Video unavailable — click &ldquo;Finish clip&rdquo; to continue
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="relative w-full h-full overflow-hidden bg-black select-none">
         <video
@@ -98,7 +134,28 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
           playsInline
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleVideoEnded}
+          onError={() => setVideoError(true)}
         />
+
+        {/* Tap-to-play overlay — shown when browser blocks autoplay */}
+        {needsInteraction && (
+          <button
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3"
+            style={{ background: 'rgba(0,0,0,0.55)' }}
+            onClick={() => {
+              videoRef.current?.play().catch(() => {})
+              setNeedsInteraction(false)
+            }}
+          >
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}
+            >
+              <ChevronRight size={28} style={{ color: 'white', marginLeft: 4 }} />
+            </div>
+            <span className="text-white/80 text-sm font-medium">Tap to play</span>
+          </button>
+        )}
 
         {/* Top gradient + status */}
         <div
@@ -125,64 +182,27 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
           )}
         </div>
 
-        {/* Bottom gradient + title + controls */}
-        <div
-          className="absolute bottom-0 left-0 right-0 z-10 px-5 pt-20 pb-5"
-          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.45) 55%, transparent 100%)' }}
-        >
-          <motion.div
-            key={node.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <h2
-              className="font-semibold text-white leading-tight mb-2"
-              style={{ fontSize: 'clamp(18px, 5vw, 28px)', letterSpacing: '-0.02em' }}
+        {/* Skip button — only shown after 1.5s, gives player an escape hatch */}
+        <AnimatePresence>
+          {showFallback && !done && (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={handleVideoSkip}
+              className="absolute bottom-5 right-5 z-10 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-all hover:brightness-110 active:scale-95"
+              style={{
+                background: 'rgba(0,0,0,0.45)',
+                borderColor: 'rgba(255,255,255,0.18)',
+                color: 'rgba(255,255,255,0.7)',
+                backdropFilter: 'blur(8px)',
+              }}
             >
-              {node.title}
-            </h2>
-            {node.description && (
-              <p className="text-white/60 text-sm leading-relaxed mb-4 max-w-xs">
-                {node.description}
-              </p>
-            )}
-          </motion.div>
-
-          {/* Progress bar */}
-          <div
-            className="relative h-0.5 rounded-full mb-4 overflow-hidden"
-            style={{ background: 'rgba(255,255,255,0.15)' }}
-          >
-            <div
-              className="absolute left-0 top-0 h-full rounded-full"
-              style={{ width: `${videoProgress * 100}%`, background: 'rgba(255,255,255,0.7)', transition: 'width 0.1s linear' }}
-            />
-          </div>
-
-          {/* Manual "Show choices" fallback */}
-          <div className="flex justify-end">
-            <AnimatePresence>
-              {showFallback && !done && (
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  onClick={handleVideoSkip}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-all hover:brightness-110 active:scale-95"
-                  style={{
-                    background: 'rgba(255,255,255,0.12)',
-                    borderColor: 'rgba(255,255,255,0.2)',
-                    color: 'white',
-                  }}
-                >
-                  Show choices
-                  <ChevronRight size={14} />
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
+              Skip
+              <ChevronRight size={14} />
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
     )
   }
@@ -317,38 +337,24 @@ function PlaceholderScene({ node, color, duration, onComplete }: PlaceholderScen
         )}
       </motion.div>
 
-      {/* Bottom controls */}
-      <div className="relative z-10 shrink-0 px-5 pb-5 pt-3">
-        <div
-          className="relative h-0.5 rounded-full mb-3 overflow-hidden"
-          style={{ background: 'rgba(255,255,255,0.08)' }}
-        >
-          <motion.div
-            className="absolute left-0 top-0 h-full rounded-full"
-            style={{ background: color }}
-            animate={{ width: `${progress * 100}%` }}
-            transition={{ duration: 0.08, ease: 'linear' }}
-          />
-        </div>
-
-        <div className="flex justify-end">
-          <AnimatePresence>
-            {!done && (
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: 0.5, duration: 0.3 }}
-                onClick={finish}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-all hover:brightness-110 active:scale-95"
-                style={{ background: `${color}14`, borderColor: `${color}35`, color }}
-              >
-                Finish clip
-                <ChevronRight size={14} />
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </div>
+      {/* Skip button */}
+      <div className="relative z-10 shrink-0 flex justify-end px-5 pb-5 pt-3">
+        <AnimatePresence>
+          {!done && (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ delay: 0.5, duration: 0.3 }}
+              onClick={finish}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-all hover:brightness-110 active:scale-95"
+              style={{ background: `${color}14`, borderColor: `${color}35`, color }}
+            >
+              Skip
+              <ChevronRight size={14} />
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )

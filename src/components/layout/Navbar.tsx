@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { signOut } from '@/lib/supabase/auth'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface NavbarProps {
   title?: string
@@ -26,7 +27,7 @@ export function Navbar({ title, actions, showSignOut }: NavbarProps) {
   return (
     <header
       className="flex items-center justify-between px-6 py-4 border-b"
-      style={{ borderColor: 'var(--stroke)', background: 'rgba(8,9,13,0.85)', backdropFilter: 'blur(16px)' }}
+      style={{ borderColor: 'var(--stroke)', background: 'var(--bg-glass)', backdropFilter: 'blur(16px)' }}
     >
       <div className="flex items-center gap-6">
         <Link href="/" className="flex items-center gap-2.5 shrink-0">
@@ -34,7 +35,7 @@ export function Navbar({ title, actions, showSignOut }: NavbarProps) {
             <circle cx="10" cy="22" r="5" fill="oklch(82% 0.18 165)" />
             <circle cx="34" cy="10" r="4" fill="oklch(78% 0.18 285)" />
             <circle cx="34" cy="34" r="4" fill="oklch(80% 0.16 60)" />
-            <path d="M14 22 L30 12 M14 22 L30 32" stroke="white" strokeOpacity="0.4" strokeWidth="1.5" />
+            <path d="M14 22 L30 12 M14 22 L30 32" stroke="currentColor" strokeOpacity="0.4" strokeWidth="1.5" />
           </svg>
           <span className="font-semibold text-sm tracking-[-0.01em] text-ink-0">BranchLab</span>
         </Link>
@@ -50,10 +51,10 @@ export function Navbar({ title, actions, showSignOut }: NavbarProps) {
           <nav className="hidden md:flex items-center gap-1">
             <Link
               href="/dashboard"
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-sm transition-colors',
-                'text-ink-1 hover:text-ink-0 hover:bg-white/5'
-              )}
+              className="px-3 py-1.5 rounded-lg text-sm transition-colors text-ink-1 hover:text-ink-0"
+              style={{ background: 'transparent' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--tint-3)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               Scenarios
             </Link>
@@ -63,10 +64,13 @@ export function Navbar({ title, actions, showSignOut }: NavbarProps) {
 
       <div className="flex items-center gap-3">
         {actions}
+        <ThemeToggle />
         {showSignOut && (
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-ink-3 hover:text-ink-1 hover:bg-white/5 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-ink-3 hover:text-ink-1 transition-all"
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--tint-3)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             title="Sign out"
           >
             <LogOut size={13} />

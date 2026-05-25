@@ -1,5 +1,50 @@
 export type NodeType = 'start' | 'scene' | 'feedback' | 'ending';
+export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer';
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  createdBy: string;
+  avatarUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrgMember {
+  id: string;
+  orgId: string;
+  userId: string;
+  role: OrgRole;
+  joinedAt: string;
+  email?: string;
+}
+
+export interface OrgInvite {
+  id: string;
+  orgId: string;
+  email: string;
+  role: OrgRole;
+  token: string;
+  invitedBy: string;
+  expiresAt: string;
+  acceptedAt?: string;
+  createdAt: string;
+}
+
+export interface OrgWithRole extends Organization {
+  role: OrgRole;
+  memberCount: number;
+}
 export type ScenarioStatus = 'draft' | 'published' | 'archived';
+export type Orientation = 'vertical' | 'horizontal';
+
+export interface PublishConfig {
+  slug: string
+  orientation: Orientation
+  passwordProtected: boolean
+  password?: string
+}
 export type PlayerPhase = 'watching' | 'choices' | 'feedback' | 'transitioning' | 'ending';
 
 export interface VideoClip {
@@ -12,15 +57,18 @@ export interface VideoClip {
   addedAt: string;    // ISO timestamp
 }
 
+export type ClipUploadStatus = 'compressing' | 'uploading' | 'processing' | 'ready' | 'failed'
+
 export interface Clip {
   id: string;
   name: string;
   size: number;
   mimeType: string;
-  url: string;         // permanent Supabase public URL
-  storagePath: string; // used for deletion
-  duration: number;    // seconds
-  createdAt: string;   // ISO timestamp
+  url: string;          // permanent Supabase public URL
+  storagePath: string;  // used for deletion
+  duration: number;     // seconds
+  createdAt: string;    // ISO timestamp
+  thumbnailUrl?: string;
 }
 
 export interface ScoreEffects {
@@ -40,6 +88,15 @@ export interface ScenarioChoice {
   targetNodeId: string;
   scoreEffects?: ScoreEffects;
   feedback?: string; // shown as overlay after selecting this choice
+  sourceHandle?: string;
+  targetHandle?: string;
+}
+
+export interface OpeningInstructions {
+  enabled: boolean;
+  title: string;
+  body: string;
+  startButtonText: string;
 }
 
 export interface ScenarioNode {
@@ -48,11 +105,12 @@ export interface ScenarioNode {
   title: string;
   description?: string;
   clip?: ClipAsset;
-  clipId?: string;
   thumbnailUrl?: string; // custom choice-screen backdrop; falls back to last video frame
   choices: ScenarioChoice[];
   position: { x: number; y: number };
   scoreEffects?: ScoreEffects; // applied when this node is entered
+  outcome?: 'correct' | 'incorrect';
+  openingInstructions?: OpeningInstructions;
 }
 
 export interface ScenarioEdge {
@@ -60,6 +118,8 @@ export interface ScenarioEdge {
   sourceNodeId: string;
   targetNodeId: string;
   choiceId: string;
+  sourceHandle?: string;
+  targetHandle?: string;
 }
 
 export interface ScenarioVersion {
@@ -72,6 +132,9 @@ export interface ScenarioVersion {
   startNodeId: string;
   publishedAt: string;
   slug: string;
+  orientation?: Orientation;
+  passwordProtected?: boolean;
+  password?: string;
 }
 
 export interface Scenario {
@@ -86,6 +149,7 @@ export interface Scenario {
   createdAt: string;
   updatedAt: string;
   thumbnailUrl?: string;
+  outcomeMode?: boolean;
   publishedVersion?: ScenarioVersion;
 }
 

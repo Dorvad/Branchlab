@@ -122,7 +122,7 @@ export default function LandingPage() {
             </Link>
             <Link
               href="/play/balcony-at-the-party"
-              className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium border transition-all hover:bg-white/5"
+              className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)]"
               style={{ borderColor: 'rgba(255,255,255,0.12)', color: '#c9cdda' }}
             >
               <Play size={14} />

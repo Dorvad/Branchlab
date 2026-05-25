@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor } from 'lucide-react'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor, Smartphone, ChevronDown, Download } from 'lucide-react'
+import { BranchLabLoader } from '@/components/BranchLabLoader'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScenarioCanvas } from './ScenarioCanvas'
 import { LeftSidebar } from './LeftSidebar'
@@ -15,7 +17,10 @@ import { getScenario, saveScenario, publishScenario } from '@/lib/scenario-store
 import { fetchClips } from '@/lib/supabase/clips'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
-import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip } from '@/types'
+import { exportToBlab } from '@/lib/blab-format'
+import { exportToZip } from '@/lib/zip-export'
+import { exportScorm12, exportXapiStatements } from '@/lib/scorm-export'
+import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, PublishConfig } from '@/types'
 
 interface EditorShellProps {
   scenarioId: string
@@ -59,13 +64,13 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
   const mobileWarning = (
     <div
       className="fixed inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center md:hidden"
-      style={{ background: '#0a0b10' }}
+      style={{ background: 'var(--bg-0)' }}
     >
       <div
         className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6"
-        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+        style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)' }}
       >
-        <Monitor size={22} style={{ color: '#5c6273' }} />
+        <Monitor size={22} style={{ color: 'var(--fg-3)' }} />
       </div>
       <h2 className="text-lg font-semibold text-ink-0 mb-2">Open on a larger screen</h2>
       <p className="text-sm text-ink-3 leading-relaxed max-w-xs">
@@ -84,11 +89,8 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
     return (
       <>
         {mobileWarning}
-        <div className="hidden md:flex h-screen items-center justify-center" style={{ background: '#0a0b10' }}>
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 size={22} className="animate-spin text-ink-3" />
-            <p className="text-[11px] font-mono text-ink-4">Loading scenario…</p>
-          </div>
+        <div className="hidden md:block" style={{ background: 'var(--bg-0)' }}>
+          <BranchLabLoader size={260} />
         </div>
       </>
     )
@@ -98,7 +100,7 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
     return (
       <>
         {mobileWarning}
-        <div className="hidden md:flex h-screen items-center justify-center flex-col gap-4" style={{ background: '#0a0b10' }}>
+        <div className="hidden md:flex h-screen items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-0)' }}>
           <p className="text-ink-2 text-sm">Scenario not found.</p>
           <Link
             href="/dashboard"
@@ -171,6 +173,16 @@ function EditorUI({
   setShowAssets,
 }: EditorUIProps) {
   const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [showPreviewMenu, setShowPreviewMenu] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Refs so the autosave timeout always reads the latest state without stale closures
+  const scenarioRef = useRef(scenario)
+  const edgesRef = useRef<ScenarioEdge[]>([])
+  useEffect(() => { scenarioRef.current = scenario }, [scenario])
+
 
   const selectedNode = useMemo(
     () => scenario.nodes.find(n => n.id === selectedNodeId) ?? null,
@@ -189,6 +201,8 @@ function EditorUI({
             sourceNodeId: node.id,
             targetNodeId: choice.targetNodeId,
             choiceId: choice.id,
+            sourceHandle: choice.sourceHandle,
+            targetHandle: choice.targetHandle,
           })
         }
       }
@@ -324,19 +338,97 @@ function EditorUI({
 
   const handleSave = useCallback(async () => {
     if (isSaving) return
+    setSaveError(null)
     setIsSaving(true)
     try {
-      const stored = await saveScenario({ ...scenario, edges: derivedEdges })
+      const stored = await saveScenario({
+        ...scenarioRef.current,
+        edges: edgesRef.current,
+      })
       setScenario(stored)
       setSavedAt(new Date(stored.updatedAt))
       setIsDirty(false)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Save failed')
     } finally {
       setIsSaving(false)
     }
-  }, [scenario, derivedEdges, isSaving, setScenario, setSavedAt, setIsDirty])
+  // isSaving intentionally omitted — we guard with the ref pattern instead
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setScenario, setSavedAt, setIsDirty])
 
-  const handlePublish = useCallback(async (slug: string) => {
-    const updated = await publishScenario({ ...scenario, edges: derivedEdges }, slug)
+  // ── Autosave: debounce 2.5 s after last change ────────────────────────────
+  useEffect(() => {
+    edgesRef.current = derivedEdges
+  }, [derivedEdges])
+
+  useEffect(() => {
+    if (!isDirty || isSaving) return
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+    autoSaveTimerRef.current = setTimeout(handleSave, 2500)
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+    }
+  // scenario in deps so the timer resets on every content change (debounce)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty, scenario, handleSave])
+
+  // ── Canvas connection handlers ────────────────────────────────────────────
+
+  const connectNodes = useCallback((sourceNodeId: string, targetNodeId: string, sourceHandle: string, targetHandle: string) => {
+    const newChoice: ScenarioChoice = {
+      id: `choice-${Date.now()}`,
+      label: 'New choice',
+      targetNodeId,
+      sourceHandle,
+      targetHandle,
+    }
+    setScenario(prev => prev ? ({
+      ...prev,
+      nodes: prev.nodes.map(n =>
+        n.id === sourceNodeId ? { ...n, choices: [...n.choices, newChoice] } : n
+      ),
+    }) : prev)
+    setSelectedNodeId(sourceNodeId)
+    setIsDirty(true)
+  }, [setScenario, setSelectedNodeId, setIsDirty])
+
+  const reconnectEdge = useCallback((edgeId: string, newTargetNodeId: string, newTargetHandle?: string) => {
+    const parts = edgeId.split('__')
+    if (parts.length < 2) return
+    const [sourceNodeId, choiceId] = parts
+    setScenario(prev => prev ? ({
+      ...prev,
+      nodes: prev.nodes.map(n =>
+        n.id === sourceNodeId
+          ? { ...n, choices: n.choices.map(c => c.id === choiceId ? { ...c, targetNodeId: newTargetNodeId, targetHandle: newTargetHandle ?? c.targetHandle } : c) }
+          : n
+      ),
+    }) : prev)
+    setIsDirty(true)
+  }, [setScenario, setIsDirty])
+
+  const toggleOutcomeMode = useCallback(() => {
+    setScenario(prev => {
+      if (!prev) return prev
+      const turningOff = prev.outcomeMode
+      return {
+        ...prev,
+        outcomeMode: !prev.outcomeMode,
+        nodes: turningOff
+          ? prev.nodes.map(n => ({ ...n, outcome: undefined }))
+          : prev.nodes,
+      }
+    })
+    setIsDirty(true)
+  }, [])
+
+  const onEdgeClick = useCallback((sourceNodeId: string) => {
+    setSelectedNodeId(sourceNodeId)
+  }, [setSelectedNodeId])
+
+  const handlePublish = useCallback(async (config: PublishConfig) => {
+    const updated = await publishScenario({ ...scenario, edges: derivedEdges }, config)
     setScenario(updated)
     setSavedAt(new Date(updated.updatedAt))
     setIsDirty(false)
@@ -395,8 +487,7 @@ function EditorUI({
     const clip = clips.find(c => c.id === clipId)
     if (!clip) return
     updateNode(selectedNodeId, {
-      clip: { id: clip.id, url: clip.url, duration: clip.duration },
-      clipId: undefined,
+      clip: { id: clip.id, url: clip.url, duration: clip.duration, thumbnail: clip.thumbnailUrl },
     })
   }, [selectedNodeId, clips, updateNode])
 
@@ -414,7 +505,7 @@ function EditorUI({
     ? { borderColor: 'oklch(70% 0.18 25 / 0.4)', color: 'oklch(70% 0.18 25)' }
     : warningCount > 0
     ? { borderColor: 'oklch(80% 0.16 60 / 0.4)', color: 'oklch(80% 0.16 60)' }
-    : { borderColor: 'rgba(255,255,255,0.1)', color: '#5c6273' }
+    : { borderColor: 'var(--line-2)', color: 'var(--fg-3)' }
 
   const validateBtnLabel = errorCount > 0
     ? `${errorCount} error${errorCount !== 1 ? 's' : ''}${warningCount > 0 ? ` · ${warningCount}` : ''}`
@@ -423,14 +514,14 @@ function EditorUI({
     : 'Valid'
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#0a0b10' }}>
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-0)' }}>
 
       {/* ── Top bar ───────────────────────────────────────────────────────── */}
       <header
         className="flex items-center justify-between px-4 h-[52px] shrink-0 z-20 border-b"
         style={{
-          borderColor: 'rgba(255,255,255,0.07)',
-          background: 'rgba(8,9,13,0.92)',
+          borderColor: 'var(--line-1)',
+          background: 'var(--bg-glass)',
           backdropFilter: 'blur(16px)',
         }}
       >
@@ -443,26 +534,21 @@ function EditorUI({
             <ArrowLeft size={14} />
             <span className="hidden sm:inline">Dashboard</span>
           </Link>
-          <span style={{ color: 'rgba(255,255,255,0.12)' }}>/</span>
+          <span style={{ color: 'var(--line-3)' }}>/</span>
           <span className="text-sm font-medium text-ink-0 truncate max-w-[200px]">
             {scenario.title}
           </span>
           <StatusPill status={scenario.status} />
-          {isDirty && (
-            <span className="text-[10px] font-mono text-ink-3 tracking-wider">
-              unsaved
-            </span>
-          )}
         </div>
 
         {/* Right */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAssets(v => !v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
             style={{
-              borderColor: showAssets ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
-              color: showAssets ? '#c9cdda' : '#8a90a4',
+              borderColor: showAssets ? 'var(--line-4)' : 'var(--line-2)',
+              color: showAssets ? 'var(--fg-1)' : 'var(--fg-2)',
             }}
           >
             <Library size={12} />
@@ -470,7 +556,7 @@ function EditorUI({
             {clips.length > 0 && (
               <span
                 className="px-1.5 py-px rounded-full font-mono text-[9px]"
-                style={{ background: 'rgba(255,255,255,0.08)', color: '#8a90a4' }}
+                style={{ background: 'var(--tint-3)', color: 'var(--fg-2)' }}
               >
                 {clips.length}
               </span>
@@ -479,7 +565,7 @@ function EditorUI({
 
           <button
             onClick={() => setShowValidation(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
             style={validateBtnStyle}
           >
             {errorCount > 0 ? (
@@ -493,30 +579,161 @@ function EditorUI({
 
           <button
             onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5 disabled:opacity-50"
+            disabled={isSaving || !isDirty}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)] disabled:opacity-40"
             style={{
-              borderColor: isDirty ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.08)',
-              color: isDirty ? '#c9cdda' : '#5c6273',
+              borderColor: isDirty && !isSaving ? 'var(--line-4)' : 'var(--line-1)',
+              color: isDirty && !isSaving ? 'var(--fg-1)' : 'var(--fg-3)',
             }}
+            title={isSaving ? 'Saving…' : isDirty ? 'Save now (⌘S)' : 'All changes saved'}
           >
             {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-            {isSaving ? 'Saving…' : 'Save draft'}
+            {isSaving ? 'Saving…' : isDirty ? 'Save now' : 'Saved'}
           </button>
 
-          <Link
-            href={`/preview/${scenario.id}`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
-            style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#c9cdda' }}
-          >
-            <Eye size={12} />
-            Preview
-          </Link>
+          <ThemeToggle />
+
+          {/* ── Preview split button ──────────────────────────────────────── */}
+          <div className="relative">
+            <div
+              className="flex items-stretch rounded-xl overflow-hidden border"
+              style={{ borderColor: 'var(--line-2)' }}
+            >
+              <button
+                onClick={async () => {
+                  if (isDirty) await handleSave()
+                  window.open(`/preview/${scenario.id}?device=mobile`, '_blank', 'noopener,noreferrer')
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono transition-all hover:bg-[var(--tint-3)]"
+                style={{ color: 'var(--fg-1)' }}
+              >
+                <Eye size={12} />
+                Preview
+              </button>
+              <div style={{ width: 1, background: 'var(--line-2)' }} />
+              <button
+                onClick={() => setShowPreviewMenu(v => !v)}
+                className="flex items-center px-2 py-1.5 text-xs transition-all hover:bg-[var(--tint-3)]"
+                style={{ color: 'var(--fg-3)' }}
+              >
+                <ChevronDown size={11} />
+              </button>
+            </div>
+
+            {showPreviewMenu && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowPreviewMenu(false)} />
+                <div
+                  className="absolute right-0 top-full mt-1.5 rounded-xl overflow-hidden z-40"
+                  style={{
+                    background: 'var(--bg-1)',
+                    border: '1px solid var(--line-2)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                    minWidth: 170,
+                  }}
+                >
+                  {[
+                    { icon: <Smartphone size={13} />, label: 'Mobile preview', device: 'mobile' },
+                    { icon: <Monitor size={13} />, label: 'Desktop preview', device: 'desktop' },
+                  ].map(({ icon, label, device }) => (
+                    <button
+                      key={device}
+                      onClick={async () => {
+                        setShowPreviewMenu(false)
+                        if (isDirty) await handleSave()
+                        window.open(`/preview/${scenario.id}?device=${device}`, '_blank', 'noopener,noreferrer')
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-mono text-left transition-colors hover:bg-[var(--tint-3)]"
+                      style={{ color: 'var(--fg-1)' }}
+                    >
+                      <span style={{ color: 'var(--fg-3)' }}>{icon}</span>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ── Export dropdown ───────────────────────────────────────────── */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(v => !v)}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)] disabled:opacity-40"
+              style={{ borderColor: 'var(--line-2)', color: 'var(--fg-3)' }}
+            >
+              {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+              Export
+              <ChevronDown size={10} />
+            </button>
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowExportMenu(false)} />
+                <div
+                  className="absolute right-0 top-full mt-1.5 rounded-xl overflow-hidden z-40"
+                  style={{
+                    background: 'var(--bg-1)',
+                    border: '1px solid var(--line-2)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                    minWidth: 185,
+                  }}
+                >
+                  {[
+                    {
+                      label: 'Export .blab',
+                      description: 'Scenario data (no videos)',
+                      action: () => { setShowExportMenu(false); exportToBlab(scenario) },
+                      disabled: false,
+                    },
+                    {
+                      label: 'Export ZIP',
+                      description: 'Scenario + video files',
+                      action: async () => {
+                        setShowExportMenu(false)
+                        setIsExporting(true)
+                        try { await exportToZip(scenario) } finally { setIsExporting(false) }
+                      },
+                      disabled: false,
+                    },
+                    {
+                      label: 'Export SCORM 1.2',
+                      description: 'LMS package (must be published)',
+                      action: async () => {
+                        setShowExportMenu(false)
+                        setIsExporting(true)
+                        try { await exportScorm12(scenario) }
+                        catch (e) { alert((e as Error).message) }
+                        finally { setIsExporting(false) }
+                      },
+                      disabled: !scenario.publishedVersion,
+                    },
+                    {
+                      label: 'Export xAPI',
+                      description: 'Statement templates (.json)',
+                      action: () => { setShowExportMenu(false); exportXapiStatements(scenario) },
+                      disabled: false,
+                    },
+                  ].map(({ label, description, action, disabled }) => (
+                    <button
+                      key={label}
+                      onClick={() => { void action() }}
+                      disabled={disabled}
+                      className="w-full flex flex-col items-start px-3.5 py-2.5 text-left transition-colors hover:bg-[var(--tint-3)] disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="text-xs font-mono" style={{ color: 'var(--fg-1)' }}>{label}</span>
+                      <span className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>{description}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
 
           <button
             onClick={() => setShowPublish(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-white/5"
-            style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#8a90a4' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
+            style={{ borderColor: 'var(--line-2)', color: 'var(--fg-2)' }}
           >
             <Globe size={12} />
             {scenario.publishedVersion ? 'Republish' : 'Publish'}
@@ -544,6 +761,9 @@ function EditorUI({
             onNodePositionChange={updateNodePosition}
             nodeStatusMap={nodeStatusMap}
             startNodeId={scenario.startNodeId}
+            onConnect={connectNodes}
+            onEdgeClick={onEdgeClick}
+            onEdgeReconnect={reconnectEdge}
           />
         </div>
 
@@ -560,6 +780,9 @@ function EditorUI({
             onDuplicateNode={() => duplicateNode(selectedNode.id)}
             onOpenLibrary={() => setShowAssets(true)}
             onClose={() => setSelectedNodeId(null)}
+            isStartNode={selectedNode.id === scenario.startNodeId}
+            outcomeMode={scenario.outcomeMode}
+            onToggleOutcomeMode={toggleOutcomeMode}
           />
         )}
       </div>
@@ -568,12 +791,12 @@ function EditorUI({
       <div
         className="flex items-center gap-5 px-5 h-[34px] shrink-0 border-t"
         style={{
-          borderColor: 'rgba(255,255,255,0.06)',
-          background: 'rgba(8,9,13,0.75)',
+          borderColor: 'var(--line-1)',
+          background: 'var(--bg-glass-2)',
         }}
       >
         {[
-          { label: 'Nodes', value: scenario.nodes.length },
+          { label: 'Scenes', value: scenario.nodes.length },
           { label: 'Edges', value: derivedEdges.length },
           { label: 'Endings', value: scenario.nodes.filter(n => n.type === 'ending').length },
           {
@@ -584,13 +807,7 @@ function EditorUI({
           {
             label: 'Warnings',
             value: warningCount === 0 ? '✓ none' : String(warningCount),
-            color: warningCount === 0 ? '#5c6273' : 'oklch(80% 0.16 60)',
-          },
-          {
-            label: 'Saved',
-            value: savedAt
-              ? savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : 'never',
+            color: warningCount === 0 ? 'var(--fg-3)' : 'oklch(80% 0.16 60)',
           },
         ].map(stat => (
           <div key={stat.label} className="flex items-center gap-1.5">
@@ -599,12 +816,34 @@ function EditorUI({
             </span>
             <span
               className="text-[10px] font-mono"
-              style={{ color: 'color' in stat ? stat.color : '#8a90a4' }}
+              style={{ color: 'color' in stat ? stat.color : 'var(--fg-2)' }}
             >
               {stat.value}
             </span>
           </div>
         ))}
+
+        {/* Save status — right-aligned */}
+        <div className="ml-auto flex items-center gap-1.5">
+          {isSaving ? (
+            <>
+              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--fg-3)' }} />
+              <span className="text-[10px] font-mono" style={{ color: 'var(--fg-3)' }}>Autosaving…</span>
+            </>
+          ) : saveError ? (
+            <span className="text-[10px] font-mono" style={{ color: 'oklch(70% 0.18 25)' }} title={saveError}>
+              Save failed
+            </span>
+          ) : isDirty ? (
+            <span className="text-[10px] font-mono" style={{ color: 'oklch(80% 0.16 60)' }}>
+              Unsaved
+            </span>
+          ) : savedAt ? (
+            <span className="text-[10px] font-mono" style={{ color: 'var(--fg-4)' }}>
+              Saved {savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {showValidation && (
@@ -619,7 +858,7 @@ function EditorUI({
         <PublishModal
           scenario={scenario}
           validationResult={validationResult}
-          onPublish={handlePublish}
+          onPublish={(config) => handlePublish(config)}
           onClose={() => setShowPublish(false)}
         />
       )}
@@ -630,6 +869,7 @@ function EditorUI({
             clips={clips}
             selectedNodeTitle={selectedNode?.title ?? null}
             canAttach={!!selectedNodeId}
+            nodeClipId={selectedNode?.clip?.id}
             onAddClip={addClip}
             onRemoveClip={removeClip}
             onAttachToNode={attachClipToNode}
@@ -644,9 +884,9 @@ function EditorUI({
 function StatusPill({ status }: { status: string }) {
   const s = {
     published: { color: 'oklch(82% 0.18 165)', bg: 'oklch(82% 0.18 165 / 0.1)', border: 'oklch(82% 0.18 165 / 0.3)' },
-    draft:     { color: '#8a90a4', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)' },
-    archived:  { color: '#5c6273', bg: 'rgba(255,255,255,0.02)', border: 'rgba(255,255,255,0.07)' },
-  }[status] ?? { color: '#8a90a4', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)' }
+    draft:     { color: 'var(--fg-2)', bg: 'var(--tint-2)', border: 'var(--line-2)' },
+    archived:  { color: 'var(--fg-3)', bg: 'var(--tint-1)', border: 'var(--line-1)' },
+  }[status] ?? { color: 'var(--fg-2)', bg: 'var(--tint-2)', border: 'var(--line-2)' }
 
   return (
     <span

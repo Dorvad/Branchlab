@@ -6,6 +6,7 @@ import type { ScenarioNode, ScenarioEdge, ScenarioVersion } from '@/types'
 
 interface PlayPageProps {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ embed?: string }>
 }
 
 type VersionRow = {
@@ -20,19 +21,41 @@ type VersionRow = {
   slug: string
 }
 
+function appUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
+}
+
 export async function generateMetadata({ params }: PlayPageProps): Promise<Metadata> {
   const { slug } = await params
   const sb = getSupabaseServer()
   const { data } = await sb.from('scenario_versions').select('title').eq('slug', slug).single()
   const row = data as { title?: string } | null
+  const title = row?.title ? `${row.title} · BranchLab` : 'Play · BranchLab'
+  const base = appUrl()
+  const canonicalUrl = base ? `${base}/play/${slug}` : undefined
   return {
-    title: row?.title ? `${row.title} · BranchLab` : 'Play · BranchLab',
+    title,
     description: 'An interactive branching video scenario.',
+    ...(canonicalUrl && {
+      alternates: { canonical: canonicalUrl },
+      openGraph: {
+        title,
+        description: 'An interactive branching video scenario.',
+        url: canonicalUrl,
+        type: 'website',
+      },
+      twitter: {
+        card: 'summary',
+        title,
+        description: 'An interactive branching video scenario.',
+      },
+    }),
   }
 }
 
-export default async function PlayPage({ params }: PlayPageProps) {
+export default async function PlayPage({ params, searchParams }: PlayPageProps) {
   const { slug } = await params
+  const { embed } = await searchParams
   const sb = getSupabaseServer()
 
   const { data } = await sb
@@ -74,5 +97,5 @@ export default async function PlayPage({ params }: PlayPageProps) {
     slug: row.slug,
   }
 
-  return <ScenarioPlayer scenario={version} mode="play" />
+  return <ScenarioPlayer scenario={version} mode="play" embed={embed === '1'} />
 }

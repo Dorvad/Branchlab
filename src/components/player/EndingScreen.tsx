@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { RotateCcw, Share2 } from 'lucide-react'
 import { ScoreSummary } from './ScoreSummary'
@@ -14,18 +15,27 @@ interface EndingScreenProps {
   mode: 'play' | 'preview'
 }
 
-const ENDING_ACCENT: Record<string, { color: string; label: string }> = {
-  'node-ending-connected': { color: 'oklch(82% 0.18 165)', label: 'Best outcome' },
-  'node-ending-lingering': { color: 'oklch(78% 0.18 285)', label: 'Close' },
-  'node-ending-missed':    { color: 'oklch(70% 0.18 25)',  label: 'Missed' },
-}
-
-function getAccent(nodeId: string) {
-  return ENDING_ACCENT[nodeId] ?? { color: 'oklch(80% 0.16 60)', label: 'Ending' }
-}
-
 export function EndingScreen({ endingNode, session, scenario, onRestart, mode }: EndingScreenProps) {
-  const accent = getAccent(endingNode.id)
+  // Notify SCORM wrapper (or any parent frame) when an ending is reached
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return
+    const totalScore = Object.values(session.score).reduce((a, b) => a + b, 0)
+    window.parent.postMessage({
+      type: 'branchlab:ending_reached',
+      endingNodeId: endingNode.id,
+      endingTitle: endingNode.title,
+      score: Object.keys(session.score).length > 0 ? totalScore : undefined,
+    }, '*')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const outcome = endingNode.outcome
+  const accentColor = outcome === 'correct'
+    ? 'oklch(82% 0.18 165)'
+    : outcome === 'incorrect'
+    ? 'oklch(70% 0.18 25)'
+    : 'oklch(80% 0.16 60)'
+  const accentLabel = outcome === 'correct' ? 'Correct' : outcome === 'incorrect' ? 'Incorrect' : 'Ending'
   const hasScore = Object.keys(session.score).length > 0
 
   // Compute path: exclude the ending node itself from the trail, keep scene nodes
@@ -53,7 +63,7 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
-          background: `radial-gradient(600px 500px at 50% 20%, ${accent.color}0D 0%, transparent 65%)`,
+          background: `radial-gradient(600px 500px at 50% 20%, ${accentColor}0D 0%, transparent 65%)`,
         }}
       />
 
@@ -68,14 +78,35 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
           <span
             className="text-[10px] font-mono tracking-[0.22em] uppercase px-4 py-2 rounded-full"
             style={{
-              color: accent.color,
-              background: `${accent.color}14`,
-              border: `1px solid ${accent.color}35`,
+              color: accentColor,
+              background: `${accentColor}14`,
+              border: `1px solid ${accentColor}35`,
             }}
           >
-            {accent.label} · Ending reached
+            {accentLabel} · Ending reached
           </span>
         </motion.div>
+
+        {outcome && (
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.05, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="flex justify-center mb-6"
+          >
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center text-3xl font-bold"
+              style={{
+                background: `${accentColor}18`,
+                border: `2px solid ${accentColor}55`,
+                color: accentColor,
+                boxShadow: `0 0 32px ${accentColor}30`,
+              }}
+            >
+              {outcome === 'correct' ? '✓' : '✗'}
+            </div>
+          </motion.div>
+        )}
 
         {/* Title */}
         <motion.h1
@@ -105,7 +136,7 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
         )}
 
         {/* Divider */}
-        <div className="h-px mb-8" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="h-px mb-8" style={{ background: 'var(--line-1)' }} />
 
         {/* Path taken */}
         {pathNodes.length > 0 && (
@@ -127,9 +158,9 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
                   <span
                     className="text-xs px-2.5 py-1 rounded-full"
                     style={{
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.09)',
-                      color: '#c9cdda',
+                      background: 'var(--tint-2)',
+                      border: '1px solid var(--line-2)',
+                      color: 'var(--fg-1)',
                     }}
                   >
                     {node.title}
@@ -164,8 +195,8 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
         >
           <button
             onClick={onRestart}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-medium border transition-all hover:bg-white/5 active:scale-[0.98]"
-            style={{ borderColor: 'rgba(255,255,255,0.14)', color: '#c9cdda' }}
+            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)] active:scale-[0.98]"
+            style={{ borderColor: 'var(--line-3)', color: 'var(--fg-1)' }}
           >
             <RotateCcw size={14} />
             Play again
@@ -174,8 +205,8 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
           {mode === 'play' && (
             <button
               onClick={handleShare}
-              className="flex items-center gap-2 py-3.5 px-5 rounded-2xl text-sm font-medium border transition-all hover:bg-white/5 active:scale-[0.98]"
-              style={{ borderColor: 'rgba(255,255,255,0.14)', color: '#8a90a4' }}
+              className="flex items-center gap-2 py-3.5 px-5 rounded-2xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)] active:scale-[0.98]"
+              style={{ borderColor: 'var(--line-3)', color: 'var(--fg-2)' }}
             >
               <Share2 size={14} />
               Share

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy } from 'lucide-react'
-import type { ScenarioNode, ScenarioChoice, NodeType, Clip } from '@/types'
+import { useState, useRef, useCallback } from 'react'
+import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy, Play, Pause, RotateCcw, RefreshCw } from 'lucide-react'
+import type { ScenarioNode, ScenarioChoice, NodeType, Clip, OpeningInstructions } from '@/types'
 import { formatDuration } from '@/lib/supabase/clips'
 
 async function compressImage(file: File, maxWidth = 1280, quality = 0.82): Promise<string> {
@@ -32,7 +32,7 @@ const NODE_TYPES: NodeType[] = ['start', 'scene', 'feedback', 'ending']
 
 const TYPE_COLOR: Record<NodeType, string> = {
   start:    'oklch(82% 0.18 165)',
-  scene:    '#8a90a4',
+  scene:    'var(--fg-2)',
   feedback: 'oklch(78% 0.18 285)',
   ending:   'oklch(80% 0.16 60)',
 }
@@ -56,6 +56,9 @@ interface NodeInspectorProps {
   onDuplicateNode?: () => void
   onOpenLibrary: () => void
   onClose: () => void
+  isStartNode?: boolean
+  outcomeMode?: boolean
+  onToggleOutcomeMode?: () => void
 }
 
 export function NodeInspector({
@@ -70,6 +73,9 @@ export function NodeInspector({
   onDuplicateNode,
   onOpenLibrary,
   onClose,
+  isStartNode,
+  outcomeMode,
+  onToggleOutcomeMode,
 }: NodeInspectorProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -87,20 +93,29 @@ export function NodeInspector({
   return (
     <aside
       className="flex flex-col w-[320px] shrink-0 border-l overflow-hidden"
-      style={{ borderColor: 'rgba(255,255,255,0.07)', background: '#09090e' }}
+      style={{ borderColor: 'var(--line-1)', background: 'var(--bg-0)' }}
     >
+      {/* ── Colored type accent line ──────────────────────────────────────── */}
+      <div style={{ height: 2, background: TYPE_COLOR[node.type], opacity: 0.7 }} />
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-4 h-[44px] border-b shrink-0"
-        style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+        style={{ borderColor: 'var(--line-1)' }}
       >
         <div className="flex items-center gap-2">
           <span
-            className="w-2 h-2 rounded-full"
-            style={{ background: TYPE_COLOR[node.type] }}
-          />
-          <span className="text-xs font-mono text-ink-2 tracking-wider uppercase">
-            Scene Inspector
+            className="px-2 py-0.5 rounded-md text-[9px] font-mono tracking-[0.14em] uppercase font-medium"
+            style={{
+              background: `${TYPE_COLOR[node.type]}18`,
+              border: `1px solid ${TYPE_COLOR[node.type]}35`,
+              color: TYPE_COLOR[node.type],
+            }}
+          >
+            {node.type}
+          </span>
+          <span className="text-xs font-mono text-ink-3 truncate max-w-[140px]">
+            {node.title || 'Untitled'}
           </span>
         </div>
         <div className="flex items-center gap-0.5">
@@ -108,14 +123,14 @@ export function NodeInspector({
             <button
               onClick={onDuplicateNode}
               title="Duplicate scene (⌘D)"
-              className="text-ink-4 hover:text-ink-1 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+              className="text-ink-4 hover:text-ink-1 transition-colors p-1.5 rounded-lg hover:bg-[var(--tint-3)]"
             >
               <Copy size={13} />
             </button>
           )}
           <button
             onClick={onClose}
-            className="text-ink-3 hover:text-ink-1 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+            className="text-ink-3 hover:text-ink-1 transition-colors p-1.5 rounded-lg hover:bg-[var(--tint-3)]"
           >
             <X size={13} />
           </button>
@@ -172,10 +187,10 @@ export function NodeInspector({
                 <ChevronDown
                   size={12}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                  style={{ color: '#5c6273' }}
+                  style={{ color: 'var(--fg-3)' }}
                 />
               </div>
-              <p className="text-[10px] leading-relaxed mt-1.5 px-0.5" style={{ color: '#3a3f4e' }}>
+              <p className="text-[10px] leading-relaxed mt-1.5 px-0.5" style={{ color: 'var(--fg-4)' }}>
                 {TYPE_DESC[node.type]}
               </p>
             </Field>
@@ -192,7 +207,7 @@ export function NodeInspector({
           </div>
 
           {/* ── Divider ─────────────────────────────────────────────────────── */}
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />
+          <div style={{ height: 1, background: 'var(--tint-2)' }} />
 
           {/* ── Section: Media ────────────────────────────────────────────── */}
           <div className="space-y-3.5">
@@ -200,80 +215,82 @@ export function NodeInspector({
 
             {/* Video Clip */}
             <Field label="Video Clip">
-              <p className="text-[10px] mb-2 leading-relaxed" style={{ color: '#3a3f4e' }}>
+              <p className="text-[10px] mb-2 leading-relaxed" style={{ color: 'var(--fg-4)' }}>
                 The video that plays when players reach this scene.
               </p>
               {clips.length === 0 ? (
                 <div
                   className="px-3 py-3 rounded-xl text-[11px] leading-relaxed border border-dashed"
-                  style={{ borderColor: 'rgba(255,255,255,0.07)', color: '#5c6273' }}
+                  style={{ borderColor: 'var(--line-1)', color: 'var(--fg-3)' }}
                 >
                   No clips uploaded yet.{' '}
                   <button
                     onClick={onOpenLibrary}
                     className="underline underline-offset-2 transition-opacity hover:opacity-80"
-                    style={{ color: '#8a90a4' }}
+                    style={{ color: 'var(--fg-2)' }}
                   >
                     Open Asset Library →
                   </button>
                 </div>
               ) : (
-                <div className="space-y-1.5">
-                  {/* Currently attached clip preview */}
-                  {node.clip && (
-                    <div
-                      className="flex items-center gap-2 px-2.5 py-2 rounded-lg mb-2"
-                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                    >
-                      <Film size={11} style={{ color: 'oklch(82% 0.18 165)', flexShrink: 0 }} />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] truncate" style={{ color: '#c9cdda' }}>
-                          {currentClip?.name ?? 'Attached clip'}
-                        </p>
-                        {currentClip && (
-                          <p className="text-[9px] font-mono" style={{ color: '#5c6273' }}>
-                            {formatDuration(currentClip.duration)}
-                          </p>
-                        )}
+                <div className="space-y-2">
+                  {/* Preview + replace/remove when clip is attached */}
+                  {node.clip ? (
+                    <>
+                      <ClipPreviewPlayer url={node.clip.url} name={currentClip?.name} thumbnailUrl={currentClip?.thumbnailUrl} />
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={onOpenLibrary}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
+                          style={{ background: 'oklch(78% 0.18 285 / 0.08)', border: '1px solid oklch(78% 0.18 285 / 0.25)', color: 'oklch(78% 0.18 285)' }}
+                        >
+                          <RefreshCw size={10} />
+                          Replace clip
+                        </button>
+                        <button
+                          onClick={() => onUpdateNode(node.id, { clip: undefined })}
+                          className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:text-red-400"
+                          style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-3)' }}
+                          title="Remove clip"
+                        >
+                          <Trash2 size={11} />
+                        </button>
                       </div>
-                    </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-3)' }}>
+                          <Film size={12} />
+                        </div>
+                        <select
+                          className="inspector-input pl-7 appearance-none pr-8"
+                          value=""
+                          onChange={e => {
+                            const clip = clips.find(c => c.id === e.target.value)
+                            if (clip) {
+                              onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration, thumbnail: clip.thumbnailUrl } })
+                            }
+                          }}
+                        >
+                          <option value="">— Pick a clip —</option>
+                          {clips.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name.length > 26 ? c.name.slice(0, 23) + '…' : c.name} · {formatDuration(c.duration)}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-3)' }} />
+                      </div>
+                      <button
+                        onClick={onOpenLibrary}
+                        className="text-[10px] font-mono transition-opacity hover:opacity-80"
+                        style={{ color: 'var(--fg-4)' }}
+                      >
+                        Upload clips in Asset Library →
+                      </button>
+                    </>
                   )}
-                  <div className="relative">
-                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#5c6273' }}>
-                      <Film size={12} />
-                    </div>
-                    <select
-                      className="inspector-input pl-7 appearance-none pr-8"
-                      value={node.clip?.id ?? ''}
-                      onChange={e => {
-                        const clip = clips.find(c => c.id === e.target.value)
-                        if (clip) {
-                          onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration }, clipId: undefined })
-                        } else {
-                          onUpdateNode(node.id, { clip: undefined, clipId: undefined })
-                        }
-                      }}
-                    >
-                      <option value="">— No clip —</option>
-                      {clips.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name.length > 26 ? c.name.slice(0, 23) + '…' : c.name} · {formatDuration(c.duration)}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={12}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                      style={{ color: '#5c6273' }}
-                    />
-                  </div>
-                  <button
-                    onClick={onOpenLibrary}
-                    className="text-[10px] font-mono transition-opacity hover:opacity-80"
-                    style={{ color: '#3a3f4e' }}
-                  >
-                    Manage clips in Asset Library →
-                  </button>
                 </div>
               )}
             </Field>
@@ -281,7 +298,7 @@ export function NodeInspector({
             {/* Choice Screen Thumbnail */}
             {!isEnding && (
               <Field label="Choice Screen Thumbnail">
-                <p className="text-[10px] mb-2 leading-relaxed" style={{ color: '#3a3f4e' }}>
+                <p className="text-[10px] mb-2 leading-relaxed" style={{ color: 'var(--fg-4)' }}>
                   Image shown behind the choices. Defaults to the last frame of the video.
                 </p>
                 <ThumbnailField
@@ -294,7 +311,7 @@ export function NodeInspector({
           </div>
 
           {/* ── Divider ─────────────────────────────────────────────────────── */}
-          {!isEnding && <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />}
+          {!isEnding && <div style={{ height: 1, background: 'var(--tint-2)' }} />}
 
           {/* ── Section: Choices ──────────────────────────────────────────── */}
           {!isEnding && (
@@ -311,14 +328,14 @@ export function NodeInspector({
                 </button>
               </div>
 
-              <p className="text-[10px] mb-3 leading-relaxed" style={{ color: '#3a3f4e' }}>
+              <p className="text-[10px] mb-3 leading-relaxed" style={{ color: 'var(--fg-4)' }}>
                 Choices appear as buttons after the video. Players tap one to advance.
               </p>
 
               {node.choices.length === 0 ? (
                 <div
                   className="text-center py-5 rounded-xl border border-dashed"
-                  style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+                  style={{ borderColor: 'var(--line-1)' }}
                 >
                   <p className="text-[11px] text-ink-4 mb-2">No choices yet</p>
                   <button
@@ -347,21 +364,106 @@ export function NodeInspector({
             </div>
           )}
 
+          {/* ── Opening Instructions (start node only) ──────────────────────── */}
+          {isStartNode && (
+            <>
+              <div style={{ height: 1, background: 'var(--tint-2)' }} />
+              <OpeningInstructionsEditor
+                value={node.openingInstructions}
+                onChange={updates => {
+                  const current: OpeningInstructions = node.openingInstructions ?? {
+                    enabled: false,
+                    title: 'Before you begin',
+                    body: '',
+                    startButtonText: 'Start simulation',
+                  }
+                  onUpdateNode(node.id, { openingInstructions: { ...current, ...updates } })
+                }}
+              />
+            </>
+          )}
+
           {/* ── Ending note ─────────────────────────────────────────────────── */}
           {isEnding && (
-            <div
-              className="px-3 py-3.5 rounded-xl text-[11px] leading-relaxed"
-              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: '#5c6273' }}
-            >
-              <p className="font-medium mb-1" style={{ color: '#8a90a4' }}>Ending scenes don&apos;t have choices.</p>
-              <p>The player sees a summary screen after this scene plays. Add multiple endings to give players different outcomes based on their path.</p>
+            <div className="space-y-3">
+              {/* Outcome mode toggle */}
+              <div
+                className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+                style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}
+              >
+                <div>
+                  <p className="text-[11px] font-medium" style={{ color: 'var(--fg-1)' }}>Outcome feedback</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>Show players if they chose correctly</p>
+                </div>
+                <button
+                  onClick={onToggleOutcomeMode}
+                  className="relative shrink-0 w-8 h-4.5 rounded-full transition-colors"
+                  style={{
+                    width: 32,
+                    height: 18,
+                    background: outcomeMode ? 'oklch(82% 0.18 165)' : 'var(--line-3)',
+                  }}
+                >
+                  <span
+                    className="absolute top-0.5 rounded-full transition-transform"
+                    style={{
+                      width: 14,
+                      height: 14,
+                      background: 'white',
+                      left: 2,
+                      transform: outcomeMode ? 'translateX(14px)' : 'translateX(0)',
+                      transition: 'transform 0.15s ease',
+                    }}
+                  />
+                </button>
+              </div>
+
+              {/* Per-node outcome picker — only shown when outcomeMode is on */}
+              {outcomeMode && (
+                <div>
+                  <p className="text-[10px] font-mono text-ink-3 tracking-[0.14em] uppercase mb-2">This ending is</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(['correct', undefined, 'incorrect'] as const).map((val) => {
+                      const isActive = node.outcome === val
+                      const label = val === 'correct' ? '✓ Correct' : val === 'incorrect' ? '✗ Incorrect' : '— Neutral'
+                      const activeColor = val === 'correct'
+                        ? 'oklch(82% 0.18 165)'
+                        : val === 'incorrect'
+                        ? 'oklch(70% 0.18 25)'
+                        : 'var(--fg-2)'
+                      return (
+                        <button
+                          key={String(val)}
+                          onClick={() => onUpdateNode(node.id, { outcome: val })}
+                          className="py-1.5 rounded-lg text-[10px] font-mono transition-all"
+                          style={{
+                            background: isActive ? `${activeColor}18` : 'var(--tint-1)',
+                            border: `1px solid ${isActive ? activeColor + '55' : 'var(--line-2)'}`,
+                            color: isActive ? activeColor : 'var(--fg-3)',
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Info note */}
+              <div
+                className="px-3 py-2.5 rounded-xl text-[11px] leading-relaxed"
+                style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)', color: 'var(--fg-3)' }}
+              >
+                <p>The player sees a summary screen after this scene plays. Add multiple endings to give players different outcomes.</p>
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* ── Delete ──────────────────────────────────────────────────────────── */}
-      <div className="shrink-0 px-4 py-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+      <div className="shrink-0 px-4 py-3 border-t" style={{ borderColor: 'var(--line-1)' }}>
         {confirmDelete ? (
           <div className="flex items-center gap-2">
             <span className="text-xs text-ink-2 flex-1">Delete this scene?</span>
@@ -383,7 +485,7 @@ export function NodeInspector({
           <button
             onClick={handleDelete}
             className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs transition-all hover:opacity-80"
-            style={{ color: '#5c6273', border: '1px solid rgba(255,255,255,0.07)' }}
+            style={{ color: 'var(--fg-3)', border: '1px solid var(--line-1)' }}
           >
             <Trash2 size={12} />
             Delete scene
@@ -444,14 +546,14 @@ function ThumbnailField({ thumbnailUrl, onUpload, onClear }: ThumbnailFieldProps
           <button
             onClick={() => inputRef.current?.click()}
             className="flex-1 text-[10px] font-mono py-1.5 rounded-lg transition-opacity hover:opacity-80"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8a90a4' }}
+            style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
           >
             Replace
           </button>
           <button
             onClick={onClear}
             className="text-[10px] font-mono px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#5c6273' }}
+            style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-3)' }}
           >
             Remove
           </button>
@@ -465,18 +567,18 @@ function ThumbnailField({ thumbnailUrl, onUpload, onClear }: ThumbnailFieldProps
   return (
     <div>
       <div
-        className="flex flex-col items-center gap-2 px-3 py-4 rounded-xl border border-dashed transition-colors cursor-pointer hover:border-white/15"
-        style={{ borderColor: 'rgba(255,255,255,0.08)', color: '#5c6273' }}
+        className="flex flex-col items-center gap-2 px-3 py-4 rounded-xl border border-dashed transition-colors cursor-pointer hover:border-[var(--line-4)]"
+        style={{ borderColor: 'var(--line-2)', color: 'var(--fg-3)' }}
         onDrop={handleDrop}
         onDragOver={e => e.preventDefault()}
         onClick={() => inputRef.current?.click()}
       >
-        <ImageIcon size={15} style={{ color: '#3a3f4e' }} />
+        <ImageIcon size={15} style={{ color: 'var(--fg-4)' }} />
         <div className="text-center">
-          <p className="text-[11px]" style={{ color: '#5c6273' }}>
+          <p className="text-[11px]" style={{ color: 'var(--fg-3)' }}>
             {processing ? 'Processing…' : 'Upload custom image'}
           </p>
-          <p className="text-[10px] mt-0.5" style={{ color: '#3a3f4e' }}>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>
             Click or drag · JPG, PNG, WebP
           </p>
         </div>
@@ -510,17 +612,17 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
     <div
       className="rounded-xl overflow-hidden"
       style={{
-        background: 'rgba(255,255,255,0.02)',
+        background: 'var(--tint-1)',
         border: hasNoTarget
           ? '1px solid oklch(80% 0.16 60 / 0.3)'
-          : '1px solid rgba(255,255,255,0.07)',
+          : '1px solid var(--line-1)',
       }}
     >
       {/* Choice header */}
       <div className="flex items-center gap-2 px-3 pt-2.5 pb-0">
         <span
           className="shrink-0 w-5 h-5 flex items-center justify-center rounded font-mono text-[10px] font-medium"
-          style={{ background: 'rgba(255,255,255,0.06)', color: '#8a90a4', border: '1px solid rgba(255,255,255,0.08)' }}
+          style={{ background: 'var(--tint-3)', color: 'var(--fg-2)', border: '1px solid var(--line-2)' }}
         >
           {letter}
         </span>
@@ -542,15 +644,15 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
       <div className="px-3 pb-2.5 pt-2 space-y-2">
         {/* Destination */}
         <div className="relative">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono" style={{ color: '#3a3f4e' }}>
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono" style={{ color: 'var(--fg-4)' }}>
             →
           </span>
           <select
             className="w-full pl-6 pr-6 py-1.5 rounded-lg text-[11px] font-mono appearance-none outline-none transition-colors"
             style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: hasNoTarget ? '1px solid oklch(80% 0.16 60 / 0.4)' : '1px solid rgba(255,255,255,0.08)',
-              color: targetNode ? '#c9cdda' : hasNoTarget ? 'oklch(80% 0.16 60)' : '#5c6273',
+              background: 'var(--tint-2)',
+              border: hasNoTarget ? '1px solid oklch(80% 0.16 60 / 0.4)' : '1px solid var(--line-2)',
+              color: targetNode ? 'var(--fg-1)' : hasNoTarget ? 'oklch(80% 0.16 60)' : 'var(--fg-3)',
             }}
             value={choice.targetNodeId}
             onChange={e => onUpdate({ targetNodeId: e.target.value })}
@@ -563,7 +665,7 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
           <ChevronDown
             size={10}
             className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ color: '#5c6273' }}
+            style={{ color: 'var(--fg-3)' }}
           />
         </div>
 
@@ -578,7 +680,7 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
               {targetNode.type}
             </span>
             {targetNode.type === 'ending' && (
-              <span className="text-[9px] font-mono" style={{ color: '#3a3f4e' }}>· ends here</span>
+              <span className="text-[9px] font-mono" style={{ color: 'var(--fg-4)' }}>· ends here</span>
             )}
           </div>
         )}
@@ -587,7 +689,7 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
         <button
           onClick={() => setShowFeedback(v => !v)}
           className="text-[10px] font-mono transition-colors flex items-center gap-1"
-          style={{ color: showFeedback ? 'oklch(78% 0.18 285)' : '#3a3f4e' }}
+          style={{ color: showFeedback ? 'oklch(78% 0.18 285)' : 'var(--fg-4)' }}
         >
           {showFeedback ? '− hide feedback' : '+ add feedback'}
         </button>
@@ -599,19 +701,225 @@ function ChoiceEditor({ index, choice, otherNodes, onUpdate, onDelete }: ChoiceE
               className="w-full bg-transparent text-[11px] text-ink-2 placeholder-ink-4 outline-none resize-none rounded-lg px-2.5 py-2 leading-relaxed"
               rows={2}
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.07)',
+                background: 'var(--tint-1)',
+                border: '1px solid var(--line-1)',
               }}
               value={choice.feedback ?? ''}
               onChange={e => onUpdate({ feedback: e.target.value || undefined })}
               placeholder="Brief message shown to player after this choice…"
             />
-            <p className="text-[9px] font-mono mt-1" style={{ color: '#3a3f4e' }}>
+            <p className="text-[9px] font-mono mt-1" style={{ color: 'var(--fg-4)' }}>
               Shown as an overlay before advancing to the next scene.
             </p>
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── ClipPreviewPlayer ─────────────────────────────────────────────────────────
+
+interface ClipPreviewPlayerProps {
+  url: string
+  name?: string
+  thumbnailUrl?: string
+}
+
+function ClipPreviewPlayer({ url, name, thumbnailUrl }: ClipPreviewPlayerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
+
+  const toggle = useCallback(() => {
+    const v = videoRef.current
+    if (!v) return
+    if (v.paused) { v.play(); setPlaying(true) }
+    else { v.pause(); setPlaying(false) }
+  }, [])
+
+  const restart = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    const v = videoRef.current
+    if (!v) return
+    v.currentTime = 0
+    v.play()
+    setPlaying(true)
+  }, [])
+
+  const handleTimeUpdate = useCallback(() => {
+    const v = videoRef.current
+    if (!v || !v.duration) return
+    setCurrentTime(v.currentTime)
+    setProgress(v.currentTime / v.duration)
+  }, [])
+
+  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = videoRef.current
+    if (!v) return
+    const t = Number(e.target.value) / 1000 * v.duration
+    v.currentTime = t
+    setProgress(Number(e.target.value) / 1000)
+  }, [])
+
+  const fmt = (s: number) => {
+    if (!s || !isFinite(s)) return '0:00'
+    const m = Math.floor(s / 60)
+    return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+  }
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: '#000', border: '1px solid var(--line-2)' }}>
+      {/* Video */}
+      <div className="relative" style={{ aspectRatio: '16/9' }} onClick={toggle}>
+        <video
+          ref={videoRef}
+          src={url}
+          poster={thumbnailUrl}
+          className="w-full h-full object-contain"
+          preload="metadata"
+          playsInline
+          onLoadedMetadata={e => setDuration((e.target as HTMLVideoElement).duration)}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={() => setPlaying(false)}
+        />
+        {/* Play/pause overlay */}
+        <div
+          className="absolute inset-0 flex items-center justify-center transition-opacity"
+          style={{ opacity: playing ? 0 : 1, background: 'rgba(0,0,0,0.35)' }}
+        >
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)' }}
+          >
+            <Play size={16} style={{ color: '#fff', marginLeft: 2 }} />
+          </div>
+        </div>
+      </div>
+      {/* Controls */}
+      <div className="px-2.5 py-2" style={{ background: 'rgba(0,0,0,0.6)' }}>
+        <input
+          type="range"
+          min={0}
+          max={1000}
+          value={Math.round(progress * 1000)}
+          onChange={handleSeek}
+          className="w-full h-0.5 rounded-full appearance-none cursor-pointer mb-2"
+          style={{ accentColor: 'oklch(82% 0.18 165)' }}
+        />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <button onClick={toggle} className="text-white/70 hover:text-white transition-colors">
+              {playing ? <Pause size={11} /> : <Play size={11} />}
+            </button>
+            <button onClick={restart} className="text-white/40 hover:text-white/70 transition-colors">
+              <RotateCcw size={10} />
+            </button>
+          </div>
+          <span className="text-[9px] font-mono" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            {fmt(currentTime)} / {fmt(duration)}
+          </span>
+        </div>
+        {name && (
+          <p className="text-[9px] font-mono mt-1.5 truncate" style={{ color: 'rgba(255,255,255,0.25)' }}>
+            {name}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── OpeningInstructionsEditor ─────────────────────────────────────────────────
+
+interface OpeningInstructionsEditorProps {
+  value?: OpeningInstructions
+  onChange: (updates: Partial<OpeningInstructions>) => void
+}
+
+function OpeningInstructionsEditor({ value, onChange }: OpeningInstructionsEditorProps) {
+  const enabled = value?.enabled ?? false
+  const title = value?.title ?? ''
+  const body = value?.body ?? ''
+  const startButtonText = value?.startButtonText ?? ''
+
+  return (
+    <div className="space-y-3.5">
+      <SectionHeader>Opening Instructions</SectionHeader>
+      <p className="text-[10px] leading-relaxed -mt-1" style={{ color: 'var(--fg-4)' }}>
+        Show an instruction screen to players before the first video plays.
+      </p>
+
+      {/* Enabled toggle */}
+      <div
+        className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+        style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}
+      >
+        <div>
+          <p className="text-[11px] font-medium" style={{ color: 'var(--fg-1)' }}>Show instructions screen</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>Appears before the scenario begins</p>
+        </div>
+        <button
+          onClick={() => onChange({ enabled: !enabled })}
+          style={{
+            width: 32,
+            height: 18,
+            borderRadius: 9,
+            background: enabled ? 'oklch(82% 0.18 165)' : 'var(--line-3)',
+            position: 'relative',
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              position: 'absolute',
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              background: 'white',
+              top: 2,
+              left: 2,
+              transform: enabled ? 'translateX(14px)' : 'translateX(0)',
+              transition: 'transform 0.15s ease',
+            }}
+          />
+        </button>
+      </div>
+
+      {/* Fields — only shown when enabled */}
+      {enabled && (
+        <div className="space-y-3">
+          <Field label="Title">
+            <input
+              className="inspector-input"
+              value={title}
+              onChange={e => onChange({ title: e.target.value })}
+              placeholder="Before you begin"
+            />
+          </Field>
+
+          <Field label="Body">
+            <textarea
+              className="inspector-input resize-none"
+              rows={4}
+              value={body}
+              onChange={e => onChange({ body: e.target.value })}
+              placeholder="Explain the scenario context, the player's role, or how choices work…"
+            />
+          </Field>
+
+          <Field label="Start Button Text">
+            <input
+              className="inspector-input"
+              value={startButtonText}
+              onChange={e => onChange({ startButtonText: e.target.value })}
+              placeholder="Start simulation"
+            />
+          </Field>
+        </div>
+      )}
     </div>
   )
 }
