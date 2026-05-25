@@ -6,7 +6,7 @@
 create table if not exists public.player_sessions (
   id                   uuid        primary key,
   scenario_version_id  text        not null references public.scenario_versions(id) on delete cascade,
-  scenario_id          uuid        not null references public.scenarios(id) on delete cascade,
+  scenario_id          text        not null references public.scenarios(id) on delete cascade,
   slug                 text        not null,
   visitor_id           text,
   started_at           timestamptz not null default now(),
@@ -25,7 +25,7 @@ create table if not exists public.player_events (
   id                   uuid        primary key default gen_random_uuid(),
   session_id           uuid        not null references public.player_sessions(id) on delete cascade,
   scenario_version_id  text        not null references public.scenario_versions(id) on delete cascade,
-  scenario_id          uuid        not null references public.scenarios(id) on delete cascade,
+  scenario_id          text        not null references public.scenarios(id) on delete cascade,
   event_type           text        not null check (
     event_type in (
       'session_started',
