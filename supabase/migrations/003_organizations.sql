@@ -1,27 +1,10 @@
 -- BranchLab — Organizations, Workspaces & Project Ownership
 -- Run in Supabase SQL Editor after 001_initial_schema.sql and 002_player_analytics.sql
 
--- ── Helper function ───────────────────────────────────────────────────────────
--- Returns true if the current user is a member of the given org at or above min_role.
--- security definer so it can query organization_members without RLS recursion.
-
-create or replace function public.is_org_member(org uuid, min_role text default 'viewer')
-returns boolean language sql security definer stable as $$
-  select exists (
-    select 1 from public.organization_members
-    where org_id = org
-      and user_id = auth.uid()
-      and case min_role
-        when 'viewer' then role in ('viewer','member','admin','owner')
-        when 'member' then role in ('member','admin','owner')
-        when 'admin'  then role in ('admin','owner')
-        when 'owner'  then role = 'owner'
-        else false
-      end
-  )
-$$;
-
 -- ── organizations ─────────────────────────────────────────────────────────────
+-- NOTE: tables are created before is_org_member() because PostgreSQL validates
+-- LANGUAGE SQL function bodies at creation time and will error if the referenced
+-- table doesn't exist yet.
 
 create table if not exists public.organizations (
   id          uuid        primary key default gen_random_uuid(),
@@ -52,6 +35,24 @@ create table if not exists public.organization_members (
 
 create index if not exists org_members_user_id_idx on public.organization_members(user_id);
 create index if not exists org_members_org_id_idx  on public.organization_members(org_id);
+
+-- ── Helper function (after organization_members so the table reference resolves) ──
+
+create or replace function public.is_org_member(org uuid, min_role text default 'viewer')
+returns boolean language sql security definer stable as $$
+  select exists (
+    select 1 from public.organization_members
+    where org_id = org
+      and user_id = auth.uid()
+      and case min_role
+        when 'viewer' then role in ('viewer','member','admin','owner')
+        when 'member' then role in ('member','admin','owner')
+        when 'admin'  then role in ('admin','owner')
+        when 'owner'  then role = 'owner'
+        else false
+      end
+  )
+$$;
 
 -- ── organization_invites ──────────────────────────────────────────────────────
 
