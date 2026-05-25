@@ -47,6 +47,8 @@ export default function DashboardPage() {
   const [scenarios, setScenarios] = useState<Scenario[]>([])
   const [clips, setClips] = useState<Clip[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const hasLoadedRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -77,12 +79,26 @@ export default function DashboardPage() {
   // Reload scenarios whenever user authenticates or active org changes
   useEffect(() => {
     if (!user) return
-    setLoading(true)
+    const isFirstLoad = !hasLoadedRef.current
+    if (isFirstLoad) {
+      setLoading(true)
+    } else {
+      setRefreshing(true)
+    }
     setError(null)
     setClips([]) // reset clips so lazy-load picks up the new scope
     getAllScenarios(activeOrg?.id ?? null)
-      .then(s => { setScenarios(s); setLoading(false) })
-      .catch(e => { setError(e.message ?? 'Failed to load'); setLoading(false) })
+      .then(s => {
+        setScenarios(s)
+        setLoading(false)
+        setRefreshing(false)
+        hasLoadedRef.current = true
+      })
+      .catch(e => {
+        setError(e.message ?? 'Failed to load')
+        setLoading(false)
+        setRefreshing(false)
+      })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, activeOrg?.id])
 
@@ -102,6 +118,9 @@ export default function DashboardPage() {
   }
 
   const [createError, setCreateError] = useState<string | null>(null)
+
+  // Reset search when workspace switches
+  useEffect(() => { setSearch('') }, [activeOrg?.id])
 
   const handleCreate = () => {
     setCreateError(null)
@@ -144,9 +163,14 @@ export default function DashboardPage() {
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return
-    await deleteScenario(deleteTarget.id)
-    setDeleteTarget(null)
-    load()
+    try {
+      await deleteScenario(deleteTarget.id)
+      setDeleteTarget(null)
+      load()
+    } catch (e) {
+      setDeleteTarget(null)
+      setCreateError(e instanceof Error ? e.message : 'Failed to delete scenario')
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deleteTarget])
 
@@ -173,7 +197,7 @@ export default function DashboardPage() {
       await deleteClip(clip.id, clip.storagePath)
       setClips(prev => prev.filter(c => c.id !== clip.id))
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Delete failed')
+      setCreateError(e instanceof Error ? e.message : 'Delete failed')
     }
   }, [])
 
@@ -252,6 +276,7 @@ export default function DashboardPage() {
           onCreateBlank={handleCreate}
           onCreateFromTemplate={handleCreateFromTemplate}
           isPending={isPending}
+          refreshing={refreshing}
         />
 
         <div className="flex-1 overflow-auto">
@@ -792,9 +817,9 @@ function OrgSwitcher({
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.97 }}
+            initial={{ opacity: 0, y: 4, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.97 }}
+            exit={{ opacity: 0, y: 4, scale: 0.97 }}
             transition={{ duration: 0.12 }}
             className="absolute left-2 right-2 bottom-full mb-1.5 rounded-xl overflow-hidden z-50"
             style={{
@@ -825,40 +850,41 @@ function OrgSwitcher({
               <>
                 <div style={{ height: 1, background: 'var(--line-1)', margin: '2px 0' }} />
                 {orgs.map(org => (
-                  <button
-                    key={org.id}
-                    onClick={() => { setActiveOrg(org); setOpen(false) }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 transition-colors hover:bg-[var(--tint-2)]"
-                  >
-                    <div
-                      className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
-                      style={{ background: 'oklch(78% 0.18 285 / 0.15)' }}
+                  <div key={org.id} className="flex items-center hover:bg-[var(--tint-2)] transition-colors">
+                    {/* Clicking this area switches the workspace */}
+                    <button
+                      onClick={() => { setActiveOrg(org); setOpen(false) }}
+                      className="flex-1 flex items-center gap-2.5 px-3 py-2 min-w-0"
                     >
-                      <span className="text-[10px] font-bold" style={{ color: 'oklch(78% 0.18 285)' }}>
-                        {org.name.slice(0, 2).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0 text-left">
-                      <p className="text-xs truncate" style={{ color: 'var(--fg-1)' }}>{org.name}</p>
-                      <p className="text-[10px] font-mono" style={{ color: 'var(--fg-4)' }}>
-                        {org.role} · {org.memberCount} member{org.memberCount !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
+                      <div
+                        className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                        style={{ background: 'oklch(78% 0.18 285 / 0.15)' }}
+                      >
+                        <span className="text-[10px] font-bold" style={{ color: 'oklch(78% 0.18 285)' }}>
+                          {org.name.slice(0, 2).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-xs truncate" style={{ color: 'var(--fg-1)' }}>{org.name}</p>
+                        <p className="text-[10px] font-mono" style={{ color: 'var(--fg-4)' }}>
+                          {org.role} · {org.memberCount} member{org.memberCount !== 1 ? 's' : ''}
+                        </p>
+                      </div>
                       {activeOrg?.id === org.id && <Check size={12} style={{ color: 'oklch(82% 0.18 165)' }} />}
-                      {(org.role === 'owner' || org.role === 'admin') && (
-                        <Link
-                          href={`/dashboard/org/${org.id}/settings`}
-                          onClick={e => { e.stopPropagation(); setOpen(false) }}
-                          className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:bg-[var(--tint-3)]"
-                          style={{ color: 'var(--fg-4)' }}
-                          title="Org settings"
-                        >
-                          <Settings size={11} />
-                        </Link>
-                      )}
-                    </div>
-                  </button>
+                    </button>
+                    {/* Settings link — separate from the switch button so no <a> inside <button> */}
+                    {(org.role === 'owner' || org.role === 'admin') && (
+                      <Link
+                        href={`/dashboard/org/${org.id}/settings`}
+                        onClick={() => setOpen(false)}
+                        className="flex items-center justify-center w-7 h-7 mr-2 rounded transition-colors hover:bg-[var(--tint-3)]"
+                        style={{ color: 'var(--fg-4)', flexShrink: 0 }}
+                        title="Org settings"
+                      >
+                        <Settings size={11} />
+                      </Link>
+                    )}
+                  </div>
                 ))}
               </>
             )}
@@ -1012,7 +1038,7 @@ const SECTION_TITLES: Record<Section, string> = {
 
 function TopBar({
   search, onSearch, sort, onSort, section,
-  onCreateBlank, onCreateFromTemplate, isPending,
+  onCreateBlank, onCreateFromTemplate, isPending, refreshing,
 }: {
   search: string
   onSearch: (v: string) => void
@@ -1022,6 +1048,7 @@ function TopBar({
   onCreateBlank: () => void
   onCreateFromTemplate: () => void
   isPending: boolean
+  refreshing?: boolean
 }) {
   const [showSort, setShowSort] = useState(false)
   const sortRef = useRef<HTMLDivElement>(null)
@@ -1042,8 +1069,9 @@ function TopBar({
       style={{ borderColor: 'var(--line-1)', background: 'var(--bg-glass)', backdropFilter: 'blur(16px)' }}
     >
       {/* Section breadcrumb */}
-      <h1 className="text-sm font-semibold shrink-0" style={{ color: 'var(--fg-0)' }}>
+      <h1 className="text-sm font-semibold shrink-0 flex items-center gap-2" style={{ color: 'var(--fg-0)' }}>
         {SECTION_TITLES[section]}
+        {refreshing && <Loader2 size={12} className="animate-spin" style={{ color: 'var(--fg-4)' }} />}
       </h1>
       <div style={{ width: 1, height: 16, background: 'var(--line-2)' }} />
 
