@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy, Play, Pause, RotateCcw, RefreshCw } from 'lucide-react'
+import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy, Play, Pause, RotateCcw, RefreshCw, Scissors } from 'lucide-react'
 import type { ScenarioNode, ScenarioChoice, NodeType, Clip, OpeningInstructions } from '@/types'
 import { formatDuration } from '@/lib/supabase/clips'
+import { formatSecondsToTimestamp } from '@/lib/timestamp'
+import { ClipRangeEditor } from './ClipRangeEditor'
 
 async function compressImage(file: File, maxWidth = 1280, quality = 0.82): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -78,6 +80,7 @@ export function NodeInspector({
   onToggleOutcomeMode,
 }: NodeInspectorProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showClipRangeEditor, setShowClipRangeEditor] = useState(false)
 
   const otherNodes = allNodes.filter(n => n.id !== node.id)
   const isEnding = node.type === 'ending'
@@ -238,6 +241,19 @@ export function NodeInspector({
                   {node.clip ? (
                     <>
                       <ClipPreviewPlayer url={node.clip.url} name={currentClip?.name} thumbnailUrl={currentClip?.thumbnailUrl} />
+                      <button
+                        onClick={() => setShowClipRangeEditor(true)}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
+                        style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
+                      >
+                        <Scissors size={10} />
+                        Edit clip range
+                        {(node.clipStartTime !== undefined || node.clipEndTime != null) && (
+                          <span style={{ color: 'oklch(82% 0.18 165)' }}>
+                            · {formatSecondsToTimestamp(node.clipStartTime ?? 0)}–{node.clipEndTime != null ? formatSecondsToTimestamp(node.clipEndTime) : 'end'}
+                          </span>
+                        )}
+                      </button>
                       <div className="flex gap-1.5">
                         <button
                           onClick={onOpenLibrary}
@@ -248,7 +264,7 @@ export function NodeInspector({
                           Replace clip
                         </button>
                         <button
-                          onClick={() => onUpdateNode(node.id, { clip: undefined })}
+                          onClick={() => onUpdateNode(node.id, { clip: undefined, clipStartTime: undefined, clipEndTime: undefined })}
                           className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:text-red-400"
                           style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-3)' }}
                           title="Remove clip"
@@ -269,7 +285,7 @@ export function NodeInspector({
                           onChange={e => {
                             const clip = clips.find(c => c.id === e.target.value)
                             if (clip) {
-                              onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration, thumbnail: clip.thumbnailUrl } })
+                              onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration, thumbnail: clip.thumbnailUrl }, clipStartTime: undefined, clipEndTime: undefined })
                             }
                           }}
                         >
@@ -461,6 +477,19 @@ export function NodeInspector({
           )}
         </div>
       </div>
+
+      {/* ── Clip Range Editor modal ─────────────────────────────────────────── */}
+      {showClipRangeEditor && node.clip && (
+        <ClipRangeEditor
+          node={node}
+          clip={node.clip}
+          onSave={(startTime, endTime) => {
+            onUpdateNode(node.id, { clipStartTime: startTime, clipEndTime: endTime })
+            setShowClipRangeEditor(false)
+          }}
+          onClose={() => setShowClipRangeEditor(false)}
+        />
+      )}
 
       {/* ── Delete ──────────────────────────────────────────────────────────── */}
       <div className="shrink-0 px-4 py-3 border-t" style={{ borderColor: 'var(--line-1)' }}>

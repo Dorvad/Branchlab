@@ -54,16 +54,22 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
   const [showFallback, setShowFallback] = useState(false)
   const [needsInteraction, setNeedsInteraction] = useState(false)
   const [videoError, setVideoError] = useState(false)
+  const doneRef = useRef(false)
+  const clipStartRef = useRef(node.clipStartTime ?? 0)
+  const clipEndRef = useRef<number | null>(node.clipEndTime ?? null)
 
   // Reset video state when node changes and explicitly trigger playback.
   // autoPlay alone can be blocked (e.g. new tab); we call play() imperatively
   // so we can detect the block and show a tap-to-play overlay.
   useEffect(() => {
     setDone(false)
+    doneRef.current = false
     setVideoProgress(0)
     setShowFallback(false)
     setNeedsInteraction(false)
     setVideoError(false)
+    clipStartRef.current = node.clipStartTime ?? 0
+    clipEndRef.current = node.clipEndTime ?? null
 
     const v = videoRef.current
     if (!v || !clip) return
@@ -82,25 +88,47 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
     return () => clearTimeout(t)
   }, [clip, node.id])
 
+  const handleLoadedMetadata = useCallback(() => {
+    const v = videoRef.current
+    if (!v) return
+    const start = clipStartRef.current
+    if (start > 0) v.currentTime = start
+  }, [])
+
   const handleTimeUpdate = useCallback(() => {
     const v = videoRef.current
     if (!v || !v.duration || !isFinite(v.duration)) return
-    setVideoProgress(v.currentTime / v.duration)
-  }, [])
+    const start = clipStartRef.current
+    const end = clipEndRef.current
+    const clipDuration = (end ?? v.duration) - start
+    if (end !== null && v.currentTime >= end) {
+      if (!doneRef.current) {
+        doneRef.current = true
+        setDone(true)
+        v.pause()
+        onComplete(captureVideoFrame(v))
+      }
+      return
+    }
+    const elapsed = Math.max(0, v.currentTime - start)
+    setVideoProgress(clipDuration > 0 ? elapsed / clipDuration : 0)
+  }, [onComplete])
 
   const handleVideoEnded = useCallback(() => {
-    if (done) return
+    if (doneRef.current) return
+    doneRef.current = true
     setDone(true)
     onComplete(videoRef.current ? captureVideoFrame(videoRef.current) : undefined)
-  }, [done, onComplete])
+  }, [onComplete])
 
   const handleVideoSkip = useCallback(() => {
-    if (done) return
+    if (doneRef.current) return
+    doneRef.current = true
     setDone(true)
     const frame = videoRef.current ? captureVideoFrame(videoRef.current) : undefined
     if (videoRef.current) videoRef.current.pause()
     onComplete(frame)
-  }, [done, onComplete])
+  }, [onComplete])
 
   if (clip) {
     // Video failed to load — show placeholder content with error indicator
@@ -132,6 +160,7 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
           src={clip.url}
           autoPlay
           playsInline
+          onLoadedMetadata={handleLoadedMetadata}
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleVideoEnded}
           onError={() => setVideoError(true)}
@@ -177,7 +206,7 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
           </div>
           {clip.duration > 0 && !done && (
             <span className="text-[10px] font-mono text-white/50 tabular-nums">
-              {formatTime(clip.duration * (1 - videoProgress))}
+              {formatTime(((node.clipEndTime ?? clip.duration) - (node.clipStartTime ?? 0)) * (1 - videoProgress))}
             </span>
           )}
         </div>

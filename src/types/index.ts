@@ -105,6 +105,8 @@ export interface ScenarioNode {
   title: string;
   description?: string;
   clip?: ClipAsset;
+  clipStartTime?: number;      // seconds from 0; undefined = start from beginning
+  clipEndTime?: number | null; // seconds; null/undefined = play to natural end
   thumbnailUrl?: string; // custom choice-screen backdrop; falls back to last video frame
   choices: ScenarioChoice[];
   position: { x: number; y: number };
