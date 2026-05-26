@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import {
   ReactFlow,
   Background,
@@ -69,61 +69,121 @@ const TYPE_LABELS: Record<NodeType, string> = {
   ending: 'Ending',
 }
 
-// ── Custom Edge with choice label ─────────────────────────────────────────────
+// ── Custom Edge ───────────────────────────────────────────────────────────────
 
 interface ChoiceEdgeData {
   choiceLabel: string
   isHighlighted: boolean
+  isEdgeSelected: boolean
+  sourceNodeId: string
+  choiceId: string
+  onLabelEdit: (sourceNodeId: string, choiceId: string, label: string) => void
 }
 
 function ChoiceEdge({
   id, sourceX, sourceY, targetX, targetY,
   sourcePosition, targetPosition,
-  style, data, markerEnd, selected,
+  style, data, markerEnd,
 }: EdgeProps) {
   const d = (data ?? {}) as unknown as ChoiceEdgeData
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX, sourceY, sourcePosition,
     targetX, targetY, targetPosition,
     borderRadius: 12,
   })
-  const showLabel = (d.isHighlighted || selected) && d.choiceLabel
+
+  const isActive = d.isEdgeSelected || d.isHighlighted
+
+  const startEdit = useCallback(() => {
+    setEditValue(d.choiceLabel)
+    setEditing(true)
+    setTimeout(() => { inputRef.current?.select() }, 0)
+  }, [d.choiceLabel])
+
+  const commitEdit = useCallback(() => {
+    const trimmed = editValue.trim()
+    if (trimmed && trimmed !== d.choiceLabel) {
+      d.onLabelEdit(d.sourceNodeId, d.choiceId, trimmed)
+    }
+    setEditing(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editValue, d.choiceLabel, d.sourceNodeId, d.choiceId])
 
   return (
     <>
-      {/* Wide transparent hit area for easier clicking */}
+      {/* Wide transparent hit area */}
       <path d={edgePath} fill="none" stroke="transparent" strokeWidth={18} style={{ cursor: 'pointer' }} />
       <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
-      {showLabel && (
+
+      {/* Label — always shown when selected or source-highlighted */}
+      {(isActive || editing) && (
         <EdgeLabelRenderer>
           <div
             className="nodrag nopan"
             style={{
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              pointerEvents: 'none',
+              pointerEvents: 'all',
               zIndex: 10,
             }}
           >
-            <span
-              style={{
-                background: 'var(--bg-glass)',
-                border: '1px solid var(--line-3)',
-                color: d.isHighlighted ? 'oklch(82% 0.18 165)' : 'var(--fg-2)',
-                fontSize: 9,
-                fontFamily: 'monospace',
-                padding: '2px 8px',
-                borderRadius: 8,
-                letterSpacing: '0.03em',
-                whiteSpace: 'nowrap',
-                maxWidth: 140,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                display: 'block',
-              }}
-            >
-              {d.choiceLabel}
-            </span>
+            {editing ? (
+              <input
+                ref={inputRef}
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+                  if (e.key === 'Escape') { e.preventDefault(); setEditing(false) }
+                  e.stopPropagation()
+                }}
+                autoFocus
+                style={{
+                  background: 'var(--bg-1)',
+                  border: '1px solid oklch(82% 0.18 165)',
+                  color: 'var(--fg-0)',
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  padding: '2px 8px',
+                  borderRadius: 8,
+                  outline: 'none',
+                  width: Math.max(80, editValue.length * 7 + 20),
+                  maxWidth: 180,
+                  boxShadow: '0 0 0 3px oklch(82% 0.18 165 / 0.15)',
+                }}
+              />
+            ) : (
+              <span
+                onClick={d.isEdgeSelected ? startEdit : undefined}
+                title={d.isEdgeSelected ? 'Click to rename' : undefined}
+                style={{
+                  background: d.isEdgeSelected
+                    ? 'oklch(82% 0.18 165 / 0.12)'
+                    : 'var(--bg-glass)',
+                  border: `1px solid ${d.isEdgeSelected ? 'oklch(82% 0.18 165 / 0.5)' : 'var(--line-3)'}`,
+                  color: isActive ? 'oklch(82% 0.18 165)' : 'var(--fg-2)',
+                  fontSize: 9,
+                  fontFamily: 'monospace',
+                  padding: '2px 8px',
+                  borderRadius: 8,
+                  letterSpacing: '0.03em',
+                  whiteSpace: 'nowrap',
+                  maxWidth: 140,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: 'block',
+                  cursor: d.isEdgeSelected ? 'text' : 'default',
+                  userSelect: 'none',
+                }}
+              >
+                {d.choiceLabel || 'New choice'}
+              </span>
+            )}
           </div>
         </EdgeLabelRenderer>
       )}
@@ -164,7 +224,6 @@ function ScenarioNodeCard({ data }: NodeProps) {
 
   const noChoicesWarning = !isEnding && d.choiceCount === 0 && !d.errorLevel
 
-  // Handle circles — visible on hover
   const handleStyle: React.CSSProperties = {
     width: 10,
     height: 10,
@@ -179,19 +238,15 @@ function ScenarioNodeCard({ data }: NodeProps) {
   }
 
   return (
-    // Outer wrapper: no overflow clip, ReactFlow measures this for handle positions
     <div
       style={{ width: 210 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* ── Connection handles — one circle per side ────────────────────── */}
-      {/* Target handles: accept incoming connections from all 4 sides */}
       <Handle type="target" id="tgt-top"    position={Position.Top}    style={handleStyle} />
       <Handle type="target" id="tgt-right"  position={Position.Right}  style={handleStyle} />
       <Handle type="target" id="tgt-bottom" position={Position.Bottom} style={handleStyle} />
       <Handle type="target" id="tgt-left"   position={Position.Left}   style={handleStyle} />
-      {/* Source handles: send connections from all 4 sides (not for endings) */}
       {!isEnding && (
         <>
           <Handle type="source" id="src-top"    position={Position.Top}    style={handleStyle} />
@@ -201,7 +256,6 @@ function ScenarioNodeCard({ data }: NodeProps) {
         </>
       )}
 
-      {/* ── Visual card ────────────────────────────────────────────────── */}
       <div
         className="rounded-[13px] overflow-hidden select-none"
         style={{
@@ -212,7 +266,6 @@ function ScenarioNodeCard({ data }: NodeProps) {
           cursor: 'pointer',
         }}
       >
-        {/* Thumbnail area */}
         <div
           className="relative flex items-center justify-center"
           style={{
@@ -251,7 +304,6 @@ function ScenarioNodeCard({ data }: NodeProps) {
           )}
         </div>
 
-        {/* Content */}
         <div className="px-3 pt-2.5 pb-2">
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-1.5">
@@ -332,32 +384,47 @@ function buildRFNodes(
 function buildRFEdges(
   edges: ScenarioEdge[],
   selectedNodeId: string | null,
-  nodes: ScenarioNode[]
+  selectedEdgeId: string | null,
+  nodes: ScenarioNode[],
+  onLabelEdit: (sourceNodeId: string, choiceId: string, label: string) => void,
 ): Edge[] {
   return edges.map(e => {
     const isHighlighted = e.sourceNodeId === selectedNodeId
+    const isEdgeSelected = e.id === selectedEdgeId
     const sourceNode = nodes.find(n => n.id === e.sourceNodeId)
     const choice = sourceNode?.choices.find(c => c.id === e.choiceId)
+    const strokeColor = isEdgeSelected
+      ? 'oklch(82% 0.18 165)'
+      : isHighlighted
+      ? 'oklch(82% 0.18 165 / 0.65)'
+      : 'var(--line-3)'
+    const markerColor = isEdgeSelected || isHighlighted
+      ? 'oklch(82% 0.18 165)'
+      : 'var(--line-4)'
     return {
       id: e.id,
       source: e.sourceNodeId,
       target: e.targetNodeId,
-      sourceHandle: e.sourceHandle ?? 'src-bottom',
-      targetHandle: e.targetHandle ?? 'tgt-top',
+      sourceHandle: e.sourceHandle || 'src-bottom',
+      targetHandle: e.targetHandle || 'tgt-top',
       type: 'choiceEdge',
       data: {
         choiceLabel: choice?.label ?? '',
         isHighlighted,
-      },
+        isEdgeSelected,
+        sourceNodeId: e.sourceNodeId,
+        choiceId: e.choiceId,
+        onLabelEdit,
+      } satisfies ChoiceEdgeData,
       reconnectable: true,
       style: {
-        stroke: isHighlighted ? 'oklch(82% 0.18 165 / 0.65)' : 'var(--line-3)',
-        strokeWidth: isHighlighted ? 2 : 1.5,
+        stroke: strokeColor,
+        strokeWidth: isEdgeSelected ? 2.5 : isHighlighted ? 2 : 1.5,
         transition: 'stroke 0.2s ease, stroke-width 0.2s ease',
       },
       markerEnd: {
         type: 'arrowclosed' as const,
-        color: isHighlighted ? 'oklch(82% 0.18 165 / 0.65)' : 'var(--line-4)',
+        color: markerColor,
         width: 12,
         height: 12,
       },
@@ -433,12 +500,14 @@ interface ScenarioCanvasProps {
   nodes: ScenarioNode[]
   edges: ScenarioEdge[]
   selectedNodeId: string | null
+  selectedEdgeId: string | null
   onSelectNode: (id: string | null) => void
+  onSelectEdge: (id: string | null) => void
   onNodePositionChange: (id: string, position: { x: number; y: number }) => void
   nodeStatusMap: Record<string, 'error' | 'warning'>
   startNodeId?: string
   onConnect: (sourceNodeId: string, targetNodeId: string, sourceHandle: string, targetHandle: string) => void
-  onEdgeClick: (sourceNodeId: string) => void
+  onEdgeLabelEdit: (sourceNodeId: string, choiceId: string, label: string) => void
   onEdgeReconnect: (edgeId: string, newTargetNodeId: string, newTargetHandle: string) => void
 }
 
@@ -446,19 +515,21 @@ export function ScenarioCanvas({
   nodes,
   edges,
   selectedNodeId,
+  selectedEdgeId,
   onSelectNode,
+  onSelectEdge,
   onNodePositionChange,
   nodeStatusMap,
   startNodeId,
   onConnect,
-  onEdgeClick,
+  onEdgeLabelEdit,
   onEdgeReconnect,
 }: ScenarioCanvasProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(
     buildRFNodes(nodes, selectedNodeId, nodeStatusMap)
   )
   const [rfEdges, setRfEdges] = useEdgesState<Edge>(
-    buildRFEdges(edges, selectedNodeId, nodes)
+    buildRFEdges(edges, selectedNodeId, selectedEdgeId, nodes, onEdgeLabelEdit)
   )
 
   useEffect(() => {
@@ -466,8 +537,10 @@ export function ScenarioCanvas({
   }, [nodes, selectedNodeId, nodeStatusMap, setRfNodes])
 
   useEffect(() => {
-    setRfEdges(buildRFEdges(edges, selectedNodeId, nodes))
-  }, [edges, selectedNodeId, nodes, setRfEdges])
+    setRfEdges(buildRFEdges(edges, selectedNodeId, selectedEdgeId, nodes, onEdgeLabelEdit))
+  // onEdgeLabelEdit is stable (useCallback), safe to include
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edges, selectedNodeId, selectedEdgeId, nodes])
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => onNodesChange(changes),
@@ -475,11 +548,17 @@ export function ScenarioCanvas({
   )
 
   const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => onSelectNode(node.id),
-    [onSelectNode]
+    (_: React.MouseEvent, node: Node) => {
+      onSelectNode(node.id)
+      onSelectEdge(null)
+    },
+    [onSelectNode, onSelectEdge]
   )
 
-  const onPaneClick = useCallback(() => onSelectNode(null), [onSelectNode])
+  const onPaneClick = useCallback(() => {
+    onSelectNode(null)
+    onSelectEdge(null)
+  }, [onSelectNode, onSelectEdge])
 
   const onNodeDragStop = useCallback(
     (_: React.MouseEvent, node: Node) => onNodePositionChange(node.id, node.position),
@@ -502,10 +581,10 @@ export function ScenarioCanvas({
 
   const handleEdgeClick = useCallback(
     (_: React.MouseEvent, edge: Edge) => {
-      const [sourceNodeId] = edge.id.split('__')
-      if (sourceNodeId) onEdgeClick(sourceNodeId)
+      onSelectEdge(edge.id)
+      onSelectNode(null)
     },
-    [onEdgeClick]
+    [onSelectEdge, onSelectNode]
   )
 
   const handleReconnect = useCallback(
@@ -573,7 +652,6 @@ export function ScenarioCanvas({
         <Background
           variant={BackgroundVariant.Dots}
           color="var(--tint-2)"
-
           gap={24}
           size={1.5}
         />

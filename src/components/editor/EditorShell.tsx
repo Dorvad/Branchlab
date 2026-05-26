@@ -33,6 +33,7 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
   const [notFound, setNotFound] = useState(false)
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [showValidation, setShowValidation] = useState(false)
@@ -121,6 +122,8 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
       setScenario={setScenario}
       selectedNodeId={selectedNodeId}
       setSelectedNodeId={setSelectedNodeId}
+      selectedEdgeId={selectedEdgeId}
+      setSelectedEdgeId={setSelectedEdgeId}
       isDirty={isDirty}
       setIsDirty={setIsDirty}
       savedAt={savedAt}
@@ -144,6 +147,8 @@ interface EditorUIProps {
   setScenario: React.Dispatch<React.SetStateAction<Scenario | null>>
   selectedNodeId: string | null
   setSelectedNodeId: React.Dispatch<React.SetStateAction<string | null>>
+  selectedEdgeId: string | null
+  setSelectedEdgeId: React.Dispatch<React.SetStateAction<string | null>>
   isDirty: boolean
   setIsDirty: React.Dispatch<React.SetStateAction<boolean>>
   savedAt: Date | null
@@ -161,6 +166,8 @@ function EditorUI({
   setScenario,
   selectedNodeId,
   setSelectedNodeId,
+  selectedEdgeId,
+  setSelectedEdgeId,
   isDirty,
   setIsDirty,
   savedAt,
@@ -423,9 +430,14 @@ function EditorUI({
     setIsDirty(true)
   }, [])
 
-  const onEdgeClick = useCallback((sourceNodeId: string) => {
-    setSelectedNodeId(sourceNodeId)
+  const onSelectEdge = useCallback((edgeId: string | null) => {
+    setSelectedEdgeId(edgeId)
+    setSelectedNodeId(null)
   }, [setSelectedNodeId])
+
+  const onEdgeLabelEdit = useCallback((sourceNodeId: string, choiceId: string, label: string) => {
+    updateChoice(sourceNodeId, choiceId, { label })
+  }, [updateChoice])
 
   const handlePublish = useCallback(async (config: PublishConfig) => {
     const updated = await publishScenario({ ...scenario, edges: derivedEdges }, config)
@@ -442,14 +454,23 @@ function EditorUI({
         || (e.target as HTMLElement).isContentEditable
       if (isInput) return
 
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
-        const node = scenario.nodes.find(n => n.id === selectedNodeId)
-        if (node?.type === 'start') return // protect start node from accidental delete
-        deleteNode(selectedNodeId)
-        return
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedEdgeId) {
+          const parts = selectedEdgeId.split('__')
+          if (parts.length >= 2) deleteChoice(parts[0], parts[1])
+          setSelectedEdgeId(null)
+          return
+        }
+        if (selectedNodeId) {
+          const node = scenario.nodes.find(n => n.id === selectedNodeId)
+          if (node?.type === 'start') return // protect start node from accidental delete
+          deleteNode(selectedNodeId)
+          return
+        }
       }
       if (e.key === 'Escape') {
         setSelectedNodeId(null)
+        setSelectedEdgeId(null)
         return
       }
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'd' && selectedNodeId) {
@@ -465,7 +486,7 @@ function EditorUI({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNodeId, scenario.nodes])
+  }, [selectedNodeId, selectedEdgeId, scenario.nodes])
 
   // ── Clip management ───────────────────────────────────────────────────────
   const [clips, setClips] = useState<Clip[]>([])
@@ -497,6 +518,7 @@ function EditorUI({
 
   const handleSelectFromValidation = (nodeId: string) => {
     setSelectedNodeId(nodeId)
+    setSelectedEdgeId(null)
     setShowValidation(false)
   }
 
@@ -757,12 +779,14 @@ function EditorUI({
             nodes={scenario.nodes}
             edges={derivedEdges}
             selectedNodeId={selectedNodeId}
+            selectedEdgeId={selectedEdgeId}
             onSelectNode={setSelectedNodeId}
+            onSelectEdge={onSelectEdge}
             onNodePositionChange={updateNodePosition}
             nodeStatusMap={nodeStatusMap}
             startNodeId={scenario.startNodeId}
             onConnect={connectNodes}
-            onEdgeClick={onEdgeClick}
+            onEdgeLabelEdit={onEdgeLabelEdit}
             onEdgeReconnect={reconnectEdge}
           />
         </div>
