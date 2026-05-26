@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useCallback, useId } from 'react'
-import { X, Upload, Film, Trash2, Link2, Info, Search, Check, RefreshCw } from 'lucide-react'
+import { X, Upload, Film, Trash2, Link2, Info, Search, Check, RefreshCw, Youtube } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   uploadClip, deleteClip,
@@ -9,16 +9,22 @@ import {
   ACCEPTED_EXTENSIONS, LARGE_FILE_WARNING_BYTES,
   type UploadProgress,
 } from '@/lib/supabase/clips'
-import type { Clip, ClipUploadStatus } from '@/types'
+import type { Clip, ClipUploadStatus, YouTubeAsset } from '@/types'
 
 interface AssetLibraryProps {
   clips: Clip[]
+  youtubeAssets: YouTubeAsset[]
   selectedNodeTitle: string | null
   canAttach: boolean
   nodeClipId?: string
+  nodeYoutubeAssetId?: string
   onAddClip: (clip: Clip) => void
   onRemoveClip: (id: string) => void
   onAttachToNode: (clipId: string) => void
+  onAddYouTubeAsset: (asset: YouTubeAsset) => void
+  onRemoveYouTubeAsset: (id: string) => void
+  onAttachYouTubeToNode: (assetId: string) => void
+  onOpenAddYoutube: () => void
   onClose: () => void
 }
 
@@ -32,12 +38,18 @@ interface UploadItem {
 
 export function AssetLibrary({
   clips,
+  youtubeAssets,
   selectedNodeTitle,
   canAttach,
   nodeClipId,
+  nodeYoutubeAssetId,
   onAddClip,
   onRemoveClip,
   onAttachToNode,
+  onAddYouTubeAsset: _onAddYouTubeAsset,
+  onRemoveYouTubeAsset,
+  onAttachYouTubeToNode,
+  onOpenAddYoutube,
   onClose,
 }: AssetLibraryProps) {
   const fileInputId = useId()
@@ -46,9 +58,15 @@ export function AssetLibrary({
   const [uploads, setUploads] = useState<UploadItem[]>([])
   const [search, setSearch] = useState('')
 
-  const filteredClips = search.trim()
-    ? clips.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
-    : clips
+  const q = search.toLowerCase().trim()
+  const filteredClips = q ? clips.filter(c => c.name.toLowerCase().includes(q)) : clips
+  const filteredYoutube = q
+    ? youtubeAssets.filter(a =>
+        a.youtubeVideoId.toLowerCase().includes(q) ||
+        (a.title ?? '').toLowerCase().includes(q)
+      )
+    : youtubeAssets
+  const totalAssets = clips.length + youtubeAssets.length
 
   const processFiles = useCallback(async (files: File[]) => {
     const newItems: UploadItem[] = files.map(f => ({
@@ -164,13 +182,27 @@ export function AssetLibrary({
               <p className="text-[12px] font-medium" style={{ color: 'var(--fg-1)' }}>
                 {uploads.some(u => u.status === 'compressing') ? 'Compressing…'
                   : isUploading ? 'Uploading…'
-                  : 'Add videos'}
+                  : 'Upload video'}
               </p>
               <p className="text-[10px] mt-0.5 font-mono" style={{ color: 'var(--fg-3)' }}>
                 MP4 · WebM · MOV · max 5 GB
               </p>
             </div>
           </div>
+
+          {/* Add YouTube URL */}
+          <button
+            onClick={onOpenAddYoutube}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[12px] font-mono transition-all hover:brightness-110"
+            style={{
+              background: 'rgba(255,0,0,0.06)',
+              border: '1px solid rgba(255,0,0,0.2)',
+              color: '#ff5555',
+            }}
+          >
+            <Youtube size={12} />
+            Add YouTube URL
+          </button>
 
           {/* Upload status rows */}
           <AnimatePresence>
@@ -188,12 +220,12 @@ export function AssetLibrary({
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'oklch(82% 0.18 165 / 0.06)', border: '1px solid oklch(82% 0.18 165 / 0.2)' }}>
               <Link2 size={11} style={{ color: 'oklch(82% 0.18 165)', flexShrink: 0 }} />
               <p className="text-[11px] leading-snug" style={{ color: 'oklch(82% 0.18 165)' }}>
-                {nodeClipId ? 'Replace clip on' : 'Attach to'}{' '}
+                {(nodeClipId || nodeYoutubeAssetId) ? 'Replace clip on' : 'Attach to'}{' '}
                 <span className="font-medium">&quot;{selectedNodeTitle}&quot;</span>
               </p>
             </div>
           )}
-          {!canAttach && clips.length > 0 && (
+          {!canAttach && totalAssets > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}>
               <Info size={11} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
               <p className="text-[11px]" style={{ color: 'var(--fg-3)' }}>Select a node to attach clips</p>
@@ -201,30 +233,46 @@ export function AssetLibrary({
           )}
 
           {/* Search */}
-          {clips.length > 3 && (
+          {totalAssets > 3 && (
             <div className="relative">
               <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Filter clips…"
+                placeholder="Filter assets…"
                 className="w-full pl-7 pr-3 py-2 rounded-lg text-[12px] outline-none transition-colors"
                 style={{ background: 'var(--tint-1)', border: '1px solid var(--line-2)', color: 'var(--fg-1)' }}
               />
             </div>
           )}
 
-          {/* Clip list */}
-          {clips.length === 0 && uploads.length === 0 ? (
+          {/* Empty state */}
+          {totalAssets === 0 && uploads.length === 0 && (
             <div className="py-8 text-center">
               <Film size={24} className="mx-auto mb-3 opacity-20" style={{ color: 'var(--fg-2)' }} />
-              <p className="text-[11px] font-mono text-ink-4">No clips yet</p>
+              <p className="text-[11px] font-mono text-ink-4">No assets yet</p>
             </div>
-          ) : filteredClips.length === 0 ? (
-            <div className="py-6 text-center">
-              <p className="text-[11px] font-mono" style={{ color: 'var(--fg-4)' }}>No clips match &ldquo;{search}&rdquo;</p>
+          )}
+
+          {/* YouTube asset cards */}
+          {filteredYoutube.length > 0 && (
+            <div className="space-y-2">
+              {filteredYoutube.map(asset => (
+                <YouTubeCard
+                  key={asset.id}
+                  asset={asset}
+                  canAttach={canAttach}
+                  nodeYoutubeAssetId={nodeYoutubeAssetId}
+                  nodeClipId={nodeClipId}
+                  onAttach={() => onAttachYouTubeToNode(asset.id)}
+                  onRemove={() => onRemoveYouTubeAsset(asset.id)}
+                />
+              ))}
             </div>
-          ) : (
+          )}
+
+          {/* Uploaded clip cards */}
+          {filteredClips.length > 0 && (
             <div className="space-y-2">
               {filteredClips.map(clip => (
                 <ClipCard
@@ -236,6 +284,13 @@ export function AssetLibrary({
                   onRemove={() => handleRemove(clip)}
                 />
               ))}
+            </div>
+          )}
+
+          {/* No results */}
+          {q && filteredClips.length === 0 && filteredYoutube.length === 0 && (
+            <div className="py-6 text-center">
+              <p className="text-[11px] font-mono" style={{ color: 'var(--fg-4)' }}>No assets match &ldquo;{search}&rdquo;</p>
             </div>
           )}
         </div>
@@ -306,6 +361,96 @@ function UploadStatusRow({ item }: { item: UploadItem }) {
           {item.error}
         </p>
       )}
+    </div>
+  )
+}
+
+// ── YouTubeCard ───────────────────────────────────────────────────────────────
+
+function YouTubeCard({
+  asset, canAttach, nodeYoutubeAssetId, nodeClipId, onAttach, onRemove,
+}: {
+  asset: YouTubeAsset
+  canAttach: boolean
+  nodeYoutubeAssetId?: string
+  nodeClipId?: string
+  onAttach: () => void
+  onRemove: () => void
+}) {
+  const isAttached = nodeYoutubeAssetId === asset.id
+  const wouldReplace = canAttach && (!!nodeClipId || (!!nodeYoutubeAssetId && !isAttached))
+  const title = asset.title ?? `YouTube · ${asset.youtubeVideoId}`
+  const truncatedTitle = title.length > 32 ? title.slice(0, 29) + '…' : title
+  const thumbUrl = asset.thumbnailUrl ?? `https://img.youtube.com/vi/${asset.youtubeVideoId}/hqdefault.jpg`
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ background: 'var(--tint-1)', border: `1px solid ${isAttached ? 'oklch(82% 0.18 165 / 0.4)' : 'rgba(255,0,0,0.15)'}` }}
+    >
+      {/* Thumbnail */}
+      <div className="relative h-28 overflow-hidden" style={{ background: '#000' }}>
+        <img src={thumbUrl} alt="" className="w-full h-full object-cover opacity-90" />
+
+        <div
+          className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[9px] tracking-wider"
+          style={{ background: 'rgba(0,0,0,0.75)', color: '#ff5555', border: '1px solid rgba(255,0,0,0.3)' }}
+        >
+          <Youtube size={9} />
+          YT
+        </div>
+
+        {isAttached && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono" style={{ background: 'oklch(82% 0.18 165)', color: '#052916' }}>
+            <Check size={8} />
+            Attached
+          </div>
+        )}
+      </div>
+
+      {/* Metadata */}
+      <div className="px-3 py-2.5">
+        <p className="text-[12px] font-medium leading-snug mb-0.5" style={{ color: 'var(--fg-1)' }} title={title}>
+          {truncatedTitle}
+        </p>
+        <p className="text-[10px] font-mono" style={{ color: '#ff5555', opacity: 0.7 }}>
+          Linked from YouTube
+        </p>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 px-3 pb-3">
+        {canAttach && !isAttached && (
+          <button
+            onClick={onAttach}
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
+            style={{
+              background: wouldReplace ? 'oklch(78% 0.18 285 / 0.1)' : 'oklch(82% 0.18 165 / 0.1)',
+              border: `1px solid ${wouldReplace ? 'oklch(78% 0.18 285 / 0.3)' : 'oklch(82% 0.18 165 / 0.25)'}`,
+              color: wouldReplace ? 'oklch(78% 0.18 285)' : 'oklch(82% 0.18 165)',
+            }}
+          >
+            {wouldReplace ? <><RefreshCw size={10} /> Replace</> : <><Link2 size={10} /> Attach</>}
+          </button>
+        )}
+        {canAttach && isAttached && (
+          <div
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono"
+            style={{ background: 'oklch(82% 0.18 165 / 0.06)', border: '1px solid oklch(82% 0.18 165 / 0.2)', color: 'oklch(82% 0.18 165)' }}
+          >
+            <Check size={10} />
+            Attached
+          </div>
+        )}
+        <button
+          onClick={onRemove}
+          className="flex items-center justify-center w-7 h-7 rounded-lg transition-colors hover:text-red-400"
+          style={{ background: 'var(--tint-2)', border: '1px solid var(--line-1)', color: 'var(--fg-3)' }}
+          title="Remove YouTube asset"
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
     </div>
   )
 }

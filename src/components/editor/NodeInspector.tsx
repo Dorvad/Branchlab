@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy, Play, Pause, RotateCcw, RefreshCw, Scissors } from 'lucide-react'
-import type { ScenarioNode, ScenarioChoice, NodeType, Clip, OpeningInstructions } from '@/types'
+import { X, Plus, Trash2, ChevronDown, Film, AlertTriangle, ImageIcon, Copy, Play, Pause, RotateCcw, RefreshCw, Scissors, Youtube } from 'lucide-react'
+import type { ScenarioNode, ScenarioChoice, NodeType, Clip, OpeningInstructions, YouTubeAsset } from '@/types'
 import { formatDuration } from '@/lib/supabase/clips'
 import { formatSecondsToTimestamp } from '@/lib/timestamp'
 import { ClipRangeEditor } from './ClipRangeEditor'
+import { YouTubeClipRangeEditor } from './YouTubeClipRangeEditor'
 
 async function compressImage(file: File, maxWidth = 1280, quality = 0.82): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -50,6 +51,7 @@ interface NodeInspectorProps {
   node: ScenarioNode
   allNodes: ScenarioNode[]
   clips: Clip[]
+  youtubeAssets: YouTubeAsset[]
   onUpdateNode: (nodeId: string, updates: Partial<ScenarioNode>) => void
   onAddChoice: (nodeId: string) => void
   onUpdateChoice: (nodeId: string, choiceId: string, updates: Partial<ScenarioChoice>) => void
@@ -67,6 +69,7 @@ export function NodeInspector({
   node,
   allNodes,
   clips,
+  youtubeAssets: _youtubeAssets,
   onUpdateNode,
   onAddChoice,
   onUpdateChoice,
@@ -81,6 +84,7 @@ export function NodeInspector({
 }: NodeInspectorProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showClipRangeEditor, setShowClipRangeEditor] = useState(false)
+  const [showYTClipEditor, setShowYTClipEditor] = useState(false)
 
   const otherNodes = allNodes.filter(n => n.id !== node.id)
   const isEnding = node.type === 'ending'
@@ -216,65 +220,120 @@ export function NodeInspector({
           <div className="space-y-3.5">
             <SectionHeader>Media</SectionHeader>
 
-            {/* Video Clip */}
-            <Field label="Video Clip">
+            {/* Video */}
+            <Field label="Video">
               <p className="text-[10px] mb-2 leading-relaxed" style={{ color: 'var(--fg-4)' }}>
                 The video that plays when players reach this scene.
               </p>
-              {clips.length === 0 ? (
-                <div
-                  className="px-3 py-3 rounded-xl text-[11px] leading-relaxed border border-dashed"
-                  style={{ borderColor: 'var(--line-1)', color: 'var(--fg-3)' }}
-                >
-                  No clips uploaded yet.{' '}
-                  <button
-                    onClick={onOpenLibrary}
-                    className="underline underline-offset-2 transition-opacity hover:opacity-80"
-                    style={{ color: 'var(--fg-2)' }}
-                  >
-                    Open Asset Library →
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {/* Preview + replace/remove when clip is attached */}
-                  {node.clip ? (
-                    <>
-                      <ClipPreviewPlayer url={node.clip.url} name={currentClip?.name} thumbnailUrl={currentClip?.thumbnailUrl} />
-                      <button
-                        onClick={() => setShowClipRangeEditor(true)}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
-                        style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
-                      >
-                        <Scissors size={10} />
-                        Edit clip range
-                        {(node.clipStartTime !== undefined || node.clipEndTime != null) && (
-                          <span style={{ color: 'oklch(82% 0.18 165)' }}>
-                            · {formatSecondsToTimestamp(node.clipStartTime ?? 0)}–{node.clipEndTime != null ? formatSecondsToTimestamp(node.clipEndTime) : 'end'}
-                          </span>
-                        )}
-                      </button>
-                      <div className="flex gap-1.5">
-                        <button
-                          onClick={onOpenLibrary}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
-                          style={{ background: 'oklch(78% 0.18 285 / 0.08)', border: '1px solid oklch(78% 0.18 285 / 0.25)', color: 'oklch(78% 0.18 285)' }}
-                        >
-                          <RefreshCw size={10} />
-                          Replace clip
-                        </button>
-                        <button
-                          onClick={() => onUpdateNode(node.id, { clip: undefined, clipStartTime: undefined, clipEndTime: undefined })}
-                          className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:text-red-400"
-                          style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-3)' }}
-                          title="Remove clip"
-                        >
-                          <Trash2 size={11} />
-                        </button>
+              <div className="space-y-2">
+                {node.youtubeAsset ? (
+                  /* ── YouTube linked video ── */
+                  <>
+                    <div
+                      className="rounded-xl overflow-hidden"
+                      style={{ border: '1px solid rgba(255,0,0,0.2)', background: 'var(--tint-1)' }}
+                    >
+                      <div className="relative h-20 bg-black overflow-hidden">
+                        <img
+                          src={node.youtubeAsset.thumbnailUrl ?? `https://img.youtube.com/vi/${node.youtubeAsset.youtubeVideoId}/hqdefault.jpg`}
+                          alt=""
+                          className="w-full h-full object-cover opacity-80"
+                        />
+                        <div className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono"
+                          style={{ background: 'rgba(0,0,0,0.75)', color: '#ff5555' }}>
+                          <Youtube size={9} />
+                          YouTube
+                        </div>
                       </div>
-                    </>
-                  ) : (
-                    <>
+                      <div className="px-2.5 py-2">
+                        <p className="text-[11px] font-medium truncate" style={{ color: 'var(--fg-1)' }}>
+                          {node.youtubeAsset.title ?? `YouTube · ${node.youtubeAsset.youtubeVideoId}`}
+                        </p>
+                        <p className="text-[9px] font-mono mt-0.5" style={{ color: '#ff5555', opacity: 0.7 }}>
+                          Linked from YouTube
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowYTClipEditor(true)}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
+                      style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
+                    >
+                      <Scissors size={10} />
+                      Edit clip range
+                      {(node.youtubeStartTime !== undefined || node.youtubeEndTime != null) && (
+                        <span style={{ color: 'oklch(82% 0.18 165)' }}>
+                          · {formatSecondsToTimestamp(node.youtubeStartTime ?? 0)}–{node.youtubeEndTime != null ? formatSecondsToTimestamp(node.youtubeEndTime) : 'end'}
+                        </span>
+                      )}
+                    </button>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={onOpenLibrary}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
+                        style={{ background: 'oklch(78% 0.18 285 / 0.08)', border: '1px solid oklch(78% 0.18 285 / 0.25)', color: 'oklch(78% 0.18 285)' }}
+                      >
+                        <RefreshCw size={10} />
+                        Replace
+                      </button>
+                      <button
+                        onClick={() => onUpdateNode(node.id, { youtubeAsset: undefined, youtubeStartTime: undefined, youtubeEndTime: undefined })}
+                        className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:text-red-400"
+                        style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-3)' }}
+                        title="Remove linked video"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </>
+                ) : node.clip ? (
+                  /* ── Uploaded clip ── */
+                  <>
+                    <ClipPreviewPlayer url={node.clip.url} name={currentClip?.name} thumbnailUrl={currentClip?.thumbnailUrl} />
+                    <button
+                      onClick={() => setShowClipRangeEditor(true)}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
+                      style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
+                    >
+                      <Scissors size={10} />
+                      Edit clip range
+                      {(node.clipStartTime !== undefined || node.clipEndTime != null) && (
+                        <span style={{ color: 'oklch(82% 0.18 165)' }}>
+                          · {formatSecondsToTimestamp(node.clipStartTime ?? 0)}–{node.clipEndTime != null ? formatSecondsToTimestamp(node.clipEndTime) : 'end'}
+                        </span>
+                      )}
+                    </button>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={onOpenLibrary}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono transition-all hover:brightness-110"
+                        style={{ background: 'oklch(78% 0.18 285 / 0.08)', border: '1px solid oklch(78% 0.18 285 / 0.25)', color: 'oklch(78% 0.18 285)' }}
+                      >
+                        <RefreshCw size={10} />
+                        Replace clip
+                      </button>
+                      <button
+                        onClick={() => onUpdateNode(node.id, { clip: undefined, clipStartTime: undefined, clipEndTime: undefined })}
+                        className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:text-red-400"
+                        style={{ background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-3)' }}
+                        title="Remove clip"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  /* ── No clip attached ── */
+                  <>
+                    <button
+                      onClick={onOpenLibrary}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-mono border border-dashed transition-colors hover:border-[var(--line-4)]"
+                      style={{ borderColor: 'var(--line-2)', color: 'var(--fg-3)' }}
+                    >
+                      <Film size={11} />
+                      Open Asset Library
+                    </button>
+                    {clips.length > 0 && (
                       <div className="relative">
                         <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-3)' }}>
                           <Film size={12} />
@@ -285,11 +344,11 @@ export function NodeInspector({
                           onChange={e => {
                             const clip = clips.find(c => c.id === e.target.value)
                             if (clip) {
-                              onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration, thumbnail: clip.thumbnailUrl }, clipStartTime: undefined, clipEndTime: undefined })
+                              onUpdateNode(node.id, { clip: { id: clip.id, url: clip.url, duration: clip.duration, thumbnail: clip.thumbnailUrl }, clipStartTime: undefined, clipEndTime: undefined, youtubeAsset: undefined })
                             }
                           }}
                         >
-                          <option value="">— Pick a clip —</option>
+                          <option value="">— Quick-attach a clip —</option>
                           {clips.map(c => (
                             <option key={c.id} value={c.id}>
                               {c.name.length > 26 ? c.name.slice(0, 23) + '…' : c.name} · {formatDuration(c.duration)}
@@ -298,17 +357,10 @@ export function NodeInspector({
                         </select>
                         <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-3)' }} />
                       </div>
-                      <button
-                        onClick={onOpenLibrary}
-                        className="text-[10px] font-mono transition-opacity hover:opacity-80"
-                        style={{ color: 'var(--fg-4)' }}
-                      >
-                        Upload clips in Asset Library →
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
+                    )}
+                  </>
+                )}
+              </div>
             </Field>
 
             {/* Choice Screen Thumbnail */}
@@ -488,6 +540,19 @@ export function NodeInspector({
             setShowClipRangeEditor(false)
           }}
           onClose={() => setShowClipRangeEditor(false)}
+        />
+      )}
+
+      {/* ── YouTube Clip Range Editor modal ─────────────────────────────────── */}
+      {showYTClipEditor && node.youtubeAsset && (
+        <YouTubeClipRangeEditor
+          node={node}
+          youtubeAsset={node.youtubeAsset}
+          onSave={(startTime, endTime) => {
+            onUpdateNode(node.id, { youtubeStartTime: startTime, youtubeEndTime: endTime })
+            setShowYTClipEditor(false)
+          }}
+          onClose={() => setShowYTClipEditor(false)}
         />
       )}
 

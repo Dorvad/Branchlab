@@ -82,6 +82,25 @@ export interface ClipAsset {
   thumbnail?: string;
 }
 
+export interface YouTubeAsset {
+  id: string;
+  youtubeVideoId: string;
+  originalUrl: string;
+  title?: string;
+  thumbnailUrl?: string;
+  duration?: number | null; // null = unknown; resolved from player on first use
+  createdAt: string;
+}
+
+/** Minimal reference stored on a ScenarioNode — no DB join needed at play time. */
+export interface YouTubeClipRef {
+  id: string;               // references YouTubeAsset.id
+  youtubeVideoId: string;
+  title?: string;
+  thumbnailUrl?: string;
+  duration?: number | null;
+}
+
 export interface ScenarioChoice {
   id: string;
   label: string;
@@ -107,6 +126,9 @@ export interface ScenarioNode {
   clip?: ClipAsset;
   clipStartTime?: number;      // seconds from 0; undefined = start from beginning
   clipEndTime?: number | null; // seconds; null/undefined = play to natural end
+  youtubeAsset?: YouTubeClipRef;
+  youtubeStartTime?: number;
+  youtubeEndTime?: number | null;
   thumbnailUrl?: string; // custom choice-screen backdrop; falls back to last video frame
   choices: ScenarioChoice[];
   position: { x: number; y: number };

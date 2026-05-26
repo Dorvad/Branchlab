@@ -66,3 +66,25 @@ export function formatSecondsToTimestamp(seconds: number): string {
     ? `${m}:${ss}.${msStr}`
     : `${m}:${ss}`
 }
+
+/**
+ * Appropriate tick interval in seconds for a timeline of the given duration.
+ */
+export function tickInterval(duration: number): number {
+  if (duration <= 30)  return 1
+  if (duration <= 90)  return 5
+  if (duration <= 300) return 15
+  if (duration <= 900) return 30
+  return 60
+}
+
+/**
+ * Generate tick mark positions (in seconds) for a timeline.
+ */
+export function timelineTicks(duration: number): number[] {
+  if (duration <= 0) return []
+  const interval = tickInterval(duration)
+  const result: number[] = []
+  for (let t = 0; t <= duration; t += interval) result.push(t)
+  return result
+}

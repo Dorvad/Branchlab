@@ -15,13 +15,15 @@ import { AssetLibrary } from './AssetLibrary'
 import { validateScenario } from '@/lib/scenario-engine'
 import { getScenario, saveScenario, publishScenario, deleteScenario } from '@/lib/scenario-store'
 import { fetchClips } from '@/lib/supabase/clips'
+import { fetchYouTubeAssets, deleteYouTubeAsset } from '@/lib/supabase/youtube-assets'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
 import { RepublishModal } from './RepublishModal'
+import { AddYouTubeModal } from './AddYouTubeModal'
 import { exportToBlab } from '@/lib/blab-format'
 import { exportToZip } from '@/lib/zip-export'
 import { exportScorm12, exportXapiStatements } from '@/lib/scorm-export'
-import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, PublishConfig } from '@/types'
+import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, YouTubeAsset, PublishConfig } from '@/types'
 
 interface EditorShellProps {
   scenarioId: string
@@ -500,9 +502,12 @@ function EditorUI({
 
   // ── Clip management ───────────────────────────────────────────────────────
   const [clips, setClips] = useState<Clip[]>([])
+  const [youtubeAssets, setYouTubeAssets] = useState<YouTubeAsset[]>([])
+  const [showAddYoutube, setShowAddYoutube] = useState(false)
 
   useEffect(() => {
     fetchClips().then(setClips).catch(() => {})
+    fetchYouTubeAssets().then(setYouTubeAssets).catch(() => {})
   }, [])
 
   const addClip = useCallback((clip: Clip) => {
@@ -513,14 +518,50 @@ function EditorUI({
     setClips(prev => prev.filter(c => c.id !== id))
   }, [])
 
+  const addYouTubeAsset = useCallback((asset: YouTubeAsset) => {
+    setYouTubeAssets(prev => {
+      if (prev.some(a => a.id === asset.id)) return prev
+      return [asset, ...prev]
+    })
+  }, [])
+
+  const removeYouTubeAsset = useCallback((id: string) => {
+    setYouTubeAssets(prev => prev.filter(a => a.id !== id))
+    deleteYouTubeAsset(id).catch(() => {})
+    // Clear from any node that references this asset
+    setScenario(prev => {
+      if (!prev) return prev
+      const nodes = prev.nodes.map(n =>
+        n.youtubeAsset?.id === id
+          ? { ...n, youtubeAsset: undefined, youtubeStartTime: undefined, youtubeEndTime: undefined }
+          : n
+      )
+      if (nodes === prev.nodes) return prev
+      return { ...prev, nodes }
+    })
+    setIsDirty(true)
+  }, [])
+
   const attachClipToNode = useCallback((clipId: string) => {
     if (!selectedNodeId) return
     const clip = clips.find(c => c.id === clipId)
     if (!clip) return
     updateNode(selectedNodeId, {
       clip: { id: clip.id, url: clip.url, duration: clip.duration, thumbnail: clip.thumbnailUrl },
+      youtubeAsset: undefined, youtubeStartTime: undefined, youtubeEndTime: undefined,
     })
   }, [selectedNodeId, clips, updateNode])
+
+  const attachYouTubeToNode = useCallback((assetId: string) => {
+    if (!selectedNodeId) return
+    const asset = youtubeAssets.find(a => a.id === assetId)
+    if (!asset) return
+    updateNode(selectedNodeId, {
+      youtubeAsset: { id: asset.id, youtubeVideoId: asset.youtubeVideoId, title: asset.title, thumbnailUrl: asset.thumbnailUrl, duration: asset.duration },
+      youtubeStartTime: undefined, youtubeEndTime: undefined,
+      clip: undefined, clipStartTime: undefined, clipEndTime: undefined,
+    })
+  }, [selectedNodeId, youtubeAssets, updateNode])
 
   const { errors, warnings } = validationResult
   const errorCount = errors.length
@@ -815,6 +856,7 @@ function EditorUI({
             node={selectedNode}
             allNodes={scenario.nodes}
             clips={clips}
+            youtubeAssets={youtubeAssets}
             onUpdateNode={updateNode}
             onAddChoice={addChoice}
             onUpdateChoice={updateChoice}
@@ -933,13 +975,28 @@ function EditorUI({
         {showAssets && (
           <AssetLibrary
             clips={clips}
+            youtubeAssets={youtubeAssets}
             selectedNodeTitle={selectedNode?.title ?? null}
             canAttach={!!selectedNodeId}
             nodeClipId={selectedNode?.clip?.id}
+            nodeYoutubeAssetId={selectedNode?.youtubeAsset?.id}
             onAddClip={addClip}
             onRemoveClip={removeClip}
             onAttachToNode={attachClipToNode}
+            onAddYouTubeAsset={addYouTubeAsset}
+            onRemoveYouTubeAsset={removeYouTubeAsset}
+            onAttachYouTubeToNode={attachYouTubeToNode}
+            onOpenAddYoutube={() => setShowAddYoutube(true)}
             onClose={() => setShowAssets(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAddYoutube && (
+          <AddYouTubeModal
+            onSave={asset => { addYouTubeAsset(asset); setShowAddYoutube(false) }}
+            onClose={() => setShowAddYoutube(false)}
           />
         )}
       </AnimatePresence>

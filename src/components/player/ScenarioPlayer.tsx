@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 import { VideoScene } from './VideoScene'
+import { YouTubeScene } from './YouTubeScene'
 import { ChoicePanel } from './ChoicePanel'
 import { FeedbackOverlay } from './FeedbackOverlay'
 import { EndingScreen } from './EndingScreen'
@@ -264,11 +265,18 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
                 transition={{ duration: 0.3 }}
                 className="absolute inset-0"
               >
-                <VideoScene
-                  node={currentNode!}
-                  onComplete={handleVideoComplete}
-                  autoAdvanceSeconds={currentNode?.type === 'ending' ? 4 : 5}
-                />
+                {currentNode!.youtubeAsset ? (
+                  <YouTubeScene
+                    node={currentNode!}
+                    onComplete={handleVideoComplete}
+                  />
+                ) : (
+                  <VideoScene
+                    node={currentNode!}
+                    onComplete={handleVideoComplete}
+                    autoAdvanceSeconds={currentNode?.type === 'ending' ? 4 : 5}
+                  />
+                )}
               </motion.div>
             )}
           </AnimatePresence>
