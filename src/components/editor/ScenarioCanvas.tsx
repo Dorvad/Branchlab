@@ -24,7 +24,7 @@ import {
   type Connection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { AlertTriangle, Film, Maximize2, Crosshair } from 'lucide-react'
+import { AlertTriangle, Film, Maximize2, Crosshair, Flag } from 'lucide-react'
 import type { ScenarioNode, ScenarioEdge, NodeType } from '@/types'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -201,6 +201,8 @@ interface NodeCardData {
   choiceCount: number
   errorLevel: 'error' | 'warning' | null
   hasClip: boolean
+  isCheckpoint?: boolean
+  checkpointLabel?: string
   clipDuration?: number
   isSelected: boolean
 }
@@ -311,6 +313,19 @@ function ScenarioNodeCard({ data }: NodeProps) {
               <span className="text-[9px] font-mono tracking-[0.14em] uppercase" style={{ color: cfg.label }}>
                 {TYPE_LABELS[d.nodeType]}
               </span>
+              {d.isCheckpoint && (
+                <span
+                  className="flex items-center gap-0.5 text-[8px] font-mono tracking-[0.1em] uppercase px-1.5 py-0.5 rounded-md"
+                  style={{
+                    background: 'oklch(82% 0.18 165 / 0.12)',
+                    border: '1px solid oklch(82% 0.18 165 / 0.25)',
+                    color: 'oklch(82% 0.18 165)',
+                  }}
+                >
+                  <Flag size={7} />
+                  {d.checkpointLabel?.trim() || 'Checkpoint'}
+                </span>
+              )}
             </div>
             {d.errorLevel === 'error' && <AlertTriangle size={11} style={{ color: 'oklch(70% 0.18 25)' }} />}
             {d.errorLevel === 'warning' && <AlertTriangle size={11} style={{ color: 'oklch(80% 0.16 60)' }} />}
@@ -375,6 +390,8 @@ function buildRFNodes(
       hasClip: !!n.clip,
       clipDuration: n.clip?.duration,
       isSelected: n.id === selectedNodeId,
+      isCheckpoint: n.isCheckpoint,
+      checkpointLabel: n.checkpointLabel,
     } satisfies NodeCardData,
     sourcePosition: Position.Bottom,
     targetPosition: Position.Top,

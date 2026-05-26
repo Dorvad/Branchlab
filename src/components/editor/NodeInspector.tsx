@@ -451,6 +451,17 @@ export function NodeInspector({
             </>
           )}
 
+          {/* ── Checkpoint ──────────────────────────────────────────────────── */}
+          <div style={{ height: 1, background: 'var(--tint-2)' }} />
+          <CheckpointEditor
+            isCheckpoint={node.isCheckpoint ?? false}
+            checkpointLabel={node.checkpointLabel ?? ''}
+            nodeTitle={node.title}
+            onChange={(isCheckpoint, checkpointLabel) =>
+              onUpdateNode(node.id, { isCheckpoint, checkpointLabel })
+            }
+          />
+
           {/* ── Ending note ─────────────────────────────────────────────────── */}
           {isEnding && (
             <div className="space-y-3">
@@ -1035,6 +1046,66 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </p>
       {children}
+    </div>
+  )
+}
+
+// ── CheckpointEditor ──────────────────────────────────────────────────────────
+
+function CheckpointEditor({
+  isCheckpoint,
+  checkpointLabel,
+  nodeTitle,
+  onChange,
+}: {
+  isCheckpoint: boolean
+  checkpointLabel: string
+  nodeTitle: string
+  onChange: (isCheckpoint: boolean, checkpointLabel: string) => void
+}) {
+  return (
+    <div className="space-y-2.5">
+      <div
+        className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+        style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}
+      >
+        <div>
+          <p className="text-[11px] font-medium" style={{ color: 'var(--fg-1)' }}>Checkpoint</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>Players can retry from here instead of replaying from the start</p>
+        </div>
+        <button
+          onClick={() => onChange(!isCheckpoint, checkpointLabel)}
+          className="relative shrink-0 rounded-full transition-colors"
+          style={{
+            width: 32,
+            height: 18,
+            background: isCheckpoint ? 'oklch(82% 0.18 165)' : 'var(--line-3)',
+          }}
+        >
+          <span
+            className="absolute top-0.5 rounded-full"
+            style={{
+              width: 14,
+              height: 14,
+              background: 'white',
+              left: 2,
+              transform: isCheckpoint ? 'translateX(14px)' : 'translateX(0)',
+              transition: 'transform 0.15s ease',
+            }}
+          />
+        </button>
+      </div>
+
+      {isCheckpoint && (
+        <Field label="Checkpoint name">
+          <input
+            className="inspector-input"
+            value={checkpointLabel}
+            onChange={e => onChange(true, e.target.value)}
+            placeholder={nodeTitle || 'Checkpoint'}
+          />
+        </Field>
+      )}
     </div>
   )
 }

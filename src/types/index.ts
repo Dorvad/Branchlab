@@ -135,6 +135,8 @@ export interface ScenarioNode {
   scoreEffects?: ScoreEffects; // applied when this node is entered
   outcome?: 'correct' | 'incorrect';
   openingInstructions?: OpeningInstructions;
+  isCheckpoint?: boolean;
+  checkpointLabel?: string;
 }
 
 export interface ScenarioEdge {
@@ -177,6 +179,13 @@ export interface Scenario {
   publishedVersion?: ScenarioVersion;
 }
 
+export interface CheckpointState {
+  nodeId: string;
+  label: string;
+  reachedAt: string;
+  pathIndex: number; // index into history[] at which this checkpoint was reached
+}
+
 export interface PlayerSessionState {
   scenarioId: string;
   currentNodeId: string;
@@ -185,6 +194,7 @@ export interface PlayerSessionState {
   startedAt: string;
   completedAt?: string;
   endingNodeId?: string;
+  latestCheckpoint?: CheckpointState;
 }
 
 export type ValidationSeverity = 'error' | 'warning';

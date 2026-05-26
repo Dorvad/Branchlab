@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { RotateCcw, Share2 } from 'lucide-react'
+import { RotateCcw, Share2, Flag } from 'lucide-react'
 import { ScoreSummary } from './ScoreSummary'
 import { getNodeById } from '@/lib/scenario-engine'
 import type { ScenarioNode, PlayerSessionState, ScenarioLike } from '@/types'
@@ -12,10 +12,11 @@ interface EndingScreenProps {
   session: PlayerSessionState
   scenario: ScenarioLike
   onRestart: () => void
+  onRestartFromCheckpoint: () => void
   mode: 'play' | 'preview'
 }
 
-export function EndingScreen({ endingNode, session, scenario, onRestart, mode }: EndingScreenProps) {
+export function EndingScreen({ endingNode, session, scenario, onRestart, onRestartFromCheckpoint, mode }: EndingScreenProps) {
   // Notify SCORM wrapper (or any parent frame) when an ending is reached
   useEffect(() => {
     if (typeof window === 'undefined' || window.parent === window) return
@@ -29,6 +30,7 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const latestCheckpoint = session.latestCheckpoint
   const outcome = endingNode.outcome
   const accentColor = outcome === 'correct'
     ? 'oklch(82% 0.18 165)'
@@ -191,27 +193,47 @@ export function EndingScreen({ endingNode, session, scenario, onRestart, mode }:
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.45, duration: 0.4 }}
-          className="flex items-center gap-3 mt-auto"
+          className="flex flex-col gap-2.5 mt-auto"
         >
-          <button
-            onClick={onRestart}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)] active:scale-[0.98]"
-            style={{ borderColor: 'var(--line-3)', color: 'var(--fg-1)' }}
-          >
-            <RotateCcw size={14} />
-            Play again
-          </button>
-
-          {mode === 'play' && (
+          {latestCheckpoint && (
             <button
-              onClick={handleShare}
-              className="flex items-center gap-2 py-3.5 px-5 rounded-2xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)] active:scale-[0.98]"
-              style={{ borderColor: 'var(--line-3)', color: 'var(--fg-2)' }}
+              onClick={onRestartFromCheckpoint}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-medium border transition-all active:scale-[0.98]"
+              style={{
+                background: `${accentColor}10`,
+                borderColor: `${accentColor}35`,
+                color: accentColor,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = `${accentColor}1a`)}
+              onMouseLeave={e => (e.currentTarget.style.background = `${accentColor}10`)}
             >
-              <Share2 size={14} />
-              Share
+              <Flag size={14} />
+              Try again from checkpoint
+              <span style={{ opacity: 0.55, fontSize: '0.8em' }}>— {latestCheckpoint.label}</span>
             </button>
           )}
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onRestart}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)] active:scale-[0.98]"
+              style={{ borderColor: 'var(--line-3)', color: latestCheckpoint ? 'var(--fg-3)' : 'var(--fg-1)' }}
+            >
+              <RotateCcw size={14} />
+              {latestCheckpoint ? 'Restart from beginning' : 'Play again'}
+            </button>
+
+            {mode === 'play' && (
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-2 py-3.5 px-5 rounded-2xl text-sm font-medium border transition-all hover:bg-[var(--tint-3)] active:scale-[0.98]"
+                style={{ borderColor: 'var(--line-3)', color: 'var(--fg-2)' }}
+              >
+                <Share2 size={14} />
+                Share
+              </button>
+            )}
+          </div>
         </motion.div>
       </div>
     </motion.div>

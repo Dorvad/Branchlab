@@ -15,9 +15,15 @@ import { OpeningInstructionsScreen } from './OpeningInstructionsScreen'
 import {
   createSession,
   advanceSession,
+  restartFromCheckpoint,
   getNodeById,
   getAvailableChoices,
 } from '@/lib/scenario-engine'
+import {
+  saveCheckpointToStorage,
+  loadCheckpointFromStorage,
+  clearCheckpointFromStorage,
+} from '@/lib/checkpoint-storage'
 
 import { createPlayerSession, trackPlayerEvent } from '@/lib/analytics/track'
 
@@ -38,7 +44,15 @@ interface ScenarioPlayerProps {
 }
 
 export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = false, embed = false }: ScenarioPlayerProps) {
-  const [session, setSession] = useState<PlayerSessionState>(() => createSession(scenario))
+  const [session, setSession] = useState<PlayerSessionState>(() => {
+    const initial = createSession(scenario)
+    const scenarioId = 'scenarioId' in scenario ? scenario.scenarioId : scenario.id
+    const saved = loadCheckpointFromStorage(scenarioId)
+    if (saved && scenario.nodes.some(n => n.id === saved.nodeId)) {
+      return { ...initial, latestCheckpoint: saved }
+    }
+    return initial
+  })
   const [phase, setPhase] = useState<PlayerPhase>('watching')
   const [pendingChoice, setPendingChoice] = useState<ScenarioChoice | null>(null)
 
@@ -84,6 +98,23 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
 
   const currentNode = getNodeById(scenario, session.currentNodeId)
   const choices = getAvailableChoices(scenario, session.currentNodeId)
+
+  // ── Checkpoint detection ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const node = getNodeById(scenario, session.currentNodeId)
+    if (!node?.isCheckpoint) return
+    const scenarioId = 'scenarioId' in scenario ? scenario.scenarioId : scenario.id
+    const label = node.checkpointLabel?.trim() || node.title || 'Checkpoint'
+    const newCheckpoint = {
+      nodeId: node.id,
+      label,
+      reachedAt: new Date().toISOString(),
+      pathIndex: session.history.length - 1,
+    }
+    setSession(prev => ({ ...prev, latestCheckpoint: newCheckpoint }))
+    saveCheckpointToStorage(scenarioId, newCheckpoint)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.currentNodeId])
 
   const scenarioTitle = 'title' in scenario
     ? (scenario as Scenario).title
@@ -190,7 +221,17 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const handleRestart = useCallback(() => {
     trackedNodes.current = new Set()
     sessionCompleted.current = false
+    const scenarioId = 'scenarioId' in scenario ? scenario.scenarioId : scenario.id
+    clearCheckpointFromStorage(scenarioId)
     setSession(createSession(scenario))
+    setPendingChoice(null)
+    setPhase('watching')
+  }, [scenario])
+
+  const handleRestartFromCheckpoint = useCallback(() => {
+    trackedNodes.current = new Set()
+    sessionCompleted.current = false
+    setSession(prev => restartFromCheckpoint(prev, scenario))
     setPendingChoice(null)
     setPhase('watching')
   }, [scenario])
@@ -327,6 +368,7 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
                 session={session}
                 scenario={scenario}
                 onRestart={handleRestart}
+                onRestartFromCheckpoint={handleRestartFromCheckpoint}
                 mode={mode}
               />
             )}

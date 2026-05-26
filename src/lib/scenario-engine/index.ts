@@ -8,6 +8,8 @@ import type {
   ScoreEffects,
 } from '@/types'
 
+export type { CheckpointState } from '@/types'
+
 export type { ScenarioLike }
 export { validateScenario } from './validation'
 
@@ -76,6 +78,26 @@ export function createSession(scenario: ScenarioLike): PlayerSessionState {
     history: [startNodeId],
     score: initialScore,
     startedAt: new Date().toISOString(),
+  }
+}
+
+export function restartFromCheckpoint(
+  session: PlayerSessionState,
+  scenario: ScenarioLike,
+): PlayerSessionState {
+  const cp = session.latestCheckpoint
+  if (!cp) return createSession(scenario)
+
+  const cpNode = getNodeById(scenario, cp.nodeId)
+  if (!cpNode) return createSession(scenario)
+
+  return {
+    ...session,
+    currentNodeId: cp.nodeId,
+    history: session.history.slice(0, cp.pathIndex + 1),
+    completedAt: undefined,
+    endingNodeId: undefined,
+    // preserve latestCheckpoint and score so the player keeps context
   }
 }
 
