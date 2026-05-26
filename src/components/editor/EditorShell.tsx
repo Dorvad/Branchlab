@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor, Smartphone, ChevronDown, Download } from 'lucide-react'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor, Smartphone, ChevronDown, Download, Trash2 } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -13,10 +13,11 @@ import { NodeInspector } from './NodeInspector'
 import { ValidationPanel } from './ValidationPanel'
 import { AssetLibrary } from './AssetLibrary'
 import { validateScenario } from '@/lib/scenario-engine'
-import { getScenario, saveScenario, publishScenario } from '@/lib/scenario-store'
+import { getScenario, saveScenario, publishScenario, deleteScenario } from '@/lib/scenario-store'
 import { fetchClips } from '@/lib/supabase/clips'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
+import { RepublishModal } from './RepublishModal'
 import { exportToBlab } from '@/lib/blab-format'
 import { exportToZip } from '@/lib/zip-export'
 import { exportScorm12, exportXapiStatements } from '@/lib/scorm-export'
@@ -38,6 +39,7 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [showValidation, setShowValidation] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
+  const [showRepublish, setShowRepublish] = useState(false)
   const [showAssets, setShowAssets] = useState(false)
 
   // Auth guard + initial scenario load
@@ -132,6 +134,8 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
       setShowValidation={setShowValidation}
       showPublish={showPublish}
       setShowPublish={setShowPublish}
+      showRepublish={showRepublish}
+      setShowRepublish={setShowRepublish}
       showAssets={showAssets}
       setShowAssets={setShowAssets}
     />
@@ -157,6 +161,8 @@ interface EditorUIProps {
   setShowValidation: React.Dispatch<React.SetStateAction<boolean>>
   showPublish: boolean
   setShowPublish: React.Dispatch<React.SetStateAction<boolean>>
+  showRepublish: boolean
+  setShowRepublish: React.Dispatch<React.SetStateAction<boolean>>
   showAssets: boolean
   setShowAssets: React.Dispatch<React.SetStateAction<boolean>>
 }
@@ -176,9 +182,13 @@ function EditorUI({
   setShowValidation,
   showPublish,
   setShowPublish,
+  showRepublish,
+  setShowRepublish,
   showAssets,
   setShowAssets,
 }: EditorUIProps) {
+  const router = useRouter()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [showPreviewMenu, setShowPreviewMenu] = useState(false)
@@ -557,10 +567,19 @@ function EditorUI({
             <span className="hidden sm:inline">Dashboard</span>
           </Link>
           <span style={{ color: 'var(--line-3)' }}>/</span>
-          <span className="text-sm font-medium text-ink-0 truncate max-w-[200px]">
-            {scenario.title}
-          </span>
+          <EditableTitle
+            value={scenario.title}
+            onChange={title => { setScenario(prev => prev ? { ...prev, title } : prev); setIsDirty(true) }}
+          />
           <StatusPill status={scenario.status} />
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="shrink-0 flex items-center justify-center w-6 h-6 rounded-lg transition-all hover:bg-[var(--tint-3)]"
+            style={{ color: 'var(--fg-4)' }}
+            title="Delete scenario"
+          >
+            <Trash2 size={13} />
+          </button>
         </div>
 
         {/* Right */}
@@ -753,7 +772,7 @@ function EditorUI({
           </div>
 
           <button
-            onClick={() => setShowPublish(true)}
+            onClick={() => scenario.publishedVersion ? setShowRepublish(true) : setShowPublish(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
             style={{ borderColor: 'var(--line-2)', color: 'var(--fg-2)' }}
           >
@@ -887,6 +906,29 @@ function EditorUI({
         />
       )}
 
+      {showRepublish && scenario.publishedVersion && (
+        <RepublishModal
+          scenario={scenario}
+          isDirty={isDirty}
+          validationResult={validationResult}
+          onPublish={(config) => handlePublish(config)}
+          onClose={() => setShowRepublish(false)}
+        />
+      )}
+
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <EditorDeleteModal
+            title={scenario.title}
+            onConfirm={async () => {
+              await deleteScenario(scenario.id)
+              router.push('/dashboard')
+            }}
+            onCancel={() => setShowDeleteConfirm(false)}
+          />
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {showAssets && (
           <AssetLibrary
@@ -902,6 +944,131 @@ function EditorUI({
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+function EditableTitle({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
+  useEffect(() => { if (!editing) setDraft(value) }, [value, editing])
+
+  const commit = () => {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== value) onChange(trimmed)
+    else setDraft(value)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        maxLength={80}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          e.stopPropagation()
+          if (e.key === 'Enter') { e.preventDefault(); commit() }
+          if (e.key === 'Escape') { setDraft(value); setEditing(false) }
+        }}
+        className="text-sm font-medium bg-transparent outline-none border-b max-w-[200px] min-w-[80px]"
+        style={{ color: 'var(--fg-0)', borderColor: 'oklch(82% 0.18 165)' }}
+      />
+    )
+  }
+
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      className="text-sm font-medium truncate max-w-[200px] cursor-text select-none"
+      style={{ color: 'var(--fg-0)' }}
+      title="Click to rename"
+    >
+      {value}
+    </span>
+  )
+}
+
+function EditorDeleteModal({
+  title, onConfirm, onCancel,
+}: {
+  title: string
+  onConfirm: () => Promise<void>
+  onCancel: () => void
+}) {
+  const [deleting, setDeleting] = useState(false)
+
+  const handleConfirm = async () => {
+    setDeleting(true)
+    try {
+      await onConfirm()
+    } catch {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+      onClick={e => { if (e.target === e.currentTarget && !deleting) onCancel() }}
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 8 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 8 }}
+        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-sm rounded-2xl overflow-hidden"
+        style={{
+          background: 'var(--bg-1)',
+          border: '1px solid var(--line-2)',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+        }}
+      >
+        <div className="p-6">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+            style={{ background: 'oklch(70% 0.18 25 / 0.1)' }}
+          >
+            <Trash2 size={18} style={{ color: 'oklch(70% 0.18 25)' }} />
+          </div>
+          <h3 className="text-base font-semibold mb-1" style={{ color: 'var(--fg-0)' }}>Delete scenario?</h3>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--fg-3)' }}>
+            <span className="font-medium" style={{ color: 'var(--fg-1)' }}>&ldquo;{title}&rdquo;</span>
+            {' '}will be permanently deleted. This cannot be undone.
+          </p>
+        </div>
+        <div
+          className="flex items-center justify-end gap-2 px-6 py-4 border-t"
+          style={{ borderColor: 'var(--line-1)' }}
+        >
+          <button
+            onClick={onCancel}
+            disabled={deleting}
+            className="px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-[var(--tint-3)] disabled:opacity-50"
+            style={{ border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={deleting}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
+            style={{ background: 'oklch(70% 0.18 25)', color: '#fff', boxShadow: deleting ? 'none' : '0 0 16px oklch(70% 0.18 25 / 0.3)' }}
+          >
+            {deleting && <Loader2 size={13} className="animate-spin" />}
+            Delete
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 

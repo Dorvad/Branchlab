@@ -11,7 +11,7 @@ import {
   Plus, Globe, Film, Home, Loader2, Search,
   LogOut, Sun, Moon, FileEdit, Trash2, Copy,
   GitBranch, Clock, ExternalLink, X, Play,
-  ChevronDown, Check, Upload,
+  ChevronDown, Check, Upload, Pencil,
   Eye, BarChart3, Download, FolderOpen, Settings,
 } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>('updated')
   const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null)
+  const [renamingTarget, setRenamingTarget] = useState<Scenario | null>(null)
 
   // Per-file upload state for the assets view
   const [uploadState, setUploadState] = useState<{
@@ -160,6 +161,20 @@ export default function DashboardPage() {
   }, [activeOrg?.id])
 
   const confirmDelete = useCallback((s: Scenario) => setDeleteTarget(s), [])
+  const confirmRename = useCallback((s: Scenario) => setRenamingTarget(s), [])
+
+  const handleRename = useCallback(async (newTitle: string) => {
+    if (!renamingTarget) return
+    try {
+      await saveScenario({ ...renamingTarget, title: newTitle }, activeOrg?.id ?? null)
+      setRenamingTarget(null)
+      load()
+    } catch (e) {
+      setRenamingTarget(null)
+      setCreateError(e instanceof Error ? e.message : 'Failed to rename scenario')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renamingTarget, activeOrg?.id])
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return
@@ -314,6 +329,7 @@ export default function DashboardPage() {
                     search={search}
                     onDuplicate={handleDuplicate}
                     onDelete={confirmDelete}
+                    onRename={confirmRename}
                     onCreateBlank={handleCreate}
                     onCreateFromTemplate={handleCreateFromTemplate}
                   />
@@ -326,6 +342,7 @@ export default function DashboardPage() {
                     search={search}
                     onDuplicate={handleDuplicate}
                     onDelete={confirmDelete}
+                    onRename={confirmRename}
                   />
                 </motion.div>
               ) : (
@@ -337,6 +354,7 @@ export default function DashboardPage() {
                     search={search}
                     onDuplicate={handleDuplicate}
                     onDelete={confirmDelete}
+                    onRename={confirmRename}
                     onCreateBlank={handleCreate}
                     onCreateFromTemplate={handleCreateFromTemplate}
                   />
@@ -381,6 +399,17 @@ export default function DashboardPage() {
             name={deleteTarget.title}
             onConfirm={handleDelete}
             onCancel={() => setDeleteTarget(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Rename modal ── */}
+      <AnimatePresence>
+        {renamingTarget && (
+          <RenameModal
+            currentTitle={renamingTarget.title}
+            onConfirm={handleRename}
+            onCancel={() => setRenamingTarget(null)}
           />
         )}
       </AnimatePresence>
@@ -1155,7 +1184,7 @@ function TopBar({
 
 function HomeView({
   scenarios, drafts, published, search,
-  onDuplicate, onDelete, onCreateBlank, onCreateFromTemplate,
+  onDuplicate, onDelete, onRename, onCreateBlank, onCreateFromTemplate,
 }: {
   scenarios: Scenario[]
   drafts: Scenario[]
@@ -1163,6 +1192,7 @@ function HomeView({
   search: string
   onDuplicate: (s: Scenario) => void
   onDelete: (s: Scenario) => void
+  onRename: (s: Scenario) => void
   onCreateBlank: () => void
   onCreateFromTemplate: () => void
 }) {
@@ -1189,26 +1219,26 @@ function HomeView({
     <div className="px-8 py-6 space-y-10">
       {showSearch ? (
         <ContentSection title={`Results for "${search}"`} count={allFiltered.length}>
-          <ScenarioGrid scenarios={allFiltered} onDuplicate={onDuplicate} onDelete={onDelete} />
+          <ScenarioGrid scenarios={allFiltered} onDuplicate={onDuplicate} onDelete={onDelete} onRename={onRename} />
         </ContentSection>
       ) : (
         <>
           {/* Recents */}
           <ContentSection title="Recently edited" count={recents.length}>
-            <ScenarioGrid scenarios={recents} onDuplicate={onDuplicate} onDelete={onDelete} />
+            <ScenarioGrid scenarios={recents} onDuplicate={onDuplicate} onDelete={onDelete} onRename={onRename} />
           </ContentSection>
 
           {/* Published */}
           {published.length > 0 && (
             <ContentSection title="Published" count={published.length} accent="oklch(82% 0.18 165)">
-              <ScenarioGrid scenarios={published} onDuplicate={onDuplicate} onDelete={onDelete} />
+              <ScenarioGrid scenarios={published} onDuplicate={onDuplicate} onDelete={onDelete} onRename={onRename} />
             </ContentSection>
           )}
 
           {/* Drafts */}
           {drafts.length > 0 && (
             <ContentSection title="Drafts" count={drafts.length}>
-              <ScenarioGrid scenarios={drafts} onDuplicate={onDuplicate} onDelete={onDelete} />
+              <ScenarioGrid scenarios={drafts} onDuplicate={onDuplicate} onDelete={onDelete} onRename={onRename} />
             </ContentSection>
           )}
         </>
@@ -1221,13 +1251,14 @@ function HomeView({
 
 function SectionView({
   title, scenarios, search,
-  onDuplicate, onDelete, onCreateBlank, onCreateFromTemplate,
+  onDuplicate, onDelete, onRename, onCreateBlank, onCreateFromTemplate,
 }: {
   title: string
   scenarios: Scenario[]
   search: string
   onDuplicate: (s: Scenario) => void
   onDelete: (s: Scenario) => void
+  onRename: (s: Scenario) => void
   onCreateBlank?: () => void
   onCreateFromTemplate?: () => void
 }) {
@@ -1250,7 +1281,7 @@ function SectionView({
         </div>
       ) : (
         <ContentSection title={title} count={scenarios.length}>
-          <ScenarioGrid scenarios={scenarios} onDuplicate={onDuplicate} onDelete={onDelete} />
+          <ScenarioGrid scenarios={scenarios} onDuplicate={onDuplicate} onDelete={onDelete} onRename={onRename} />
         </ContentSection>
       )}
     </div>
@@ -1286,11 +1317,12 @@ function ContentSection({
 // ── ScenarioGrid ──────────────────────────────────────────────────────────────
 
 function ScenarioGrid({
-  scenarios, onDuplicate, onDelete,
+  scenarios, onDuplicate, onDelete, onRename,
 }: {
   scenarios: Scenario[]
   onDuplicate: (s: Scenario) => void
   onDelete: (s: Scenario) => void
+  onRename: (s: Scenario) => void
 }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -1301,6 +1333,7 @@ function ScenarioGrid({
           index={i}
           onDuplicate={() => onDuplicate(s)}
           onDelete={() => onDelete(s)}
+          onRename={() => onRename(s)}
         />
       ))}
     </div>
@@ -1316,12 +1349,13 @@ const STATUS_CONFIG = {
 }
 
 function DashboardCard({
-  scenario, index, onDuplicate, onDelete,
+  scenario, index, onDuplicate, onDelete, onRename,
 }: {
   scenario: Scenario
   index: number
   onDuplicate: () => void
   onDelete: () => void
+  onRename: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -1345,6 +1379,7 @@ function DashboardCard({
     ...(pub ? [{ icon: <Play size={12} />, label: 'View published', href: `/play/${pub.slug}` }] : []),
     ...(pub ? [{ icon: <BarChart3 size={12} />, label: 'Analytics', href: `/dashboard/scenario/${scenario.id}/analytics` }] : []),
     null, // divider
+    { icon: <Pencil size={12} />, label: 'Rename', action: onRename },
     { icon: <Copy size={12} />, label: 'Duplicate', action: onDuplicate },
     { icon: <Download size={12} />, label: 'Export .blab', action: () => exportToBlab(scenario) },
     { icon: <Download size={12} />, label: 'Export ZIP', action: () => exportToZip(scenario) },
@@ -1934,6 +1969,92 @@ function ConfirmDeleteModal({
             Delete
           </button>
         </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ── RenameModal ───────────────────────────────────────────────────────────────
+
+function RenameModal({
+  currentTitle, onConfirm, onCancel,
+}: {
+  currentTitle: string
+  onConfirm: (newTitle: string) => void
+  onCancel: () => void
+}) {
+  const [title, setTitle] = useState(currentTitle)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { inputRef.current?.focus(); inputRef.current?.select() }, [])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = title.trim()
+    if (!trimmed) return
+    onConfirm(trimmed)
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 8 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 8 }}
+        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-sm rounded-2xl overflow-hidden"
+        style={{
+          background: 'var(--bg-1)',
+          border: '1px solid var(--line-2)',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+        }}
+      >
+        <form onSubmit={handleSubmit}>
+          <div className="p-6">
+            <h3 className="text-base font-semibold mb-1" style={{ color: 'var(--fg-0)' }}>Rename scenario</h3>
+            <p className="text-sm mb-5" style={{ color: 'var(--fg-3)' }}>Enter a new name for this scenario.</p>
+            <input
+              ref={inputRef}
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              maxLength={80}
+              className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none"
+              style={{
+                background: 'var(--tint-2)',
+                border: '1px solid var(--line-2)',
+                color: 'var(--fg-0)',
+              }}
+            />
+          </div>
+          <div
+            className="flex items-center justify-end gap-2 px-6 py-4 border-t"
+            style={{ borderColor: 'var(--line-1)' }}
+          >
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-[var(--tint-3)]"
+              style={{ border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!title.trim()}
+              className="px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
+              style={{ background: 'oklch(82% 0.18 165)', color: '#052916' }}
+            >
+              Rename
+            </button>
+          </div>
+        </form>
       </motion.div>
     </motion.div>
   )
