@@ -444,7 +444,7 @@ function EditorUI({
 
   const onSelectEdge = useCallback((edgeId: string | null) => {
     setSelectedEdgeId(edgeId)
-    setSelectedNodeId(null)
+    if (edgeId !== null) setSelectedNodeId(null)
   }, [setSelectedNodeId])
 
   const onEdgeLabelEdit = useCallback((sourceNodeId: string, choiceId: string, label: string) => {
