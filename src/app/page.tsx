@@ -56,7 +56,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 pt-12 sm:pt-20 pb-20 sm:pb-32 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 pt-8 sm:pt-20 pb-16 sm:pb-32 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
         {/* Left */}
         <div className="space-y-8">
           <motion.div
@@ -79,7 +79,7 @@ export default function LandingPage() {
             variants={fadeUp}
             initial="hidden"
             animate="show"
-            className="text-[clamp(36px,9vw,64px)] font-semibold leading-[0.95] tracking-[-0.03em]"
+            className="text-[clamp(28px,7.5vw,64px)] font-semibold leading-[0.95] tracking-[-0.03em]"
           >
             Turn video clips into{' '}
             <span
@@ -96,7 +96,7 @@ export default function LandingPage() {
             variants={fadeUp}
             initial="hidden"
             animate="show"
-            className="text-lg text-ink-2 leading-relaxed max-w-lg"
+            className="text-base sm:text-lg text-ink-2 leading-relaxed max-w-lg"
           >
             A node-based studio for interactive video. Upload clips, wire up choices, preview every path, and publish to a shareable URL.
           </motion.p>

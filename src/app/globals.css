@@ -87,6 +87,15 @@ html, body {
   transition: background 0.2s ease, color 0.2s ease;
 }
 
+/* Prevent iOS Safari from auto-zooming when inputs are focused.
+   Safari zooms in when font-size < 16px; setting 16px on mobile avoids this
+   while desktop keeps the smaller sizes set per-component. */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
 /* ── Inspector inputs ──────────────────────────────────────────────────────── */
 .inspector-input {
   width: 100%;
