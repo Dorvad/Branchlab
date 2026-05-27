@@ -1,5 +1,3 @@
-/// <reference types="youtube" />
-
 /**
  * Extract a YouTube video ID from any common YouTube URL format.
  * Returns null if the URL is not a recognisable YouTube video URL.

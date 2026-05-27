@@ -2,13 +2,13 @@
 // Only covers the subset of the API used by BranchLab.
 
 declare namespace YT {
-  const enum PlayerState {
-    UNSTARTED = -1,
-    ENDED = 0,
-    PLAYING = 1,
-    PAUSED = 2,
-    BUFFERING = 3,
-    CUED = 5,
+  const PlayerState: {
+    readonly UNSTARTED: -1
+    readonly ENDED: 0
+    readonly PLAYING: 1
+    readonly PAUSED: 2
+    readonly BUFFERING: 3
+    readonly CUED: 5
   }
 
   interface PlayerVars {

@@ -1,5 +1,4 @@
 'use client'
-/// <reference types="youtube" />
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { X, Play, Pause, RotateCcw, Scissors, ChevronLeft, ChevronRight, Youtube, AlertTriangle } from 'lucide-react'

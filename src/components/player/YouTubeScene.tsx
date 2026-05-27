@@ -1,5 +1,4 @@
 'use client'
-/// <reference types="youtube" />
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
