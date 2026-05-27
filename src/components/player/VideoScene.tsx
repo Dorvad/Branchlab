@@ -172,25 +172,24 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
     }
 
     const rotateLandscape = isLandscape && isPortraitMobile
-    const videoWrapStyle: React.CSSProperties = rotateLandscape
+    const videoStyle: React.CSSProperties = rotateLandscape
       ? { position: 'absolute', width: '100vh', height: '100vw', top: '50%', left: '50%', transform: 'translate(-50%, -50%) rotate(90deg)' }
       : { position: 'absolute', inset: 0 }
 
     return (
       <div className="relative w-full h-full overflow-hidden bg-black select-none">
-        <div style={videoWrapStyle}>
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            src={clip.url}
-            autoPlay
-            playsInline
-            onLoadedMetadata={handleLoadedMetadata}
-            onTimeUpdate={handleTimeUpdate}
-            onEnded={handleVideoEnded}
-            onError={() => setVideoError(true)}
-          />
-        </div>
+        <video
+          ref={videoRef}
+          className="w-full h-full object-cover"
+          style={videoStyle}
+          src={clip.url}
+          autoPlay
+          playsInline
+          onLoadedMetadata={handleLoadedMetadata}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleVideoEnded}
+          onError={() => setVideoError(true)}
+        />
 
         {/* Tap-to-play overlay — shown when browser blocks autoplay */}
         {needsInteraction && (

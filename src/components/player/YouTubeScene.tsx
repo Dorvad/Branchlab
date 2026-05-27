@@ -183,16 +183,14 @@ export function YouTubeScene({ node, onComplete }: YouTubeSceneProps) {
   }
 
   // YouTube videos are always landscape (16:9) — rotate to fill portrait screen
-  const wrapStyle: React.CSSProperties = isPortraitMobile
+  const containerStyle: React.CSSProperties = isPortraitMobile
     ? { position: 'absolute', width: '100vh', height: '100vw', top: '50%', left: '50%', transform: 'translate(-50%, -50%) rotate(90deg)' }
     : { position: 'absolute', inset: 0 }
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-black select-none">
       {/* YouTube iframe mounts here — rotated to landscape on portrait mobile */}
-      <div style={wrapStyle}>
-        <div ref={containerRef} className="w-full h-full" />
-      </div>
+      <div ref={containerRef} style={containerStyle} />
 
       {/* Loading overlay */}
       {!playerReady && (
