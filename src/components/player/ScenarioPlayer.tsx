@@ -11,6 +11,7 @@ import { ChoicePanel } from './ChoicePanel'
 import { FeedbackOverlay } from './FeedbackOverlay'
 import { EndingScreen } from './EndingScreen'
 import { OpeningInstructionsScreen } from './OpeningInstructionsScreen'
+import { RotateDeviceHint } from './RotateDeviceHint'
 
 import {
   createSession,
@@ -60,6 +61,14 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const [showInstructions, setShowInstructions] = useState<boolean>(() => {
     const sNode = getNodeById(scenario, scenario.startNodeId)
     return !!(sNode?.openingInstructions?.enabled)
+  })
+
+  // Rotate-device hint — shown once on portrait mobile when scenario has landscape (YouTube) videos
+  const [showRotateHint, setShowRotateHint] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    const hasLandscapeVideo = scenario.nodes.some(n => !!n.youtubeAsset)
+    if (!hasLandscapeVideo) return false
+    return window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches
   })
 
   // Analytics refs — stable across renders, never cause re-renders
@@ -282,9 +291,19 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
         {/* ── Main: video + all overlays ──────────────────────────────────────── */}
         <main className="relative flex-1 overflow-hidden">
 
+          {/* Rotate-device hint — shown before first video on portrait mobile */}
+          <AnimatePresence>
+            {showRotateHint && (
+              <RotateDeviceHint
+                key="rotate-hint"
+                onDismiss={() => setShowRotateHint(false)}
+              />
+            )}
+          </AnimatePresence>
+
           {/* Opening instructions — full overlay before first video */}
           <AnimatePresence>
-            {showInstructions && startNode?.openingInstructions && (
+            {!showRotateHint && showInstructions && startNode?.openingInstructions && (
               <OpeningInstructionsScreen
                 key="instructions"
                 title={startNode.openingInstructions.title}
@@ -297,7 +316,7 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
 
           {/* VideoScene — keyed to currentNodeId so it remounts on transition */}
           <AnimatePresence mode="wait">
-            {!showInstructions && phase !== 'transitioning' && (
+            {!showRotateHint && !showInstructions && phase !== 'transitioning' && (
               <motion.div
                 key={session.currentNodeId}
                 initial={{ opacity: 0 }}

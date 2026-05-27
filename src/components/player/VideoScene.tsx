@@ -41,11 +41,29 @@ const TYPE_LABEL: Record<string, string> = {
   ending: 'Ending',
 }
 
+function useIsPortraitMobile() {
+  const [is, setIs] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches
+      : false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px) and (orientation: portrait)')
+    setIs(mq.matches)
+    const h = () => setIs(mq.matches)
+    mq.addEventListener('change', h)
+    return () => mq.removeEventListener('change', h)
+  }, [])
+  return is
+}
+
 export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSceneProps) {
   const color = TYPE_COLOR[node.type] ?? '#8a90a4'
   const clip = node.clip ?? null
 
   const [done, setDone] = useState(false)
+  const [isLandscape, setIsLandscape] = useState(false)
+  const isPortraitMobile = useIsPortraitMobile()
 
   // ── VIDEO MODE ─────────────────────────────────────────────────────────────
 
@@ -93,6 +111,7 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
     if (!v) return
     const start = clipStartRef.current
     if (start > 0) v.currentTime = start
+    setIsLandscape(v.videoWidth > v.videoHeight)
   }, [])
 
   const handleTimeUpdate = useCallback(() => {
@@ -152,19 +171,26 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
       )
     }
 
+    const rotateLandscape = isLandscape && isPortraitMobile
+    const videoWrapStyle: React.CSSProperties = rotateLandscape
+      ? { position: 'absolute', width: '100vh', height: '100vw', top: '50%', left: '50%', transform: 'translate(-50%, -50%) rotate(90deg)' }
+      : { position: 'absolute', inset: 0 }
+
     return (
       <div className="relative w-full h-full overflow-hidden bg-black select-none">
-        <video
-          ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover"
-          src={clip.url}
-          autoPlay
-          playsInline
-          onLoadedMetadata={handleLoadedMetadata}
-          onTimeUpdate={handleTimeUpdate}
-          onEnded={handleVideoEnded}
-          onError={() => setVideoError(true)}
-        />
+        <div style={videoWrapStyle}>
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            src={clip.url}
+            autoPlay
+            playsInline
+            onLoadedMetadata={handleLoadedMetadata}
+            onTimeUpdate={handleTimeUpdate}
+            onEnded={handleVideoEnded}
+            onError={() => setVideoError(true)}
+          />
+        </div>
 
         {/* Tap-to-play overlay — shown when browser blocks autoplay */}
         {needsInteraction && (

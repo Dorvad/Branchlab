@@ -18,12 +18,29 @@ const TYPE_COLOR: Record<string, string> = {
   ending: 'oklch(80% 0.16 60)',
 }
 
+function useIsPortraitMobile() {
+  const [is, setIs] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches
+      : false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px) and (orientation: portrait)')
+    setIs(mq.matches)
+    const h = () => setIs(mq.matches)
+    mq.addEventListener('change', h)
+    return () => mq.removeEventListener('change', h)
+  }, [])
+  return is
+}
+
 export function YouTubeScene({ node, onComplete }: YouTubeSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YT.Player | null>(null)
   const doneRef = useRef(false)
   const intervalRef = useRef<number | null>(null)
   const color = TYPE_COLOR[node.type] ?? '#8a90a4'
+  const isPortraitMobile = useIsPortraitMobile()
 
   const youtubeAsset = node.youtubeAsset!
   const startSeconds = node.youtubeStartTime ?? 0
@@ -165,10 +182,17 @@ export function YouTubeScene({ node, onComplete }: YouTubeSceneProps) {
     )
   }
 
+  // YouTube videos are always landscape (16:9) — rotate to fill portrait screen
+  const wrapStyle: React.CSSProperties = isPortraitMobile
+    ? { position: 'absolute', width: '100vh', height: '100vw', top: '50%', left: '50%', transform: 'translate(-50%, -50%) rotate(90deg)' }
+    : { position: 'absolute', inset: 0 }
+
   return (
     <div className="relative w-full h-full overflow-hidden bg-black select-none">
-      {/* YouTube iframe mounts here */}
-      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      {/* YouTube iframe mounts here — rotated to landscape on portrait mobile */}
+      <div style={wrapStyle}>
+        <div ref={containerRef} className="w-full h-full" />
+      </div>
 
       {/* Loading overlay */}
       {!playerReady && (
