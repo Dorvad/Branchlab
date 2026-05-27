@@ -385,7 +385,7 @@ function buildRFNodes(
     data: {
       title: n.title,
       nodeType: n.type,
-      choiceCount: n.choices.length,
+      choiceCount: n.choices?.length ?? 0,
       errorLevel: nodeStatusMap[n.id] ?? null,
       hasClip: !!n.clip,
       clipDuration: n.clip?.duration,

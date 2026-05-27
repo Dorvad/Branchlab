@@ -88,7 +88,7 @@ export function NodeInspector({
 
   const otherNodes = allNodes.filter(n => n.id !== node.id)
   const isEnding = node.type === 'ending'
-  const hasChoiceWarning = !isEnding && node.choices.length === 0
+  const hasChoiceWarning = !isEnding && (node.choices?.length ?? 0) === 0
   const currentClip = clips.find(c => c.id === node.clip?.id)
 
   const handleDelete = () => {

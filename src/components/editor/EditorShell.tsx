@@ -213,7 +213,7 @@ function EditorUI({
     const nodeIds = new Set(scenario.nodes.map(n => n.id))
     const edges: ScenarioEdge[] = []
     for (const node of scenario.nodes) {
-      for (const choice of node.choices) {
+      for (const choice of (node.choices ?? [])) {
         if (choice.targetNodeId && nodeIds.has(choice.targetNodeId)) {
           edges.push({
             id: `${node.id}__${choice.id}`,
