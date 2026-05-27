@@ -14,8 +14,8 @@ import { ValidationPanel } from './ValidationPanel'
 import { AssetLibrary } from './AssetLibrary'
 import { validateScenario } from '@/lib/scenario-engine'
 import { getScenario, saveScenario, publishScenario, deleteScenario } from '@/lib/scenario-store'
-import { fetchClips } from '@/lib/supabase/clips'
-import { fetchYouTubeAssets, deleteYouTubeAsset } from '@/lib/supabase/youtube-assets'
+import { fetchClips, renameClip as renameClipFn } from '@/lib/supabase/clips'
+import { fetchYouTubeAssets, deleteYouTubeAsset, renameYouTubeAsset as renameYouTubeAssetFn } from '@/lib/supabase/youtube-assets'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
 import { RepublishModal } from './RepublishModal'
@@ -563,6 +563,20 @@ function EditorUI({
     })
   }, [selectedNodeId, youtubeAssets, updateNode])
 
+  const renameClip = useCallback(async (id: string, name: string) => {
+    try {
+      await renameClipFn(id, name)
+      setClips(prev => prev.map(c => c.id === id ? { ...c, name } : c))
+    } catch { /* silently fail — the name in state won't update */ }
+  }, [])
+
+  const renameYouTubeAsset = useCallback(async (id: string, title: string) => {
+    try {
+      await renameYouTubeAssetFn(id, title)
+      setYouTubeAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
+    } catch {}
+  }, [])
+
   const { errors, warnings } = validationResult
   const errorCount = errors.length
   const warningCount = warnings.length
@@ -870,6 +884,28 @@ function EditorUI({
             onToggleOutcomeMode={toggleOutcomeMode}
           />
         )}
+        <AnimatePresence>
+          {showAssets && (
+            <AssetLibrary
+              clips={clips}
+              youtubeAssets={youtubeAssets}
+              selectedNodeTitle={selectedNode?.title ?? null}
+              canAttach={!!selectedNodeId}
+              nodeClipId={selectedNode?.clip?.id}
+              nodeYoutubeAssetId={selectedNode?.youtubeAsset?.id}
+              onAddClip={addClip}
+              onRemoveClip={removeClip}
+              onAttachToNode={attachClipToNode}
+              onAddYouTubeAsset={addYouTubeAsset}
+              onRemoveYouTubeAsset={removeYouTubeAsset}
+              onAttachYouTubeToNode={attachYouTubeToNode}
+              onRenameClip={renameClip}
+              onRenameYouTubeAsset={renameYouTubeAsset}
+              onOpenAddYoutube={() => setShowAddYoutube(true)}
+              onClose={() => setShowAssets(false)}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ── Status bar ────────────────────────────────────────────────────── */}
@@ -967,27 +1003,6 @@ function EditorUI({
               router.push('/dashboard')
             }}
             onCancel={() => setShowDeleteConfirm(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showAssets && (
-          <AssetLibrary
-            clips={clips}
-            youtubeAssets={youtubeAssets}
-            selectedNodeTitle={selectedNode?.title ?? null}
-            canAttach={!!selectedNodeId}
-            nodeClipId={selectedNode?.clip?.id}
-            nodeYoutubeAssetId={selectedNode?.youtubeAsset?.id}
-            onAddClip={addClip}
-            onRemoveClip={removeClip}
-            onAttachToNode={attachClipToNode}
-            onAddYouTubeAsset={addYouTubeAsset}
-            onRemoveYouTubeAsset={removeYouTubeAsset}
-            onAttachYouTubeToNode={attachYouTubeToNode}
-            onOpenAddYoutube={() => setShowAddYoutube(true)}
-            onClose={() => setShowAssets(false)}
           />
         )}
       </AnimatePresence>

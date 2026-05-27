@@ -395,6 +395,12 @@ export async function uploadClipFromBuffer(
   return rowToClip(data as Record<string, unknown>)
 }
 
+export async function renameClip(id: string, name: string): Promise<void> {
+  const sb = getSupabaseClient()
+  const { error } = await sb.from('clips').update({ name }).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 export function formatFileSize(bytes: number): string {

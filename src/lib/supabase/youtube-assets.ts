@@ -79,6 +79,13 @@ export async function saveYouTubeAsset(
   return rowToAsset(data as YouTubeAssetRow)
 }
 
+export async function renameYouTubeAsset(id: string, title: string): Promise<void> {
+  const supabase = getSupabaseClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from('youtube_assets').update({ title }).eq('id', id)
+  if (error) throw error
+}
+
 export async function deleteYouTubeAsset(id: string): Promise<void> {
   const supabase = getSupabaseClient()
   const { error } = await supabase.from('youtube_assets').delete().eq('id', id)

@@ -205,6 +205,7 @@ interface NodeCardData {
   checkpointLabel?: string
   clipDuration?: number
   isSelected: boolean
+  thumbnailUrl?: string
 }
 
 function ScenarioNodeCard({ data }: NodeProps) {
@@ -272,19 +273,27 @@ function ScenarioNodeCard({ data }: NodeProps) {
           className="relative flex items-center justify-center"
           style={{
             height: 68,
-            background: d.hasClip
+            background: d.thumbnailUrl
+              ? '#000'
+              : d.hasClip
               ? `radial-gradient(ellipse 80% 60% at 50% 50%, ${cfg.dot}18 0%, transparent 70%), var(--bg-thumbnail)`
               : 'repeating-linear-gradient(135deg, var(--tint-1) 0 5px, transparent 5px 10px), var(--bg-thumbnail)',
             borderBottom: `1px solid ${d.isSelected ? 'oklch(82% 0.18 165 / 0.2)' : 'var(--line-1)'}`,
           }}
         >
+          {d.thumbnailUrl && (
+            <img src={d.thumbnailUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ opacity: 0.75 }} />
+          )}
+          {d.thumbnailUrl && (
+            <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.55) 100%), radial-gradient(ellipse 80% 60% at 50% 50%, ${cfg.dot}20 0%, transparent 70%)` }} />
+          )}
           {d.hasClip ? (
-            <div className="flex items-center gap-1.5">
+            <div className="relative z-10 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot, boxShadow: `0 0 5px ${cfg.dot}` }} />
-              <span className="font-mono text-[10px]" style={{ color: cfg.label }}>clip attached</span>
+              <span className="font-mono text-[10px]" style={{ color: d.thumbnailUrl ? 'rgba(255,255,255,0.9)' : cfg.label }}>clip attached</span>
             </div>
           ) : (
-            <Film size={15} style={{ color: 'var(--fg-4)' }} />
+            <Film size={15} className="relative z-10" style={{ color: 'var(--fg-4)' }} />
           )}
 
           {d.clipDuration != null && (
@@ -387,7 +396,8 @@ function buildRFNodes(
       nodeType: n.type,
       choiceCount: n.choices?.length ?? 0,
       errorLevel: nodeStatusMap[n.id] ?? null,
-      hasClip: !!n.clip,
+      hasClip: !!n.clip || !!n.youtubeAsset,
+      thumbnailUrl: n.clip?.thumbnail ?? n.youtubeAsset?.thumbnailUrl,
       clipDuration: n.clip?.duration,
       isSelected: n.id === selectedNodeId,
       isCheckpoint: n.isCheckpoint,

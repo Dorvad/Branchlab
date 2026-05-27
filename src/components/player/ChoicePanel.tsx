@@ -18,6 +18,9 @@ export function ChoicePanel({ choices, onSelect }: ChoicePanelProps) {
     setTimeout(() => onSelect(choice), 180)
   }
 
+  // 2–4 choices → 2-column grid   |   1 or 5+ → stacked scrollable list
+  const useGrid = choices.length >= 2 && choices.length <= 4
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -34,89 +37,147 @@ export function ChoicePanel({ choices, onSelect }: ChoicePanelProps) {
         }}
       />
 
-      <div className="relative px-5 pt-14 pb-6 max-w-[640px] mx-auto w-full">
+      <div className="relative px-4 pt-10 pb-5 max-w-[640px] mx-auto w-full">
         {/* Header label */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.1 }}
-          className="text-[10px] font-mono tracking-[0.18em] uppercase mb-3"
+          className="text-[10px] font-mono tracking-[0.18em] uppercase mb-2.5"
           style={{ color: 'rgba(255,255,255,0.4)' }}
         >
           What do you do?
         </motion.p>
 
-        {/* Scrollable choices list */}
-        <div
-          className="space-y-2 overflow-y-auto overscroll-contain"
-          style={{ maxHeight: 'calc(45vh - 80px)' }}
-        >
-          {choices.map((choice, i) => {
-            const isSelected = selectedId === choice.id
-            const isDimmed = selectedId !== null && !isSelected
-
-            return (
-              <motion.button
-                key={choice.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{
-                  opacity: isDimmed ? 0.3 : 1,
-                  x: 0,
-                  scale: isSelected ? 0.99 : 1,
-                }}
-                transition={{
-                  opacity: { delay: isDimmed ? 0 : i * 0.055 + 0.08, duration: isDimmed ? 0.2 : 0.3 },
-                  x: { delay: i * 0.055 + 0.08, duration: 0.3, ease: [0.16, 1, 0.3, 1] },
-                }}
-                whileHover={!selectedId ? { x: 2 } : undefined}
-                onClick={() => handleSelect(choice)}
-                disabled={!!selectedId}
-                className="w-full text-left flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-colors"
-                style={{
-                  background: isSelected
-                    ? 'oklch(82% 0.18 165 / 0.18)'
-                    : 'rgba(255,255,255,0.07)',
-                  border: `1px solid ${isSelected ? 'oklch(82% 0.18 165 / 0.55)' : 'rgba(255,255,255,0.14)'}`,
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
-                  boxShadow: isSelected
-                    ? '0 2px 20px rgba(0,0,0,0.5), var(--glow-mint)'
-                    : '0 2px 12px rgba(0,0,0,0.35)',
-                }}
-              >
-                {/* Letter key */}
-                <span
-                  className="shrink-0 font-mono text-[10px] tracking-widest uppercase w-4 text-center"
-                  style={{ color: isSelected ? 'oklch(82% 0.18 165)' : 'rgba(255,255,255,0.35)' }}
+        {useGrid ? (
+          /* ── 2-column grid for 2–4 choices ────────────────────────── */
+          <div className="grid grid-cols-2 gap-2">
+            {choices.map((choice, i) => {
+              const isSelected = selectedId === choice.id
+              const isDimmed = selectedId !== null && !isSelected
+              return (
+                <motion.button
+                  key={choice.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{
+                    opacity: isDimmed ? 0.3 : 1,
+                    scale: isSelected ? 0.98 : 1,
+                  }}
+                  transition={{
+                    opacity: { delay: isDimmed ? 0 : i * 0.06 + 0.05, duration: isDimmed ? 0.15 : 0.3 },
+                    scale: { duration: 0.15 },
+                  }}
+                  onClick={() => handleSelect(choice)}
+                  disabled={!!selectedId}
+                  className="flex flex-col items-start px-3.5 py-3 rounded-2xl text-left"
+                  style={{
+                    background: isSelected
+                      ? 'oklch(82% 0.18 165 / 0.18)'
+                      : 'rgba(255,255,255,0.07)',
+                    border: `1px solid ${isSelected ? 'oklch(82% 0.18 165 / 0.55)' : 'rgba(255,255,255,0.14)'}`,
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    boxShadow: isSelected
+                      ? '0 2px 20px rgba(0,0,0,0.5), var(--glow-mint)'
+                      : '0 2px 12px rgba(0,0,0,0.35)',
+                    minHeight: 68,
+                  }}
                 >
-                  {String.fromCharCode(65 + i)}
-                </span>
-
-                {/* Label */}
-                <span
-                  className="text-sm leading-snug flex-1"
-                  style={{ color: isSelected ? '#ffffff' : 'rgba(255,255,255,0.9)' }}
+                  <span
+                    className="font-mono text-[9px] tracking-widest uppercase mb-1.5"
+                    style={{ color: isSelected ? 'oklch(82% 0.18 165)' : 'rgba(255,255,255,0.35)' }}
+                  >
+                    {String.fromCharCode(65 + i)}
+                  </span>
+                  <span
+                    className="text-[13px] leading-snug font-medium"
+                    style={{ color: isSelected ? '#ffffff' : 'rgba(255,255,255,0.9)' }}
+                  >
+                    {choice.label}
+                  </span>
+                  <AnimatePresence>
+                    {isSelected && (
+                      <motion.span
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mt-1.5 text-xs"
+                        style={{ color: 'oklch(82% 0.18 165)' }}
+                      >
+                        ✓
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              )
+            })}
+          </div>
+        ) : (
+          /* ── Stacked scrollable list for 1 or 5+ choices ──────────── */
+          <div
+            className="space-y-2 overflow-y-auto overscroll-contain"
+            style={{ maxHeight: 'calc(45vh - 80px)' }}
+          >
+            {choices.map((choice, i) => {
+              const isSelected = selectedId === choice.id
+              const isDimmed = selectedId !== null && !isSelected
+              return (
+                <motion.button
+                  key={choice.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{
+                    opacity: isDimmed ? 0.3 : 1,
+                    x: 0,
+                    scale: isSelected ? 0.99 : 1,
+                  }}
+                  transition={{
+                    opacity: { delay: isDimmed ? 0 : i * 0.055 + 0.08, duration: isDimmed ? 0.2 : 0.3 },
+                    x: { delay: i * 0.055 + 0.08, duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+                  }}
+                  whileHover={!selectedId ? { x: 2 } : undefined}
+                  onClick={() => handleSelect(choice)}
+                  disabled={!!selectedId}
+                  className="w-full text-left flex items-center gap-3.5 px-4 py-3 rounded-2xl"
+                  style={{
+                    background: isSelected
+                      ? 'oklch(82% 0.18 165 / 0.18)'
+                      : 'rgba(255,255,255,0.07)',
+                    border: `1px solid ${isSelected ? 'oklch(82% 0.18 165 / 0.55)' : 'rgba(255,255,255,0.14)'}`,
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    boxShadow: isSelected
+                      ? '0 2px 20px rgba(0,0,0,0.5), var(--glow-mint)'
+                      : '0 2px 12px rgba(0,0,0,0.35)',
+                  }}
                 >
-                  {choice.label}
-                </span>
-
-                {/* Check mark on selection */}
-                <AnimatePresence>
-                  {isSelected && (
-                    <motion.span
-                      initial={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="shrink-0 text-sm"
-                      style={{ color: 'oklch(82% 0.18 165)' }}
-                    >
-                      ✓
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-            )
-          })}
-        </div>
+                  <span
+                    className="shrink-0 font-mono text-[10px] tracking-widest uppercase w-4 text-center"
+                    style={{ color: isSelected ? 'oklch(82% 0.18 165)' : 'rgba(255,255,255,0.35)' }}
+                  >
+                    {String.fromCharCode(65 + i)}
+                  </span>
+                  <span
+                    className="text-sm leading-snug flex-1"
+                    style={{ color: isSelected ? '#ffffff' : 'rgba(255,255,255,0.9)' }}
+                  >
+                    {choice.label}
+                  </span>
+                  <AnimatePresence>
+                    {isSelected && (
+                      <motion.span
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="shrink-0 text-sm"
+                        style={{ color: 'oklch(82% 0.18 165)' }}
+                      >
+                        ✓
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              )
+            })}
+          </div>
+        )}
       </div>
     </motion.div>
   )
