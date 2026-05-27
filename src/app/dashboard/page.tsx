@@ -12,7 +12,7 @@ import {
   LogOut, Sun, Moon, FileEdit, Trash2, Copy,
   GitBranch, Clock, ExternalLink, X, Play,
   ChevronDown, Check, Upload, Pencil,
-  Eye, BarChart3, Download, FolderOpen, Settings,
+  Eye, BarChart3, Download, FolderOpen, Settings, Menu,
 } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import {
@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [sort, setSort] = useState<SortKey>('updated')
   const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null)
   const [renamingTarget, setRenamingTarget] = useState<Scenario | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Per-file upload state for the assets view
   const [uploadState, setUploadState] = useState<{
@@ -261,6 +262,15 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-0)' }}>
+      {/* ── Mobile sidebar backdrop ── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* ── Left sidebar ── */}
       <Sidebar
         section={section}
@@ -278,6 +288,8 @@ export default function DashboardPage() {
         setActiveOrg={setActiveOrg}
         orgs={orgs}
         refetchOrgs={refetchOrgs}
+        onClose={() => setSidebarOpen(false)}
+        open={sidebarOpen}
       />
 
       {/* ── Main content ── */}
@@ -292,6 +304,7 @@ export default function DashboardPage() {
           onCreateFromTemplate={handleCreateFromTemplate}
           isPending={isPending}
           refreshing={refreshing}
+          onToggleSidebar={() => setSidebarOpen(v => !v)}
         />
 
         <div className="flex-1 overflow-auto">
@@ -475,6 +488,8 @@ interface SidebarProps {
   setActiveOrg: (org: OrgWithRole | null) => void
   orgs: OrgWithRole[]
   refetchOrgs: () => Promise<void>
+  onClose: () => void
+  open: boolean
 }
 
 function Sidebar({
@@ -482,7 +497,7 @@ function Sidebar({
   draftCount, publishedCount, assetCount,
   user, onCreateBlank, onCreateFromTemplate, isPending,
   onImportBlab, onImportZip,
-  activeOrg, setActiveOrg, orgs, refetchOrgs,
+  activeOrg, setActiveOrg, orgs, refetchOrgs, onClose, open,
 }: SidebarProps) {
   const blabInputRef = useRef<HTMLInputElement>(null)
   const zipInputRef = useRef<HTMLInputElement>(null)
@@ -508,7 +523,7 @@ function Sidebar({
 
   return (
     <aside
-      className="flex flex-col shrink-0 h-full"
+      className={`flex flex-col shrink-0 h-full fixed md:relative inset-y-0 left-0 z-50 transition-transform duration-300 ease-out md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
       style={{
         width: 224,
         borderRight: '1px solid var(--line-1)',
@@ -523,7 +538,14 @@ function Sidebar({
           <circle cx="34" cy="34" r="4" fill="oklch(80% 0.16 60)" />
           <path d="M14 22 L30 12 M14 22 L30 32" stroke="currentColor" strokeOpacity="0.4" strokeWidth="1.5" />
         </svg>
-        <span className="font-semibold text-sm tracking-tight" style={{ color: 'var(--fg-0)' }}>BranchLab</span>
+        <span className="flex-1 font-semibold text-sm tracking-tight" style={{ color: 'var(--fg-0)' }}>BranchLab</span>
+        <button
+          onClick={onClose}
+          className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--tint-3)]"
+          style={{ color: 'var(--fg-3)' }}
+        >
+          <X size={15} />
+        </button>
       </div>
 
       {/* Create button */}
@@ -636,7 +658,7 @@ function Sidebar({
           return (
             <button
               key={item.key}
-              onClick={() => onSectionChange(item.key)}
+              onClick={() => { onSectionChange(item.key); onClose() }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all"
               style={{
                 background: active ? 'var(--tint-3)' : 'transparent',
@@ -1068,6 +1090,7 @@ const SECTION_TITLES: Record<Section, string> = {
 function TopBar({
   search, onSearch, sort, onSort, section,
   onCreateBlank, onCreateFromTemplate, isPending, refreshing,
+  onToggleSidebar,
 }: {
   search: string
   onSearch: (v: string) => void
@@ -1078,6 +1101,7 @@ function TopBar({
   onCreateFromTemplate: () => void
   isPending: boolean
   refreshing?: boolean
+  onToggleSidebar: () => void
 }) {
   const [showSort, setShowSort] = useState(false)
   const sortRef = useRef<HTMLDivElement>(null)
@@ -1097,6 +1121,15 @@ function TopBar({
       className="flex items-center gap-3 px-6 h-[52px] shrink-0 border-b"
       style={{ borderColor: 'var(--line-1)', background: 'var(--bg-glass)', backdropFilter: 'blur(16px)' }}
     >
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={onToggleSidebar}
+        className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg shrink-0 transition-colors hover:bg-[var(--tint-3)]"
+        style={{ color: 'var(--fg-2)' }}
+      >
+        <Menu size={16} />
+      </button>
+
       {/* Section breadcrumb */}
       <h1 className="text-sm font-semibold shrink-0 flex items-center gap-2" style={{ color: 'var(--fg-0)' }}>
         {SECTION_TITLES[section]}
@@ -1216,7 +1249,7 @@ function HomeView({
   }
 
   return (
-    <div className="px-8 py-6 space-y-10">
+    <div className="px-4 md:px-8 py-6 space-y-10">
       {showSearch ? (
         <ContentSection title={`Results for "${search}"`} count={allFiltered.length}>
           <ScenarioGrid scenarios={allFiltered} onDuplicate={onDuplicate} onDelete={onDelete} onRename={onRename} />
@@ -1263,7 +1296,7 @@ function SectionView({
   onCreateFromTemplate?: () => void
 }) {
   return (
-    <div className="px-8 py-6">
+    <div className="px-4 md:px-8 py-6">
       {scenarios.length === 0 ? (
         <div className="py-20 text-center">
           <p className="text-sm" style={{ color: 'var(--fg-3)' }}>
@@ -1587,7 +1620,7 @@ function AssetsView({
   }
 
   return (
-    <div className="px-8 py-6 space-y-5">
+    <div className="px-4 md:px-8 py-6 space-y-5">
       <input ref={fileInputRef} type="file" accept={ACCEPTED_EXTENSIONS} className="hidden" onChange={handleFileChange} />
 
       {/* Header row */}
@@ -1864,7 +1897,7 @@ function ClipRow({ clip, isLast, onDelete }: { clip: Clip; isLast: boolean; onDe
 
 function EmptyHome({ onCreate, onCreateFromTemplate }: { onCreate: () => void; onCreateFromTemplate: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center h-full py-24 px-8 text-center">
+    <div className="flex flex-col items-center justify-center h-full py-16 sm:py-24 px-4 sm:px-8 text-center">
       <div
         className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
         style={{ background: 'var(--tint-2)', border: '1px solid var(--line-1)' }}

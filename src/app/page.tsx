@@ -28,21 +28,21 @@ export default function LandingPage() {
       />
 
       {/* Nav */}
-      <nav className="relative z-10 flex items-center justify-between px-8 py-5 max-w-7xl mx-auto">
+      <nav className="relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 max-w-7xl mx-auto">
         <BranchLabLogo />
-        <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="text-sm text-ink-2 hover:text-ink-0 transition-colors">
+        <div className="flex items-center gap-3 sm:gap-6">
+          <Link href="/dashboard" className="hidden sm:block text-sm text-ink-2 hover:text-ink-0 transition-colors">
             Dashboard
           </Link>
           <Link
             href="/play/balcony-at-the-party"
-            className="text-sm text-ink-2 hover:text-ink-0 transition-colors"
+            className="hidden sm:block text-sm text-ink-2 hover:text-ink-0 transition-colors"
           >
             Demo
           </Link>
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+            className="flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-sm font-medium transition-all"
             style={{
               background: 'var(--neon-mint)',
               color: '#052916',
@@ -56,7 +56,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <main className="relative z-10 max-w-7xl mx-auto px-8 pt-20 pb-32 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 pt-12 sm:pt-20 pb-20 sm:pb-32 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
         {/* Left */}
         <div className="space-y-8">
           <motion.div
@@ -79,7 +79,7 @@ export default function LandingPage() {
             variants={fadeUp}
             initial="hidden"
             animate="show"
-            className="text-[64px] font-semibold leading-[0.95] tracking-[-0.03em]"
+            className="text-[clamp(36px,9vw,64px)] font-semibold leading-[0.95] tracking-[-0.03em]"
           >
             Turn video clips into{' '}
             <span
@@ -106,7 +106,7 @@ export default function LandingPage() {
             variants={fadeUp}
             initial="hidden"
             animate="show"
-            className="flex items-center gap-4"
+            className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4"
           >
             <Link
               href="/dashboard"
@@ -143,7 +143,7 @@ export default function LandingPage() {
       </main>
 
       {/* Features */}
-      <section className="relative z-10 max-w-7xl mx-auto px-8 pb-24">
+      <section className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 pb-16 sm:pb-24">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {[
             {
