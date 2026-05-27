@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Maximize2, Minimize2 } from 'lucide-react'
 
 import { VideoScene } from './VideoScene'
 import { YouTubeScene } from './YouTubeScene'
@@ -63,13 +63,35 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
     return !!(sNode?.openingInstructions?.enabled)
   })
 
-  // Rotate-device hint — shown once on portrait mobile when scenario has landscape (YouTube) videos
+  // Rotate-device hint — shown once on portrait mobile when scenario has any video content
   const [showRotateHint, setShowRotateHint] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
-    const hasLandscapeVideo = scenario.nodes.some(n => !!n.youtubeAsset)
-    if (!hasLandscapeVideo) return false
+    const hasVideoContent = scenario.nodes.some(n => !!n.youtubeAsset || !!n.clip)
+    if (!hasVideoContent) return false
     return window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches
   })
+
+  // Fullscreen
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current?.requestFullscreen()
+      } else {
+        await document.exitFullscreen()
+      }
+    } catch {
+      // Fullscreen API unavailable or permission denied (e.g. iOS Safari)
+    }
+  }, [])
 
   // Analytics refs — stable across renders, never cause re-renders
   const analyticsSessionId = useRef<string | null>(null)
@@ -250,7 +272,7 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const startNode = getNodeById(scenario, scenario.startNodeId)
 
   return (
-    <div className={contained ? 'absolute inset-0 bg-bg-0 overflow-hidden' : 'fixed inset-0 bg-bg-0 overflow-hidden'}>
+    <div ref={containerRef} className={contained ? 'absolute inset-0 bg-bg-0 overflow-hidden' : 'fixed inset-0 bg-bg-0 overflow-hidden'}>
       {/* Wide-screen ambient background */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -392,6 +414,23 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
               />
             )}
           </AnimatePresence>
+
+          {/* Fullscreen toggle — play mode only, always on top */}
+          {mode === 'play' && !embed && (
+            <button
+              onClick={toggleFullscreen}
+              className="absolute top-3 right-3 z-50 w-8 h-8 flex items-center justify-center rounded-lg transition-all active:scale-95"
+              style={{
+                background: 'rgba(0,0,0,0.35)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.55)',
+                backdropFilter: 'blur(6px)',
+              }}
+              title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
+          )}
         </main>
       </div>
     </div>
