@@ -9,7 +9,7 @@
 import { isSupabaseMode } from './mode'
 import * as localStore from '@/lib/local-store'
 import * as supabaseStore from '@/lib/scenario-store'
-import type { Scenario, PublishConfig } from '@/types'
+import type { Scenario, PublishConfig, ScenarioVersion } from '@/types'
 
 export async function getAllScenarios(orgId: string | null = null): Promise<Scenario[]> {
   if (isSupabaseMode()) return supabaseStore.getAllScenarios(orgId)
@@ -35,4 +35,9 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
 export async function isSlugAvailable(slug: string, ownScenarioId?: string): Promise<boolean> {
   if (isSupabaseMode()) return supabaseStore.isSlugAvailable(slug, ownScenarioId)
   return Promise.resolve(localStore.isSlugAvailable(slug, ownScenarioId))
+}
+
+export async function getPublishedBySlug(slug: string): Promise<ScenarioVersion | null> {
+  if (isSupabaseMode()) return supabaseStore.getPublishedBySlug(slug)
+  return Promise.resolve(localStore.getPublishedBySlug(slug))
 }
