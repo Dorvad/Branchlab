@@ -1430,7 +1430,10 @@ function DashboardCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       className="group rounded-2xl flex flex-col relative"
-      style={{ background: 'var(--bg-1)', border: '1px solid var(--line-1)' }}
+      style={{
+        background: 'var(--bg-1)',
+        border: `1px solid ${scenario.status === 'published' ? 'oklch(82% 0.18 165 / 0.25)' : 'var(--line-1)'}`,
+      }}
     >
       {/* Thumbnail */}
       <Link href={`/editor/${scenario.id}`} className="relative block overflow-hidden rounded-t-2xl" style={{ aspectRatio: '16/10' }}>
@@ -1484,7 +1487,11 @@ function DashboardCard({
       </Link>
 
       {/* Card body */}
-      <Link href={`/editor/${scenario.id}`} className="flex flex-col gap-2 p-3.5 flex-1 rounded-b-2xl">
+      <Link
+        href={`/editor/${scenario.id}`}
+        className="flex flex-col gap-2 p-3.5 flex-1 rounded-b-2xl"
+        style={scenario.status === 'published' ? { background: 'oklch(82% 0.18 165 / 0.05)' } : undefined}
+      >
         <p className="text-sm font-medium leading-snug" style={{ color: 'var(--fg-0)' }}>
           {scenario.title}
         </p>
