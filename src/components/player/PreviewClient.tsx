@@ -6,7 +6,7 @@ import { Loader2, Smartphone, Monitor, ArrowLeft } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScenarioPlayer } from './ScenarioPlayer'
-import { getScenario } from '@/lib/scenario-store'
+import { getScenarioById } from '@/lib/persistence/scenarios'
 import type { Scenario } from '@/types'
 
 type DeviceMode = 'mobile' | 'desktop'
@@ -22,7 +22,7 @@ export function PreviewClient({ scenarioId, initialDevice = 'mobile' }: PreviewC
   const [device, setDevice] = useState<DeviceMode>(initialDevice)
 
   useEffect(() => {
-    getScenario(scenarioId).then(s => {
+    getScenarioById(scenarioId).then(s => {
       setScenario(s)
       setLoading(false)
     })

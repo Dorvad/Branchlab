@@ -7,7 +7,8 @@ import {
   Loader2, Smartphone, Monitor, Lock, Unlock, Eye, EyeOff, Code2,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { slugify, validateSlugFormat, isSlugAvailable } from '@/lib/scenario-store'
+import { slugify, validateSlugFormat } from '@/lib/scenario-store'
+import { isSlugAvailable } from '@/lib/persistence/scenarios'
 import type { Scenario, ValidationResult, PublishConfig, Orientation } from '@/types'
 
 interface PublishModalProps {
