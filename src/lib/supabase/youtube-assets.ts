@@ -5,6 +5,7 @@ import type { YouTubeAsset } from '@/types'
 
 interface YouTubeAssetRow {
   id: string
+  user_id: string
   org_id: string | null
   youtube_video_id: string
   original_url: string
@@ -35,8 +36,14 @@ export async function fetchYouTubeAssets(orgId?: string | null): Promise<YouTube
     .select('*')
     .order('created_at', { ascending: false })
 
-  if (orgId) query = query.eq('org_id', orgId)
-  else query = query.is('org_id', null)
+  if (orgId) {
+    query = query.eq('org_id', orgId)
+  } else {
+    // Personal assets: scoped to current user, no org
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) query = query.eq('user_id', user.id).is('org_id', null)
+    else return []
+  }
 
   const { data, error } = await query
   if (error) throw error
@@ -48,6 +55,8 @@ export async function saveYouTubeAsset(
   orgId?: string | null,
 ): Promise<YouTubeAsset> {
   const supabase = getSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
 
   // Check for duplicate within the same org first
   let dupQuery = supabase
@@ -65,6 +74,7 @@ export async function saveYouTubeAsset(
   const { data, error } = await (supabase as any)
     .from('youtube_assets')
     .insert({
+      user_id: user.id,
       org_id: orgId ?? null,
       youtube_video_id: asset.youtubeVideoId,
       original_url: asset.originalUrl,
