@@ -54,6 +54,24 @@ export interface Database {
         Update: Record<string, unknown>
         Relationships: []
       }
+      user_profiles: {
+        Row: Record<string, unknown>
+        Insert: Record<string, unknown>
+        Update: Record<string, unknown>
+        Relationships: []
+      }
+      user_preferences: {
+        Row: Record<string, unknown>
+        Insert: Record<string, unknown>
+        Update: Record<string, unknown>
+        Relationships: []
+      }
+      workspace_settings: {
+        Row: Record<string, unknown>
+        Insert: Record<string, unknown>
+        Update: Record<string, unknown>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

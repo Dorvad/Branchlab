@@ -787,6 +787,17 @@ function UserMenu({ user }: { user: User | null }) {
               </button>
             </div>
 
+            {/* Settings */}
+            <Link
+              href="/settings"
+              onClick={() => setOpen(false)}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--tint-2)]"
+              style={{ color: 'var(--fg-2)' }}
+            >
+              <Settings size={13} />
+              Settings
+            </Link>
+
             <div style={{ height: 1, background: 'var(--line-1)' }} />
 
             {/* Sign out */}
