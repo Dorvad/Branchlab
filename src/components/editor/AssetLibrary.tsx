@@ -4,11 +4,11 @@ import { useRef, useState, useCallback, useId, useMemo } from 'react'
 import { X, Upload, Film, Trash2, Link2, Info, Search, Check, RefreshCw, Youtube, Folder, Pencil, FolderPlus, ChevronDown, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  uploadClip, deleteClip,
   formatFileSize, formatDuration,
   ACCEPTED_EXTENSIONS, LARGE_FILE_WARNING_BYTES,
   type UploadProgress,
 } from '@/lib/supabase/clips'
+import { uploadClip, deleteClip } from '@/lib/persistence/clips'
 import type { Clip, ClipUploadStatus, YouTubeAsset } from '@/types'
 
 // ── Folder localStorage helpers ────────────────────────────────────────────────
@@ -31,6 +31,7 @@ function persistFolders(map: Record<string, string>): void {
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface AssetLibraryProps {
+  scenarioId: string
   clips: Clip[]
   youtubeAssets: YouTubeAsset[]
   selectedNodeTitle: string | null
@@ -61,6 +62,7 @@ interface UploadItem {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function AssetLibrary({
+  scenarioId,
   clips,
   youtubeAssets,
   selectedNodeTitle,
@@ -162,10 +164,10 @@ export function AssetLibrary({
 
       try {
         const clip = await uploadClip(
+          scenarioId,
           file,
           (p: UploadProgress) => update({ progress: Math.round((p.loaded / p.total) * 100) }),
           (status: ClipUploadStatus) => update({ status }),
-          undefined,
           (originalBytes, compressedBytes) => update({ savedBytes: originalBytes - compressedBytes }),
         )
         update({ progress: 100, status: 'ready' })
