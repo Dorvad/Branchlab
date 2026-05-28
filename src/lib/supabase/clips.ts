@@ -8,19 +8,20 @@ export const ACCEPTED_EXTENSIONS = '.mp4,.webm,.mov'
 
 // ── File size limits ──────────────────────────────────────────────────────────
 // Supabase free plan: 50 MB per file hard limit.
-// We accept up to 300 MB as input; everything ≥ 20 MB is compressed to fit.
+// We accept up to 200 MB as input; everything ≥ 5 MB is compressed to fit.
 // FFmpeg WASM must hold input + output in the browser heap simultaneously —
-// beyond ~300 MB this causes OOM errors, so we reject above that.
-export const MAX_FILE_SIZE_BYTES = 300 * 1024 * 1024  // 300 MB input ceiling
-export const LARGE_FILE_WARNING_BYTES = 80 * 1024 * 1024  // 80 MB — show pre-upload warning
+// beyond ~200 MB this causes OOM errors on low-RAM devices, so we reject above that.
+export const MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024  // 200 MB input ceiling
+export const LARGE_FILE_WARNING_BYTES = 30 * 1024 * 1024  // 30 MB — show pre-upload warning
 
 // ── Compression thresholds ────────────────────────────────────────────────────
-// Files smaller than this are almost certainly under 50 MB already.
-const COMPRESSION_MIN_BYTES = 20 * 1024 * 1024   // 20 MB
-const COMPRESSION_MAX_BYTES = 300 * 1024 * 1024  // 300 MB (WASM heap ceiling)
+// Compress aggressively for MVP storage budget.
+const COMPRESSION_MIN_BYTES = 5 * 1024 * 1024    // 5 MB — compress anything this large
+const COMPRESSION_MAX_BYTES = 200 * 1024 * 1024  // 200 MB (WASM heap ceiling)
 
-// Target output size — stay safely under the 50 MB Supabase free-plan limit.
-const UPLOAD_TARGET_BYTES = 47 * 1024 * 1024  // 47 MB
+// Target output size — well under the 50 MB Supabase free-plan ceiling and
+// small enough to keep total storage usage low during the MVP period.
+const UPLOAD_TARGET_BYTES = 20 * 1024 * 1024  // 20 MB
 
 const BUCKET = 'Assets'
 
@@ -127,9 +128,9 @@ async function compressVideo(
   const { fetchFile } = await import('@ffmpeg/util')
 
   // Calculate bitrate to hit UPLOAD_TARGET_BYTES.
-  // Reserve 96 kbps for audio; give the remainder to video.
+  // Reserve 64 kbps for audio (adequate for voice/narration); give the rest to video.
   // Floor at 100 kbps so very long clips still encode (quality will be low but playable).
-  const AUDIO_KBPS = 96
+  const AUDIO_KBPS = 64
   const safeDuration = Math.max(duration, 1)
   const videoBitrateKbps = Math.max(
     100,
@@ -159,8 +160,8 @@ async function compressVideo(
         '-maxrate', `${videoBitrateKbps * 2}k`,
         '-bufsize', `${videoBitrateKbps * 4}k`,
         '-preset', 'ultrafast',
-        // Scale to max 1280 px wide (sufficient for mobile player; saves significant size vs 1920)
-        '-vf', 'scale=w=trunc(if(gt(iw,1280),1280,iw)/2)*2:h=-2',
+        // Scale to max 720 px wide — sufficient for mobile-first player, greatly reduces file size
+        '-vf', 'scale=w=trunc(if(gt(iw,720),720,iw)/2)*2:h=-2',
         '-c:a', 'aac',
         '-b:a', `${AUDIO_KBPS}k`,
         '-movflags', '+faststart',
@@ -196,6 +197,7 @@ export async function uploadClip(
   onProgress?: (p: UploadProgress) => void,
   onStatus?: (status: ClipUploadStatus) => void,
   orgId?: string | null,
+  onCompressed?: (originalBytes: number, compressedBytes: number) => void,
 ): Promise<Clip> {
   if (!ACCEPTED_MIME_TYPES.includes(file.type)) {
     throw new Error('Unsupported format. Use MP4, WebM, or MOV.')
@@ -227,6 +229,9 @@ export async function uploadClip(
       uploadFile = await compressVideo(file, duration, pct => {
         onProgress?.({ loaded: pct, total: 100 })
       })
+      if (uploadFile !== file && uploadFile.size < file.size) {
+        onCompressed?.(file.size, uploadFile.size)
+      }
     } catch {
       // Compression failed — fall back to original file
       uploadFile = file

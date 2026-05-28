@@ -55,6 +55,7 @@ interface UploadItem {
   progress: number
   status: ClipUploadStatus
   error?: string
+  savedBytes?: number  // set after compression if space was saved
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -164,6 +165,8 @@ export function AssetLibrary({
           file,
           (p: UploadProgress) => update({ progress: Math.round((p.loaded / p.total) * 100) }),
           (status: ClipUploadStatus) => update({ status }),
+          undefined,
+          (originalBytes, compressedBytes) => update({ savedBytes: originalBytes - compressedBytes }),
         )
         update({ progress: 100, status: 'ready' })
         onAddClip(clip)
@@ -487,17 +490,28 @@ function UploadStatusRow({ item }: { item: UploadItem }) {
     failed:      'oklch(70% 0.18 25)',
   }
 
+  const savedLabel = item.savedBytes && item.savedBytes > 0
+    ? `Saved ${formatFileSize(item.savedBytes)}`
+    : null
+
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-mono truncate" style={{ color: 'var(--fg-2)', maxWidth: 170 }}>
           {item.name.length > 26 ? item.name.slice(0, 23) + '…' : item.name}
         </span>
-        <span className="text-[9px] font-mono shrink-0" style={{ color: STATUS_COLOR[item.status] }}>
-          {item.status === 'uploading' ? `${item.progress}%`
-            : item.status === 'compressing' ? `${item.progress}%`
-            : STATUS_LABEL[item.status]}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {item.status === 'ready' && savedLabel && (
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-md" style={{ background: 'oklch(82% 0.18 165 / 0.12)', color: 'oklch(72% 0.18 165)' }}>
+              {savedLabel}
+            </span>
+          )}
+          <span className="text-[9px] font-mono" style={{ color: STATUS_COLOR[item.status] }}>
+            {item.status === 'uploading' ? `${item.progress}%`
+              : item.status === 'compressing' ? `${item.progress}%`
+              : STATUS_LABEL[item.status]}
+          </span>
+        </div>
       </div>
       {item.status === 'compressing' && (
         <div className="h-0.5 rounded-full overflow-hidden" style={{ background: 'var(--tint-3)' }}>
