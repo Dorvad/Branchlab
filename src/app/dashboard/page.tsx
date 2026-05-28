@@ -14,6 +14,7 @@ import {
   ChevronDown, Check, Upload, Pencil,
   Eye, BarChart3, Download, FolderOpen, Settings, Menu,
 } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import {
   getAllScenarios,
@@ -1000,7 +1001,9 @@ function CreateOrgModal({
     }
   }
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -1068,7 +1071,8 @@ function CreateOrgModal({
           </div>
         </form>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   )
 }
 
@@ -1425,11 +1429,11 @@ function DashboardCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-      className="group rounded-2xl overflow-hidden flex flex-col"
+      className="group rounded-2xl flex flex-col relative"
       style={{ background: 'var(--bg-1)', border: '1px solid var(--line-1)' }}
     >
       {/* Thumbnail */}
-      <Link href={`/editor/${scenario.id}`} className="relative block" style={{ aspectRatio: '16/10' }}>
+      <Link href={`/editor/${scenario.id}`} className="relative block overflow-hidden rounded-t-2xl" style={{ aspectRatio: '16/10' }}>
         <div
           className="absolute inset-0 flex items-center justify-center"
           style={{
@@ -1477,74 +1481,10 @@ function DashboardCard({
           </Link>
         )}
 
-        {/* Context menu trigger */}
-        <div
-          ref={menuRef}
-          className="absolute top-2 right-2"
-          onClick={e => e.preventDefault()}
-        >
-          <button
-            onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
-            className="w-6 h-6 flex items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-            style={{ background: 'rgba(0,0,0,0.55)', color: 'var(--fg-1)' }}
-            title="More options"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-              <circle cx="6" cy="2" r="1.2" />
-              <circle cx="6" cy="6" r="1.2" />
-              <circle cx="6" cy="10" r="1.2" />
-            </svg>
-          </button>
-
-          <AnimatePresence>
-            {menuOpen && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.93, y: -4 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.93, y: -4 }}
-                transition={{ duration: 0.1 }}
-                className="absolute right-0 top-full mt-1 rounded-xl overflow-hidden z-50"
-                style={{
-                  background: 'var(--bg-1)',
-                  border: '1px solid var(--line-2)',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                  minWidth: 160,
-                }}
-              >
-                {menuItems.map((item, idx) =>
-                  item === null ? (
-                    <div key={idx} style={{ height: 1, background: 'var(--line-1)' }} />
-                  ) : 'href' in item ? (
-                    <Link
-                      key={item.label}
-                      href={item.href!}
-                      onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs transition-colors hover:bg-[var(--tint-2)]"
-                      style={{ color: 'var(--fg-1)' }}
-                    >
-                      <span style={{ color: 'var(--fg-3)' }}>{item.icon}</span>
-                      {item.label}
-                    </Link>
-                  ) : (
-                    <button
-                      key={item.label}
-                      onClick={() => { setMenuOpen(false); item.action?.() }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-left transition-colors hover:bg-[var(--tint-2)]"
-                      style={{ color: item.danger ? 'oklch(70% 0.18 25)' : 'var(--fg-1)' }}
-                    >
-                      <span style={{ color: item.danger ? 'oklch(70% 0.18 25)' : 'var(--fg-3)' }}>{item.icon}</span>
-                      {item.label}
-                    </button>
-                  )
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </Link>
 
       {/* Card body */}
-      <Link href={`/editor/${scenario.id}`} className="flex flex-col gap-2 p-3.5 flex-1">
+      <Link href={`/editor/${scenario.id}`} className="flex flex-col gap-2 p-3.5 flex-1 rounded-b-2xl">
         <p className="text-sm font-medium leading-snug" style={{ color: 'var(--fg-0)' }}>
           {scenario.title}
         </p>
@@ -1559,6 +1499,70 @@ function DashboardCard({
           </span>
         </div>
       </Link>
+
+      {/* Context menu trigger — outside overflow-hidden thumbnail so dropdown isn't clipped */}
+      <div
+        ref={menuRef}
+        className="absolute top-2 right-2 z-50"
+      >
+        <button
+          onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
+          className="w-6 h-6 flex items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+          style={{ background: 'rgba(0,0,0,0.55)', color: 'var(--fg-1)' }}
+          title="More options"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+            <circle cx="6" cy="2" r="1.2" />
+            <circle cx="6" cy="6" r="1.2" />
+            <circle cx="6" cy="10" r="1.2" />
+          </svg>
+        </button>
+
+        <AnimatePresence>
+          {menuOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.93, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.93, y: -4 }}
+              transition={{ duration: 0.1 }}
+              className="absolute right-0 top-full mt-1 rounded-xl overflow-hidden z-50"
+              style={{
+                background: 'var(--bg-1)',
+                border: '1px solid var(--line-2)',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                minWidth: 160,
+              }}
+            >
+              {menuItems.map((item, idx) =>
+                item === null ? (
+                  <div key={idx} style={{ height: 1, background: 'var(--line-1)' }} />
+                ) : 'href' in item ? (
+                  <Link
+                    key={item.label}
+                    href={item.href!}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs transition-colors hover:bg-[var(--tint-2)]"
+                    style={{ color: 'var(--fg-1)' }}
+                  >
+                    <span style={{ color: 'var(--fg-3)' }}>{item.icon}</span>
+                    {item.label}
+                  </Link>
+                ) : (
+                  <button
+                    key={item.label}
+                    onClick={() => { setMenuOpen(false); item.action?.() }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-left transition-colors hover:bg-[var(--tint-2)]"
+                    style={{ color: item.danger ? 'oklch(70% 0.18 25)' : 'var(--fg-1)' }}
+                  >
+                    <span style={{ color: item.danger ? 'oklch(70% 0.18 25)' : 'var(--fg-3)' }}>{item.icon}</span>
+                    {item.label}
+                  </button>
+                )
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </motion.div>
   )
 }
