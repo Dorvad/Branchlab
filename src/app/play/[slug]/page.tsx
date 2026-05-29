@@ -1,24 +1,13 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getSupabaseServer } from '@/lib/supabase/server'
+import { isSupabaseMode } from '@/lib/persistence/mode'
+import { getPublishedBySlug } from '@/lib/persistence/scenarios'
+import { PlayClient } from '@/components/player/PlayClient'
 import { ScenarioPlayer } from '@/components/player/ScenarioPlayer'
-import type { ScenarioNode, ScenarioEdge, ScenarioVersion } from '@/types'
 
 interface PlayPageProps {
   params: Promise<{ slug: string }>
   searchParams: Promise<{ embed?: string }>
-}
-
-type VersionRow = {
-  id: string
-  scenario_id: string
-  version: number
-  title: string
-  nodes: ScenarioNode[]
-  edges: ScenarioEdge[]
-  start_node_id: string
-  published_at: string
-  slug: string
 }
 
 function appUrl(): string {
@@ -27,10 +16,13 @@ function appUrl(): string {
 
 export async function generateMetadata({ params }: PlayPageProps): Promise<Metadata> {
   const { slug } = await params
-  const sb = getSupabaseServer()
-  const { data } = await sb.from('scenario_versions').select('title').eq('slug', slug).single()
-  const row = data as { title?: string } | null
-  const title = row?.title ? `${row.title} · BranchLab` : 'Play · BranchLab'
+
+  if (!isSupabaseMode()) {
+    return { title: 'Play · BranchLab' }
+  }
+
+  const version = await getPublishedBySlug(slug)
+  const title = version?.title ? `${version.title} · BranchLab` : 'Play · BranchLab'
   const base = appUrl()
   const canonicalUrl = base ? `${base}/play/${slug}` : undefined
   return {
@@ -56,22 +48,24 @@ export async function generateMetadata({ params }: PlayPageProps): Promise<Metad
 export default async function PlayPage({ params, searchParams }: PlayPageProps) {
   const { slug } = await params
   const { embed } = await searchParams
-  const sb = getSupabaseServer()
 
-  const { data } = await sb
-    .from('scenario_versions')
-    .select('*')
-    .eq('slug', slug)
-    .single()
+  // Local mode: delegate to client component (localStorage is client-side only)
+  if (!isSupabaseMode()) {
+    return <PlayClient slug={slug} embed={embed === '1'} />
+  }
 
-  if (!data) {
+  // Supabase mode: load server-side so the page is fully rendered before sending HTML
+  const version = await getPublishedBySlug(slug)
+
+  if (!version) {
     return (
       <div
         className="flex h-screen items-center justify-center flex-col gap-4"
         style={{ background: '#0a0b10' }}
       >
         <p className="text-sm font-mono" style={{ color: '#5c6273' }}>
-          No scenario published at <span style={{ color: '#c9cdda' }}>/play/{slug}</span>
+          No scenario published at{' '}
+          <span style={{ color: '#c9cdda' }}>/play/{slug}</span>
         </p>
         <Link
           href="/"
@@ -82,19 +76,6 @@ export default async function PlayPage({ params, searchParams }: PlayPageProps) 
         </Link>
       </div>
     )
-  }
-
-  const row = data as unknown as VersionRow
-  const version: ScenarioVersion = {
-    id: row.id,
-    scenarioId: row.scenario_id,
-    version: row.version,
-    title: row.title,
-    nodes: row.nodes ?? [],
-    edges: row.edges ?? [],
-    startNodeId: row.start_node_id,
-    publishedAt: row.published_at,
-    slug: row.slug,
   }
 
   return <ScenarioPlayer scenario={version} mode="play" embed={embed === '1'} />

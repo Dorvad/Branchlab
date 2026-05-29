@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { X, Youtube, Link, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { extractYouTubeVideoId } from '@/lib/youtube'
-import { saveYouTubeAsset } from '@/lib/supabase/youtube-assets'
+import { saveYouTubeAsset } from '@/lib/persistence/youtube-assets'
 import type { YouTubeAsset } from '@/types'
 
 interface AddYouTubeModalProps {

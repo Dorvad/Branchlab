@@ -7,7 +7,8 @@ import {
   AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { validateSlugFormat, isSlugAvailable } from '@/lib/scenario-store'
+import { validateSlugFormat } from '@/lib/scenario-store'
+import { isSlugAvailable } from '@/lib/persistence/scenarios'
 import type { Scenario, ValidationResult, PublishConfig, Orientation } from '@/types'
 
 interface RepublishModalProps {

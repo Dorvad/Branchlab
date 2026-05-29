@@ -13,9 +13,11 @@ import { NodeInspector } from './NodeInspector'
 import { ValidationPanel } from './ValidationPanel'
 import { AssetLibrary } from './AssetLibrary'
 import { validateScenario } from '@/lib/scenario-engine'
-import { getScenario, saveScenario, publishScenario, deleteScenario } from '@/lib/scenario-store'
-import { fetchClips, renameClip as renameClipFn } from '@/lib/supabase/clips'
-import { fetchYouTubeAssets, deleteYouTubeAsset, renameYouTubeAsset as renameYouTubeAssetFn } from '@/lib/supabase/youtube-assets'
+import { getScenario, saveScenario, deleteScenario } from '@/lib/scenario-store'
+import { publishScenario } from '@/lib/persistence/scenarios'
+import { renameClip as renameClipFn } from '@/lib/supabase/clips'
+import { fetchClips } from '@/lib/persistence/clips'
+import { fetchYouTubeAssets, deleteYouTubeAsset, renameYouTubeAsset as renameYouTubeAssetFn } from '@/lib/persistence/youtube-assets'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
 import { RepublishModal } from './RepublishModal'
@@ -506,7 +508,7 @@ function EditorUI({
   const [showAddYoutube, setShowAddYoutube] = useState(false)
 
   useEffect(() => {
-    fetchClips().then(setClips).catch(() => {})
+    fetchClips(scenario.id).then(setClips).catch(() => {})
     fetchYouTubeAssets().then(setYouTubeAssets).catch(() => {})
   }, [])
 
@@ -887,6 +889,7 @@ function EditorUI({
         <AnimatePresence>
           {showAssets && (
             <AssetLibrary
+              scenarioId={scenario.id}
               clips={clips}
               youtubeAssets={youtubeAssets}
               selectedNodeTitle={selectedNode?.title ?? null}
