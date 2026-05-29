@@ -9,9 +9,10 @@ import {
   type UploadProgress,
 } from '@/lib/supabase/clips'
 import { uploadClip, deleteClip } from '@/lib/persistence/clips'
-import type { Clip, ClipUploadStatus, YouTubeAsset, PexelsAsset, CoverrAsset } from '@/types'
+import type { Clip, ClipUploadStatus, YouTubeAsset, PexelsAsset, CoverrAsset, PixabayAsset } from '@/types'
 import { PexelsPanel } from './PexelsPanel'
 import { CoverrPanel } from './CoverrPanel'
+import { PixabayPanel } from './PixabayPanel'
 
 // ── Folder localStorage helpers ────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ function persistFolders(map: Record<string, string>): void {
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type LibraryTab = 'my-library' | 'stock'
+type StockProvider = 'pexels' | 'coverr' | 'pixabay'
 
 interface AssetLibraryProps {
   scenarioId: string
@@ -63,6 +65,12 @@ interface AssetLibraryProps {
   onRemoveCoverrAsset: (id: string) => void
   onRenameCoverrAsset: (id: string, title: string) => void
   onAttachCoverrVideoToNode: (asset: CoverrAsset) => void
+  pixabayAssets: PixabayAsset[]
+  onAddPixabayAsset: (asset: PixabayAsset) => void
+  onRemovePixabayAsset: (id: string) => void
+  onRenamePixabayAsset: (id: string, title: string) => void
+  onAttachPixabayVideoToNode: (asset: PixabayAsset) => void
+  onAttachPixabayImageToNode: (asset: PixabayAsset) => void
   onClose: () => void
 }
 
@@ -106,12 +114,18 @@ export function AssetLibrary({
   onRemoveCoverrAsset,
   onRenameCoverrAsset,
   onAttachCoverrVideoToNode,
+  pixabayAssets,
+  onAddPixabayAsset,
+  onRemovePixabayAsset,
+  onRenamePixabayAsset,
+  onAttachPixabayVideoToNode,
+  onAttachPixabayImageToNode,
   onClose,
 }: AssetLibraryProps) {
   const fileInputId = useId()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [activeTab, setActiveTab] = useState<LibraryTab>('my-library')
-  const [stockProvider, setStockProvider] = useState<'pexels' | 'coverr'>('pexels')
+  const [stockProvider, setStockProvider] = useState<StockProvider>('pexels')
   const [isDragging, setIsDragging] = useState(false)
   const [uploads, setUploads] = useState<UploadItem[]>([])
   const [search, setSearch] = useState('')
@@ -137,8 +151,11 @@ export function AssetLibrary({
   const filteredCoverr = q
     ? coverrAssets.filter(a => a.title.toLowerCase().includes(q))
     : coverrAssets
+  const filteredPixabay = q
+    ? pixabayAssets.filter(a => a.title.toLowerCase().includes(q) || a.user.toLowerCase().includes(q))
+    : pixabayAssets
 
-  const totalAssets = clips.length + youtubeAssets.length + pexelsAssets.length + coverrAssets.length
+  const totalAssets = clips.length + youtubeAssets.length + pexelsAssets.length + coverrAssets.length + pixabayAssets.length
 
   const folderNames = useMemo(() => [...new Set(Object.values(folders))].sort(), [folders])
 
@@ -267,8 +284,9 @@ export function AssetLibrary({
   const hasUngrouped = clipsByFolder.ungrouped.length > 0 || youtubeByFolder.ungrouped.length > 0
 
   // Saved IDs sets for Stock tab (to show checkmarks on already-saved items)
-  const savedPexelsIds = useMemo(() => new Set(pexelsAssets.map(a => a.pexelsId)), [pexelsAssets])
-  const savedCoverrIds = useMemo(() => new Set(coverrAssets.map(a => a.coverrId)), [coverrAssets])
+  const savedPexelsIds  = useMemo(() => new Set(pexelsAssets.map(a => a.pexelsId)),   [pexelsAssets])
+  const savedCoverrIds  = useMemo(() => new Set(coverrAssets.map(a => a.coverrId)),   [coverrAssets])
+  const savedPixabayIds = useMemo(() => new Set(pixabayAssets.map(a => a.pixabayId)), [pixabayAssets])
 
   return (
     <motion.aside
@@ -321,7 +339,7 @@ export function AssetLibrary({
           <div className="flex flex-col flex-1 overflow-hidden">
             {/* Provider selector */}
             <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-2 shrink-0">
-              {(['pexels', 'coverr'] as const).map(p => (
+              {(['pexels', 'coverr', 'pixabay'] as const).map(p => (
                 <button
                   key={p}
                   onClick={() => setStockProvider(p)}
@@ -338,15 +356,11 @@ export function AssetLibrary({
             </div>
             <div className="flex-1 overflow-hidden">
               {stockProvider === 'pexels' ? (
-                <PexelsPanel
-                  savedPexelsIds={savedPexelsIds}
-                  onSaveAsset={onAddPexelsAsset}
-                />
+                <PexelsPanel savedPexelsIds={savedPexelsIds} onSaveAsset={onAddPexelsAsset} />
+              ) : stockProvider === 'coverr' ? (
+                <CoverrPanel savedCoverrIds={savedCoverrIds} onSaveAsset={onAddCoverrAsset} />
               ) : (
-                <CoverrPanel
-                  savedCoverrIds={savedCoverrIds}
-                  onSaveAsset={onAddCoverrAsset}
-                />
+                <PixabayPanel savedPixabayIds={savedPixabayIds} onSaveAsset={onAddPixabayAsset} />
               )}
             </div>
           </div>
@@ -616,6 +630,32 @@ export function AssetLibrary({
                 </div>
               )}
 
+              {/* ── Pixabay Downloads section ──────────────────────────────── */}
+              {filteredPixabay.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 py-0.5">
+                    <div className="h-px flex-1" style={{ background: 'var(--line-1)' }} />
+                    <span className="text-[9px] font-mono text-ink-4 uppercase tracking-wider">
+                      Pixabay Downloads ({filteredPixabay.length})
+                    </span>
+                    <div className="h-px flex-1" style={{ background: 'var(--line-1)' }} />
+                  </div>
+                  {filteredPixabay.map(asset => (
+                    <PixabayAssetCard
+                      key={asset.id}
+                      asset={asset}
+                      canAttach={canAttach}
+                      nodeClipId={nodeClipId}
+                      nodePexelsAssetId={nodePexelsAssetId}
+                      onAttachVideo={() => onAttachPixabayVideoToNode(asset)}
+                      onAttachImage={() => onAttachPixabayImageToNode(asset)}
+                      onRemove={() => onRemovePixabayAsset(asset.id)}
+                      onRename={title => onRenamePixabayAsset(asset.id, title)}
+                    />
+                  ))}
+                </div>
+              )}
+
             </div>
           </div>
         )}
@@ -869,6 +909,147 @@ function PexelsAssetCard({
       </div>
 
       {/* Actions */}
+      <div className="flex items-center gap-1.5 px-2.5 pb-2.5">
+        {canAttach && !isAttachedVideo && (
+          <button
+            onClick={handleAttach}
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-mono transition-all hover:brightness-110"
+            style={{
+              background: wouldReplace ? 'oklch(78% 0.18 285 / 0.1)' : 'oklch(82% 0.18 165 / 0.1)',
+              border: `1px solid ${wouldReplace ? 'oklch(78% 0.18 285 / 0.3)' : 'oklch(82% 0.18 165 / 0.25)'}`,
+              color: wouldReplace ? 'oklch(78% 0.18 285)' : 'oklch(82% 0.18 165)',
+            }}
+          >
+            {wouldReplace
+              ? <><RefreshCw size={9} />Replace</>
+              : asset.type === 'video'
+              ? <><Link2 size={9} />Attach</>
+              : <><Image size={9} />Set thumbnail</>}
+          </button>
+        )}
+        {canAttach && isAttachedVideo && (
+          <div
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-mono"
+            style={{ background: 'oklch(82% 0.18 165 / 0.06)', border: '1px solid oklch(82% 0.18 165 / 0.2)', color: 'oklch(82% 0.18 165)' }}
+          >
+            <Check size={9} />Attached
+          </div>
+        )}
+        <button
+          onClick={onRemove}
+          className="flex items-center justify-center w-7 h-7 rounded-lg transition-colors hover:text-red-400"
+          style={{ background: 'var(--tint-2)', border: '1px solid var(--line-1)', color: 'var(--fg-3)' }}
+          title="Remove"
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── PixabayAssetCard ──────────────────────────────────────────────────────────
+
+function PixabayAssetCard({
+  asset, canAttach, nodeClipId, nodePexelsAssetId,
+  onAttachVideo, onAttachImage, onRemove, onRename,
+}: {
+  asset: PixabayAsset
+  canAttach: boolean
+  nodeClipId?: string
+  nodePexelsAssetId?: string
+  onAttachVideo: () => void
+  onAttachImage: () => void
+  onRemove: () => void
+  onRename: (title: string) => void
+}) {
+  const isAttachedVideo = asset.type === 'video' && (nodeClipId === asset.id || nodePexelsAssetId === asset.id)
+  const wouldReplace = canAttach && (!!nodeClipId || !!nodePexelsAssetId) && !isAttachedVideo
+
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState(asset.title)
+
+  const commitRename = () => {
+    const trimmed = renameValue.trim()
+    if (trimmed && trimmed !== asset.title) onRename(trimmed)
+    else setRenameValue(asset.title)
+    setIsRenaming(false)
+  }
+
+  const handleAttach = () => asset.type === 'video' ? onAttachVideo() : onAttachImage()
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{
+        background: 'var(--tint-1)',
+        border: `1px solid ${isAttachedVideo ? 'oklch(82% 0.18 165 / 0.4)' : 'var(--line-1)'}`,
+      }}
+    >
+      <div className="relative h-24 overflow-hidden" style={{ background: 'var(--bg-1)' }}>
+        <img src={asset.thumbnailUrl} alt="" className="w-full h-full object-cover opacity-85" />
+        <div
+          className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[8px] tracking-wider uppercase"
+          style={{
+            background: 'rgba(0,0,0,0.72)',
+            color: asset.type === 'video' ? 'oklch(82% 0.18 165)' : 'oklch(80% 0.12 240)',
+            border: `1px solid ${asset.type === 'video' ? 'oklch(82% 0.18 165 / 0.3)' : 'oklch(80% 0.12 240 / 0.3)'}`,
+          }}
+        >
+          {asset.type === 'video' ? <Film size={8} /> : <Image size={8} />}
+          {asset.imageType ?? asset.type}
+        </div>
+        {asset.duration != null && (
+          <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded font-mono text-[9px]" style={{ background: 'rgba(0,0,0,0.7)', color: 'var(--fg-1)' }}>
+            {formatDuration(asset.duration)}
+          </div>
+        )}
+        {isAttachedVideo && (
+          <div className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono" style={{ background: 'oklch(82% 0.18 165)', color: '#052916' }}>
+            <Check size={8} />Attached
+          </div>
+        )}
+      </div>
+
+      <div className="px-2.5 pt-2 pb-1.5">
+        {isRenaming ? (
+          <input
+            autoFocus
+            value={renameValue}
+            onChange={e => setRenameValue(e.target.value)}
+            className="w-full px-2 py-1 rounded-lg text-[11px] font-medium outline-none mb-1"
+            style={{ background: 'var(--tint-2)', border: '1px solid oklch(82% 0.18 165 / 0.4)', color: 'var(--fg-1)' }}
+            onBlur={commitRename}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitRename()
+              if (e.key === 'Escape') { setRenameValue(asset.title); setIsRenaming(false) }
+            }}
+          />
+        ) : (
+          <div className="flex items-start gap-1.5 mb-0.5 group">
+            <p className="flex-1 text-[11px] font-medium leading-snug break-all" style={{ color: 'var(--fg-1)' }} title={asset.title}>
+              {asset.title.length > 30 ? asset.title.slice(0, 27) + '…' : asset.title}
+            </p>
+            <button
+              onClick={() => { setRenameValue(asset.title); setIsRenaming(true) }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--tint-3)] shrink-0"
+              style={{ color: 'var(--fg-3)' }} title="Rename"
+            >
+              <Pencil size={10} />
+            </button>
+          </div>
+        )}
+        <a
+          href={asset.pageURL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[9px] font-mono hover:underline"
+          style={{ color: 'var(--fg-4)' }}
+        >
+          by {asset.user} · Pixabay
+        </a>
+      </div>
+
       <div className="flex items-center gap-1.5 px-2.5 pb-2.5">
         {canAttach && !isAttachedVideo && (
           <button

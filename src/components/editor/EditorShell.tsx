@@ -20,6 +20,7 @@ import { fetchClips } from '@/lib/persistence/clips'
 import { fetchYouTubeAssets, deleteYouTubeAsset, renameYouTubeAsset as renameYouTubeAssetFn } from '@/lib/persistence/youtube-assets'
 import { fetchPexelsAssets, deletePexelsAsset as deletePexelsAssetFn, renamePexelsAsset as renamePexelsAssetFn } from '@/lib/persistence/pexels-assets'
 import { fetchCoverrAssets, deleteCoverrAsset as deleteCoverrAssetFn, renameCoverrAsset as renameCoverrAssetFn } from '@/lib/persistence/coverr-assets'
+import { fetchPixabayAssets, deletePixabayAsset as deletePixabayAssetFn, renamePixabayAsset as renamePixabayAssetFn } from '@/lib/persistence/pixabay-assets'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
 import { RepublishModal } from './RepublishModal'
@@ -27,7 +28,7 @@ import { AddYouTubeModal } from './AddYouTubeModal'
 import { exportToBlab } from '@/lib/blab-format'
 import { exportToZip } from '@/lib/zip-export'
 import { exportScorm12, exportXapiStatements } from '@/lib/scorm-export'
-import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, YouTubeAsset, PexelsAsset, CoverrAsset, PublishConfig } from '@/types'
+import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, YouTubeAsset, PexelsAsset, CoverrAsset, PixabayAsset, PublishConfig } from '@/types'
 
 interface EditorShellProps {
   scenarioId: string
@@ -509,6 +510,7 @@ function EditorUI({
   const [youtubeAssets, setYouTubeAssets] = useState<YouTubeAsset[]>([])
   const [pexelsAssets, setPexelsAssets] = useState<PexelsAsset[]>([])
   const [coverrAssets, setCoverrAssets] = useState<CoverrAsset[]>([])
+  const [pixabayAssets, setPixabayAssets] = useState<PixabayAsset[]>([])
   const [showAddYoutube, setShowAddYoutube] = useState(false)
 
   useEffect(() => {
@@ -516,6 +518,7 @@ function EditorUI({
     fetchYouTubeAssets().then(setYouTubeAssets).catch(() => {})
     fetchPexelsAssets().then(setPexelsAssets).catch(() => {})
     fetchCoverrAssets().then(setCoverrAssets).catch(() => {})
+    fetchPixabayAssets().then(setPixabayAssets).catch(() => {})
   }, [])
 
   const addClip = useCallback((clip: Clip) => {
@@ -632,6 +635,33 @@ function EditorUI({
       clip: { id: asset.id, url: asset.url, duration: asset.duration, thumbnail: asset.thumbnailUrl },
       youtubeAsset: undefined, youtubeStartTime: undefined, youtubeEndTime: undefined,
     })
+  }, [selectedNodeId, updateNode])
+
+  const addPixabayAsset = useCallback((asset: PixabayAsset) => {
+    setPixabayAssets(prev => prev.some(a => a.id === asset.id) ? prev : [asset, ...prev])
+  }, [])
+
+  const removePixabayAsset = useCallback(async (id: string) => {
+    setPixabayAssets(prev => prev.filter(a => a.id !== id))
+    await deletePixabayAssetFn(id).catch(() => {})
+  }, [])
+
+  const renamePixabayAsset = useCallback(async (id: string, title: string) => {
+    await renamePixabayAssetFn(id, title).catch(() => {})
+    setPixabayAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
+  }, [])
+
+  const attachPixabayVideoToNode = useCallback((asset: PixabayAsset) => {
+    if (!selectedNodeId || asset.type !== 'video') return
+    updateNode(selectedNodeId, {
+      clip: { id: asset.id, url: asset.url, duration: asset.duration ?? 0, thumbnail: asset.thumbnailUrl },
+      youtubeAsset: undefined, youtubeStartTime: undefined, youtubeEndTime: undefined,
+    })
+  }, [selectedNodeId, updateNode])
+
+  const attachPixabayImageToNode = useCallback((asset: PixabayAsset) => {
+    if (!selectedNodeId || asset.type !== 'image') return
+    updateNode(selectedNodeId, { thumbnailUrl: asset.url })
   }, [selectedNodeId, updateNode])
 
   const { errors, warnings } = validationResult
@@ -972,6 +1002,12 @@ function EditorUI({
               onRemoveCoverrAsset={removeCoverrAsset}
               onRenameCoverrAsset={renameCoverrAsset}
               onAttachCoverrVideoToNode={attachCoverrVideoToNode}
+              pixabayAssets={pixabayAssets}
+              onAddPixabayAsset={addPixabayAsset}
+              onRemovePixabayAsset={removePixabayAsset}
+              onRenamePixabayAsset={renamePixabayAsset}
+              onAttachPixabayVideoToNode={attachPixabayVideoToNode}
+              onAttachPixabayImageToNode={attachPixabayImageToNode}
               onClose={() => setShowAssets(false)}
             />
           )}

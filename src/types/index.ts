@@ -221,6 +221,22 @@ export interface ValidationResult {
 
 export type ScenarioLike = Scenario | ScenarioVersion;
 
+export interface PixabayAsset {
+  id: string
+  pixabayId: number
+  type: 'video' | 'image'
+  title: string
+  url: string
+  thumbnailUrl: string
+  width: number
+  height: number
+  duration?: number
+  user: string
+  pageURL: string
+  imageType?: string     // 'photo' | 'illustration' | 'vector' — images only
+  createdAt: string
+}
+
 export interface CoverrAsset {
   id: string
   coverrId: string
