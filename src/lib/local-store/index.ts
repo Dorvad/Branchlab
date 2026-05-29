@@ -309,7 +309,23 @@ export function publishScenario(scenario: Scenario, slug: string): Scenario {
 export function getPublishedBySlug(slug: string): ScenarioVersion | null {
   seedPublishedIfNeeded()
   try {
-    return readPublished()[slug] ?? null
+    const fromPublished = readPublished()[slug]
+    if (fromPublished) return fromPublished
+
+    // Fallback: scan draft store for scenarios whose publishedVersion.slug matches.
+    // This recovers when branchlab_published is out of sync (e.g. session change).
+    const drafts = readDrafts()
+    for (const scenario of Object.values(drafts)) {
+      const pv = scenario.publishedVersion
+      if (pv && (pv.slug === slug || scenario.slug === slug)) {
+        // Rebuild the published index entry so future lookups are fast
+        const store = readPublished()
+        store[slug] = pv
+        writePublished(store)
+        return pv
+      }
+    }
+    return null
   } catch {
     return null
   }
