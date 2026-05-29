@@ -13,8 +13,8 @@ import { NodeInspector } from './NodeInspector'
 import { ValidationPanel } from './ValidationPanel'
 import { AssetLibrary } from './AssetLibrary'
 import { validateScenario } from '@/lib/scenario-engine'
-import { getScenario, saveScenario, deleteScenario } from '@/lib/scenario-store'
-import { publishScenario } from '@/lib/persistence/scenarios'
+import { getScenarioById, saveScenario, deleteScenario, publishScenario } from '@/lib/persistence/scenarios'
+import { isSupabaseMode } from '@/lib/persistence/mode'
 import { renameClip as renameClipFn } from '@/lib/supabase/clips'
 import { fetchClips } from '@/lib/persistence/clips'
 import { fetchYouTubeAssets, deleteYouTubeAsset, renameYouTubeAsset as renameYouTubeAssetFn } from '@/lib/persistence/youtube-assets'
@@ -48,14 +48,13 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
 
   // Auth guard + initial scenario load
   useEffect(() => {
-    const sb = getSupabaseClient()
-    sb.auth.getUser().then(async res => {
-      const user = res.data?.user
-      if (!user) {
-        router.replace('/auth')
-        return
+    async function load() {
+      if (isSupabaseMode()) {
+        const sb = getSupabaseClient()
+        const { data: { user } } = await sb.auth.getUser()
+        if (!user) { router.replace('/auth'); return }
       }
-      const s = await getScenario(scenarioId)
+      const s = await getScenarioById(scenarioId)
       if (!s) {
         setNotFound(true)
       } else {
@@ -63,7 +62,8 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
         setSavedAt(new Date(s.updatedAt))
       }
       setLoading(false)
-    })
+    }
+    load()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenarioId])
 

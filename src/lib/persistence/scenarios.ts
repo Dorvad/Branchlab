@@ -37,6 +37,11 @@ export async function isSlugAvailable(slug: string, ownScenarioId?: string): Pro
   return Promise.resolve(localStore.isSlugAvailable(slug, ownScenarioId))
 }
 
+export async function deleteScenario(id: string): Promise<void> {
+  if (isSupabaseMode()) return supabaseStore.deleteScenario(id)
+  return Promise.resolve(localStore.deleteScenario(id))
+}
+
 export async function getPublishedBySlug(slug: string): Promise<ScenarioVersion | null> {
   if (isSupabaseMode()) return supabaseStore.getPublishedBySlug(slug)
   return Promise.resolve(localStore.getPublishedBySlug(slug))

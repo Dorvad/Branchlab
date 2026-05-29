@@ -17,12 +17,11 @@ import {
 import { createPortal } from 'react-dom'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import {
-  deleteScenario,
   createScenario,
   createFromTemplate,
   duplicateScenario,
 } from '@/lib/scenario-store'
-import { getAllScenarios, saveScenario } from '@/lib/persistence/scenarios'
+import { getAllScenarios, saveScenario, deleteScenario } from '@/lib/persistence/scenarios'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
 import { fetchClips, uploadClip, deleteClip, formatFileSize, formatDuration, ACCEPTED_EXTENSIONS, LARGE_FILE_WARNING_BYTES } from '@/lib/supabase/clips'
