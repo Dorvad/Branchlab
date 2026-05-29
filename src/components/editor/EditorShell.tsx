@@ -18,6 +18,7 @@ import { isSupabaseMode } from '@/lib/persistence/mode'
 import { renameClip as renameClipFn } from '@/lib/supabase/clips'
 import { fetchClips } from '@/lib/persistence/clips'
 import { fetchYouTubeAssets, deleteYouTubeAsset, renameYouTubeAsset as renameYouTubeAssetFn } from '@/lib/persistence/youtube-assets'
+import { fetchPexelsAssets, deletePexelsAsset as deletePexelsAssetFn, renamePexelsAsset as renamePexelsAssetFn } from '@/lib/persistence/pexels-assets'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
 import { RepublishModal } from './RepublishModal'
@@ -25,7 +26,7 @@ import { AddYouTubeModal } from './AddYouTubeModal'
 import { exportToBlab } from '@/lib/blab-format'
 import { exportToZip } from '@/lib/zip-export'
 import { exportScorm12, exportXapiStatements } from '@/lib/scorm-export'
-import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, YouTubeAsset, PublishConfig } from '@/types'
+import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, YouTubeAsset, PexelsAsset, PublishConfig } from '@/types'
 
 interface EditorShellProps {
   scenarioId: string
@@ -505,11 +506,13 @@ function EditorUI({
   // ── Clip management ───────────────────────────────────────────────────────
   const [clips, setClips] = useState<Clip[]>([])
   const [youtubeAssets, setYouTubeAssets] = useState<YouTubeAsset[]>([])
+  const [pexelsAssets, setPexelsAssets] = useState<PexelsAsset[]>([])
   const [showAddYoutube, setShowAddYoutube] = useState(false)
 
   useEffect(() => {
     fetchClips(scenario.id).then(setClips).catch(() => {})
     fetchYouTubeAssets().then(setYouTubeAssets).catch(() => {})
+    fetchPexelsAssets().then(setPexelsAssets).catch(() => {})
   }, [])
 
   const addClip = useCallback((clip: Clip) => {
@@ -578,6 +581,33 @@ function EditorUI({
       setYouTubeAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
     } catch {}
   }, [])
+
+  const addPexelsAsset = useCallback((asset: PexelsAsset) => {
+    setPexelsAssets(prev => prev.some(a => a.id === asset.id) ? prev : [asset, ...prev])
+  }, [])
+
+  const removePexelsAsset = useCallback(async (id: string) => {
+    setPexelsAssets(prev => prev.filter(a => a.id !== id))
+    await deletePexelsAssetFn(id).catch(() => {})
+  }, [])
+
+  const renamePexelsAsset = useCallback(async (id: string, title: string) => {
+    await renamePexelsAssetFn(id, title).catch(() => {})
+    setPexelsAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
+  }, [])
+
+  const attachPexelsVideoToNode = useCallback((asset: PexelsAsset) => {
+    if (!selectedNodeId || asset.type !== 'video') return
+    updateNode(selectedNodeId, {
+      clip: { id: asset.id, url: asset.url, duration: asset.duration ?? 0, thumbnail: asset.thumbnailUrl },
+      youtubeAsset: undefined, youtubeStartTime: undefined, youtubeEndTime: undefined,
+    })
+  }, [selectedNodeId, updateNode])
+
+  const attachPexelsPhotoToNode = useCallback((asset: PexelsAsset) => {
+    if (!selectedNodeId || asset.type !== 'photo') return
+    updateNode(selectedNodeId, { thumbnailUrl: asset.url })
+  }, [selectedNodeId, updateNode])
 
   const { errors, warnings } = validationResult
   const errorCount = errors.length
@@ -892,10 +922,12 @@ function EditorUI({
               scenarioId={scenario.id}
               clips={clips}
               youtubeAssets={youtubeAssets}
+              pexelsAssets={pexelsAssets}
               selectedNodeTitle={selectedNode?.title ?? null}
               canAttach={!!selectedNodeId}
               nodeClipId={selectedNode?.clip?.id}
               nodeYoutubeAssetId={selectedNode?.youtubeAsset?.id}
+              nodePexelsAssetId={selectedNode?.clip?.id}
               onAddClip={addClip}
               onRemoveClip={removeClip}
               onAttachToNode={attachClipToNode}
@@ -905,6 +937,11 @@ function EditorUI({
               onRenameClip={renameClip}
               onRenameYouTubeAsset={renameYouTubeAsset}
               onOpenAddYoutube={() => setShowAddYoutube(true)}
+              onAddPexelsAsset={addPexelsAsset}
+              onRemovePexelsAsset={removePexelsAsset}
+              onRenamePexelsAsset={renamePexelsAsset}
+              onAttachPexelsVideoToNode={attachPexelsVideoToNode}
+              onAttachPexelsPhotoToNode={attachPexelsPhotoToNode}
               onClose={() => setShowAssets(false)}
             />
           )}

@@ -220,3 +220,18 @@ export interface ValidationResult {
 }
 
 export type ScenarioLike = Scenario | ScenarioVersion;
+
+export interface PexelsAsset {
+  id: string
+  pexelsId: number
+  type: 'video' | 'photo'
+  title: string
+  url: string
+  thumbnailUrl: string
+  width: number
+  height: number
+  duration?: number
+  photographer: string
+  pexelsPageUrl: string
+  createdAt: string
+}
