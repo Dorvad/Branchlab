@@ -221,6 +221,19 @@ export interface ValidationResult {
 
 export type ScenarioLike = Scenario | ScenarioVersion;
 
+export interface CoverrAsset {
+  id: string
+  coverrId: string
+  title: string
+  url: string
+  thumbnailUrl: string
+  width: number
+  height: number
+  duration: number
+  isVertical: boolean
+  createdAt: string
+}
+
 export interface PexelsAsset {
   id: string
   pexelsId: number

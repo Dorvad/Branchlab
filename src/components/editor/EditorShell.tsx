@@ -19,6 +19,7 @@ import { renameClip as renameClipFn } from '@/lib/supabase/clips'
 import { fetchClips } from '@/lib/persistence/clips'
 import { fetchYouTubeAssets, deleteYouTubeAsset, renameYouTubeAsset as renameYouTubeAssetFn } from '@/lib/persistence/youtube-assets'
 import { fetchPexelsAssets, deletePexelsAsset as deletePexelsAssetFn, renamePexelsAsset as renamePexelsAssetFn } from '@/lib/persistence/pexels-assets'
+import { fetchCoverrAssets, deleteCoverrAsset as deleteCoverrAssetFn, renameCoverrAsset as renameCoverrAssetFn } from '@/lib/persistence/coverr-assets'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
 import { RepublishModal } from './RepublishModal'
@@ -26,7 +27,7 @@ import { AddYouTubeModal } from './AddYouTubeModal'
 import { exportToBlab } from '@/lib/blab-format'
 import { exportToZip } from '@/lib/zip-export'
 import { exportScorm12, exportXapiStatements } from '@/lib/scorm-export'
-import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, YouTubeAsset, PexelsAsset, PublishConfig } from '@/types'
+import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, YouTubeAsset, PexelsAsset, CoverrAsset, PublishConfig } from '@/types'
 
 interface EditorShellProps {
   scenarioId: string
@@ -507,12 +508,14 @@ function EditorUI({
   const [clips, setClips] = useState<Clip[]>([])
   const [youtubeAssets, setYouTubeAssets] = useState<YouTubeAsset[]>([])
   const [pexelsAssets, setPexelsAssets] = useState<PexelsAsset[]>([])
+  const [coverrAssets, setCoverrAssets] = useState<CoverrAsset[]>([])
   const [showAddYoutube, setShowAddYoutube] = useState(false)
 
   useEffect(() => {
     fetchClips(scenario.id).then(setClips).catch(() => {})
     fetchYouTubeAssets().then(setYouTubeAssets).catch(() => {})
     fetchPexelsAssets().then(setPexelsAssets).catch(() => {})
+    fetchCoverrAssets().then(setCoverrAssets).catch(() => {})
   }, [])
 
   const addClip = useCallback((clip: Clip) => {
@@ -607,6 +610,28 @@ function EditorUI({
   const attachPexelsPhotoToNode = useCallback((asset: PexelsAsset) => {
     if (!selectedNodeId || asset.type !== 'photo') return
     updateNode(selectedNodeId, { thumbnailUrl: asset.url })
+  }, [selectedNodeId, updateNode])
+
+  const addCoverrAsset = useCallback((asset: CoverrAsset) => {
+    setCoverrAssets(prev => prev.some(a => a.id === asset.id) ? prev : [asset, ...prev])
+  }, [])
+
+  const removeCoverrAsset = useCallback(async (id: string) => {
+    setCoverrAssets(prev => prev.filter(a => a.id !== id))
+    await deleteCoverrAssetFn(id).catch(() => {})
+  }, [])
+
+  const renameCoverrAsset = useCallback(async (id: string, title: string) => {
+    await renameCoverrAssetFn(id, title).catch(() => {})
+    setCoverrAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
+  }, [])
+
+  const attachCoverrVideoToNode = useCallback((asset: CoverrAsset) => {
+    if (!selectedNodeId) return
+    updateNode(selectedNodeId, {
+      clip: { id: asset.id, url: asset.url, duration: asset.duration, thumbnail: asset.thumbnailUrl },
+      youtubeAsset: undefined, youtubeStartTime: undefined, youtubeEndTime: undefined,
+    })
   }, [selectedNodeId, updateNode])
 
   const { errors, warnings } = validationResult
@@ -942,6 +967,11 @@ function EditorUI({
               onRenamePexelsAsset={renamePexelsAsset}
               onAttachPexelsVideoToNode={attachPexelsVideoToNode}
               onAttachPexelsPhotoToNode={attachPexelsPhotoToNode}
+              coverrAssets={coverrAssets}
+              onAddCoverrAsset={addCoverrAsset}
+              onRemoveCoverrAsset={removeCoverrAsset}
+              onRenameCoverrAsset={renameCoverrAsset}
+              onAttachCoverrVideoToNode={attachCoverrVideoToNode}
               onClose={() => setShowAssets(false)}
             />
           )}
