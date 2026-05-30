@@ -1,15 +1,19 @@
 'use client'
 
-import { X, CheckCircle2, AlertTriangle, AlertCircle, ArrowUpRight, Lightbulb } from 'lucide-react'
+import { X, CheckCircle2, AlertTriangle, AlertCircle, ArrowUpRight, Lightbulb, Plus, Wrench, Library } from 'lucide-react'
 import type { ValidationResult, ValidationIssue } from '@/types'
 
 interface ValidationPanelProps {
   result: ValidationResult
   onClose: () => void
   onSelectNode?: (nodeId: string) => void
+  onCreateEndingNode?: () => void
+  onAddChoice?: (nodeId: string) => void
+  onMarkAsEnding?: (nodeId: string) => void
+  onOpenAssets?: (nodeId: string) => void
 }
 
-export function ValidationPanel({ result, onClose, onSelectNode }: ValidationPanelProps) {
+export function ValidationPanel({ result, onClose, onSelectNode, onCreateEndingNode, onAddChoice, onMarkAsEnding, onOpenAssets }: ValidationPanelProps) {
   const { valid, errors, warnings } = result
   const totalIssues = errors.length + warnings.length
 
@@ -95,6 +99,10 @@ export function ValidationPanel({ result, onClose, onSelectNode }: ValidationPan
                   accentColor="oklch(70% 0.18 25)"
                   onSelectNode={onSelectNode}
                   onClose={onClose}
+                  onCreateEndingNode={onCreateEndingNode}
+                  onAddChoice={onAddChoice}
+                  onMarkAsEnding={onMarkAsEnding}
+                  onOpenAssets={onOpenAssets}
                 />
               )}
               {warnings.length > 0 && (
@@ -105,6 +113,10 @@ export function ValidationPanel({ result, onClose, onSelectNode }: ValidationPan
                   accentColor="oklch(80% 0.16 60)"
                   onSelectNode={onSelectNode}
                   onClose={onClose}
+                  onCreateEndingNode={onCreateEndingNode}
+                  onAddChoice={onAddChoice}
+                  onMarkAsEnding={onMarkAsEnding}
+                  onOpenAssets={onOpenAssets}
                 />
               )}
             </>
@@ -145,9 +157,13 @@ interface IssueSectionProps {
   accentColor: string
   onSelectNode?: (nodeId: string) => void
   onClose: () => void
+  onCreateEndingNode?: () => void
+  onAddChoice?: (nodeId: string) => void
+  onMarkAsEnding?: (nodeId: string) => void
+  onOpenAssets?: (nodeId: string) => void
 }
 
-function IssueSection({ label, count, issues, accentColor, onSelectNode, onClose }: IssueSectionProps) {
+function IssueSection({ label, count, issues, accentColor, onSelectNode, onClose, onCreateEndingNode, onAddChoice, onMarkAsEnding, onOpenAssets }: IssueSectionProps) {
   return (
     <div>
       {/* Section header */}
@@ -176,6 +192,10 @@ function IssueSection({ label, count, issues, accentColor, onSelectNode, onClose
             accentColor={accentColor}
             onSelectNode={onSelectNode}
             onClose={onClose}
+            onCreateEndingNode={onCreateEndingNode}
+            onAddChoice={onAddChoice}
+            onMarkAsEnding={onMarkAsEnding}
+            onOpenAssets={onOpenAssets}
           />
         ))}
       </div>
@@ -190,9 +210,13 @@ interface IssueCardProps {
   accentColor: string
   onSelectNode?: (nodeId: string) => void
   onClose: () => void
+  onCreateEndingNode?: () => void
+  onAddChoice?: (nodeId: string) => void
+  onMarkAsEnding?: (nodeId: string) => void
+  onOpenAssets?: (nodeId: string) => void
 }
 
-function IssueCard({ issue, accentColor, onSelectNode, onClose }: IssueCardProps) {
+function IssueCard({ issue, accentColor, onSelectNode, onClose, onCreateEndingNode, onAddChoice, onMarkAsEnding, onOpenAssets }: IssueCardProps) {
   const canJump = !!issue.nodeId && !!onSelectNode
 
   const handleJump = () => {
@@ -201,6 +225,44 @@ function IssueCard({ issue, accentColor, onSelectNode, onClose }: IssueCardProps
       onClose()
     }
   }
+
+  // Quick-fix action buttons based on fixType
+  const fixActions: Array<{ label: string; icon: React.ReactNode; action: () => void }> = []
+
+  if (issue.fixType === 'create-ending' && onCreateEndingNode) {
+    fixActions.push({
+      label: 'Create ending node',
+      icon: <Plus size={10} />,
+      action: () => { onCreateEndingNode(); onClose() },
+    })
+  }
+
+  if (issue.fixType === 'no-choices' && issue.nodeId) {
+    if (onAddChoice) {
+      fixActions.push({
+        label: 'Add choice',
+        icon: <Plus size={10} />,
+        action: () => { onAddChoice(issue.nodeId!); onClose() },
+      })
+    }
+    if (onMarkAsEnding) {
+      fixActions.push({
+        label: 'Mark as ending',
+        icon: <Wrench size={10} />,
+        action: () => { onMarkAsEnding(issue.nodeId!); onClose() },
+      })
+    }
+  }
+
+  if (issue.fixType === 'open-assets' && issue.nodeId && onOpenAssets) {
+    fixActions.push({
+      label: 'Open asset library',
+      icon: <Library size={10} />,
+      action: () => { onOpenAssets(issue.nodeId!); onClose() },
+    })
+  }
+
+  const hasActions = canJump || fixActions.length > 0
 
   return (
     <div
@@ -221,7 +283,7 @@ function IssueCard({ issue, accentColor, onSelectNode, onClose }: IssueCardProps
             {issue.message}
           </p>
 
-          {issue.suggestedFix && (
+          {issue.suggestedFix && fixActions.length === 0 && (
             <div className="flex items-start gap-1.5 mt-2">
               <Lightbulb size={10} className="mt-0.5 shrink-0" style={{ color: 'var(--fg-3)' }} />
               <p className="text-[10px] leading-relaxed" style={{ color: 'var(--fg-3)' }}>
@@ -232,16 +294,29 @@ function IssueCard({ issue, accentColor, onSelectNode, onClose }: IssueCardProps
         </div>
       </div>
 
-      {canJump && (
-        <div className="px-3.5 pb-2.5 flex justify-end">
-          <button
-            onClick={handleJump}
-            className="flex items-center gap-1 text-[10px] font-mono px-2.5 py-1.5 rounded-lg transition-all hover:opacity-90"
-            style={{ background: `${accentColor}14`, border: `1px solid ${accentColor}30`, color: accentColor }}
-          >
-            Go to scene
-            <ArrowUpRight size={10} />
-          </button>
+      {hasActions && (
+        <div className="px-3.5 pb-2.5 flex items-center gap-1.5 flex-wrap">
+          {fixActions.map(({ label, icon, action }) => (
+            <button
+              key={label}
+              onClick={action}
+              className="flex items-center gap-1 text-[10px] font-mono px-2.5 py-1.5 rounded-lg transition-all hover:opacity-90"
+              style={{ background: 'oklch(82% 0.18 165 / 0.1)', border: '1px solid oklch(82% 0.18 165 / 0.3)', color: 'oklch(82% 0.18 165)' }}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
+          {canJump && (
+            <button
+              onClick={handleJump}
+              className="flex items-center gap-1 text-[10px] font-mono px-2.5 py-1.5 rounded-lg transition-all hover:opacity-90 ml-auto"
+              style={{ background: `${accentColor}14`, border: `1px solid ${accentColor}30`, color: accentColor }}
+            >
+              Go to scene
+              <ArrowUpRight size={10} />
+            </button>
+          )}
         </div>
       )}
     </div>

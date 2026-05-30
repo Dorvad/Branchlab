@@ -198,6 +198,7 @@ export interface PlayerSessionState {
 }
 
 export type ValidationSeverity = 'error' | 'warning';
+export type ValidationFixType = 'create-ending' | 'no-choices' | 'open-assets';
 
 export interface ValidationIssue {
   id: string;
@@ -206,6 +207,7 @@ export interface ValidationIssue {
   choiceId?: string;
   message: string;
   suggestedFix?: string;
+  fixType?: ValidationFixType;
 }
 
 export interface ValidationResult {

@@ -1,4 +1,4 @@
-import type { Scenario, ScenarioNode, ValidationIssue, ValidationResult } from '@/types'
+import type { Scenario, ScenarioNode, ValidationIssue, ValidationResult, ValidationFixType } from '@/types'
 
 // ── Graph helpers ──────────────────────────────────────────────────────────────
 
@@ -61,14 +61,14 @@ let _seq = 0
 
 function err(
   message: string,
-  opts?: { nodeId?: string; choiceId?: string; suggestedFix?: string }
+  opts?: { nodeId?: string; choiceId?: string; suggestedFix?: string; fixType?: ValidationFixType }
 ): ValidationIssue {
   return { id: `vld-${++_seq}`, severity: 'error', message, ...opts }
 }
 
 function warn(
   message: string,
-  opts?: { nodeId?: string; choiceId?: string; suggestedFix?: string }
+  opts?: { nodeId?: string; choiceId?: string; suggestedFix?: string; fixType?: ValidationFixType }
 ): ValidationIssue {
   return { id: `vld-${++_seq}`, severity: 'warning', message, ...opts }
 }
@@ -113,7 +113,7 @@ export function validateScenario(scenario: Scenario): ValidationResult {
   if (!scenario.nodes.some(n => n.type === 'ending')) {
     issues.push(err(
       'No ending nodes. Players need at least one ending to complete the scenario.',
-      { suggestedFix: 'Change a terminal node\'s type to "Ending".' }
+      { suggestedFix: 'Change a terminal node\'s type to "Ending".', fixType: 'create-ending' }
     ))
   }
 
@@ -141,10 +141,11 @@ export function validateScenario(scenario: Scenario): ValidationResult {
     }
 
     // No video clip attached
-    if (!node.clip) {
+    if (!node.clip && !node.youtubeAsset) {
       issues.push(warn(`${label} has no video clip attached.`, {
         nodeId: node.id,
         suggestedFix: 'Attach a video clip in the inspector. The scenario can still play without one.',
+        fixType: 'open-assets',
       }))
     }
 
@@ -162,6 +163,7 @@ export function validateScenario(scenario: Scenario): ValidationResult {
         issues.push(err(`${label} has no choices. Players will be stuck here.`, {
           nodeId: node.id,
           suggestedFix: 'Add at least one choice in the inspector, or change this node\'s type to "Ending".',
+          fixType: 'no-choices',
         }))
       } else {
         // Has choices but still can't reach an ending (e.g. all paths cycle back)

@@ -685,6 +685,41 @@ function EditorUI({
     setShowValidation(false)
   }
 
+  const createEndingNode = useCallback(() => {
+    const maxY = scenario.nodes.length
+      ? Math.max(...scenario.nodes.map(n => n.position.y)) + 200
+      : 300
+    const newNode: ScenarioNode = {
+      id: `node-${Date.now()}`,
+      type: 'ending',
+      title: 'Ending',
+      description: '',
+      choices: [],
+      position: { x: 200 + Math.floor(Math.random() * 300), y: maxY },
+    }
+    setScenario(prev => prev ? ({ ...prev, nodes: [...prev.nodes, newNode] }) : prev)
+    setSelectedNodeId(newNode.id)
+    setIsDirty(true)
+    setShowValidation(false)
+  }, [scenario.nodes, setScenario, setSelectedNodeId, setIsDirty, setShowValidation])
+
+  const addChoiceFromValidation = useCallback((nodeId: string) => {
+    addChoice(nodeId)
+    setSelectedNodeId(nodeId)
+    setShowValidation(false)
+  }, [addChoice, setSelectedNodeId, setShowValidation])
+
+  const markNodeAsEnding = useCallback((nodeId: string) => {
+    updateNode(nodeId, { type: 'ending', choices: [] })
+    setShowValidation(false)
+  }, [updateNode, setShowValidation])
+
+  const openAssetsForNode = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId)
+    setShowAssets(true)
+    setShowValidation(false)
+  }, [setSelectedNodeId, setShowAssets, setShowValidation])
+
   // Validation button style: red if errors, amber if only warnings, muted if valid
   const validateBtnStyle = errorCount > 0
     ? { borderColor: 'oklch(70% 0.18 25 / 0.4)', color: 'oklch(70% 0.18 25)' }
@@ -1101,6 +1136,10 @@ function EditorUI({
           result={validationResult}
           onSelectNode={handleSelectFromValidation}
           onClose={() => setShowValidation(false)}
+          onCreateEndingNode={createEndingNode}
+          onAddChoice={addChoiceFromValidation}
+          onMarkAsEnding={markNodeAsEnding}
+          onOpenAssets={openAssetsForNode}
         />
       )}
 
