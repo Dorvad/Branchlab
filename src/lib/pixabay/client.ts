@@ -31,9 +31,10 @@ export async function searchPixabay(p: PixabaySearchParams): Promise<PixabayResp
   return res.json()
 }
 
-/** Thumbnail URL for a Pixabay video, constructed from picture_id. */
+/** Thumbnail URL for a Pixabay video, proxied server-side to bypass Vimeo CDN hotlink protection. */
 export function videoThumbnail(video: PixabayVideo): string {
-  return `https://i.vimeocdn.com/video/${video.picture_id}_295x166.jpg`
+  const vimeoUrl = `https://i.vimeocdn.com/video/${video.picture_id}_295x166.jpg`
+  return `/api/pixabay/thumbnail?url=${encodeURIComponent(vimeoUrl)}`
 }
 
 /** Pick best available video file: large → medium → small → tiny. */
