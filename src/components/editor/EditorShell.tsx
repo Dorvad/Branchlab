@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Save, Library, Loader2, Monitor, Smartphone, ChevronDown, Download, Trash2 } from 'lucide-react'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Library, Loader2, Monitor, Smartphone, ChevronDown, Download, Trash2, MoreHorizontal } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -703,91 +703,179 @@ function EditorUI({
 
       {/* ── Top bar ───────────────────────────────────────────────────────── */}
       <header
-        className="flex items-center justify-between px-4 h-[52px] shrink-0 z-20 border-b"
+        className="flex items-center gap-3 px-4 h-[52px] shrink-0 z-20 border-b"
         style={{
           borderColor: 'var(--line-1)',
           background: 'var(--bg-glass)',
           backdropFilter: 'blur(16px)',
         }}
       >
-        {/* Left */}
-        <div className="flex items-center gap-3 min-w-0">
+        {/* ── Left: nav + identity ─────────────────────────────────────────── */}
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <Link
             href="/dashboard"
-            className="shrink-0 flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink-1 transition-colors"
+            className="shrink-0 flex items-center gap-1.5 text-xs font-mono transition-colors"
+            style={{ color: 'var(--fg-3)' }}
           >
-            <ArrowLeft size={14} />
+            <ArrowLeft size={13} />
             <span className="hidden sm:inline">Dashboard</span>
           </Link>
-          <span style={{ color: 'var(--line-3)' }}>/</span>
+
+          <span className="text-[10px]" style={{ color: 'var(--line-3)' }}>/</span>
+
           <EditableTitle
             value={scenario.title}
             onChange={title => { setScenario(prev => prev ? { ...prev, title } : prev); setIsDirty(true) }}
           />
+
           <StatusPill status={scenario.status} />
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="shrink-0 flex items-center justify-center w-6 h-6 rounded-lg transition-all hover:bg-[var(--tint-3)]"
-            style={{ color: 'var(--fg-4)' }}
-            title="Delete scenario"
-          >
-            <Trash2 size={13} />
-          </button>
+
+          {/* ⋮ Kebab — export & danger actions */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setShowExportMenu(v => !v)}
+              className="flex items-center justify-center w-6 h-6 rounded-lg transition-colors hover:bg-[var(--tint-3)]"
+              style={{ color: 'var(--fg-4)' }}
+              title="More options"
+            >
+              {isExporting
+                ? <Loader2 size={13} className="animate-spin" />
+                : <MoreHorizontal size={13} />}
+            </button>
+
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowExportMenu(false)} />
+                <div
+                  className="absolute left-0 top-full mt-1.5 rounded-xl overflow-hidden z-40"
+                  style={{
+                    background: 'var(--bg-1)',
+                    border: '1px solid var(--line-2)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                    minWidth: 195,
+                  }}
+                >
+                  <div className="py-1">
+                    <p className="px-3.5 pt-1.5 pb-1 text-[9px] font-mono uppercase tracking-widest" style={{ color: 'var(--fg-4)' }}>
+                      Export
+                    </p>
+                    {[
+                      {
+                        label: 'Export .blab',
+                        description: 'Scenario data (no videos)',
+                        action: () => { setShowExportMenu(false); exportToBlab(scenario) },
+                        disabled: false,
+                      },
+                      {
+                        label: 'Export ZIP',
+                        description: 'Scenario + video files',
+                        action: async () => {
+                          setShowExportMenu(false)
+                          setIsExporting(true)
+                          try { await exportToZip(scenario) } finally { setIsExporting(false) }
+                        },
+                        disabled: false,
+                      },
+                      {
+                        label: 'Export SCORM 1.2',
+                        description: 'LMS package — must be published',
+                        action: async () => {
+                          setShowExportMenu(false)
+                          setIsExporting(true)
+                          try { await exportScorm12(scenario) }
+                          catch (e) { alert((e as Error).message) }
+                          finally { setIsExporting(false) }
+                        },
+                        disabled: !scenario.publishedVersion,
+                      },
+                      {
+                        label: 'Export xAPI',
+                        description: 'Statement templates (.json)',
+                        action: () => { setShowExportMenu(false); exportXapiStatements(scenario) },
+                        disabled: false,
+                      },
+                    ].map(({ label, description, action, disabled }) => (
+                      <button
+                        key={label}
+                        onClick={() => { void action() }}
+                        disabled={disabled}
+                        className="w-full flex flex-col items-start px-3.5 py-2 text-left transition-colors hover:bg-[var(--tint-3)] disabled:opacity-35 disabled:cursor-not-allowed"
+                      >
+                        <span className="text-xs font-mono" style={{ color: 'var(--fg-1)' }}>{label}</span>
+                        <span className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>{description}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Divider */}
+                  <div className="mx-2 my-1 h-px" style={{ background: 'var(--line-1)' }} />
+
+                  {/* Danger zone */}
+                  <div className="py-1">
+                    <button
+                      onClick={() => { setShowExportMenu(false); setShowDeleteConfirm(true) }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-[oklch(70%_0.18_25_/_0.08)]"
+                    >
+                      <Trash2 size={12} style={{ color: 'oklch(70% 0.18 25)' }} />
+                      <div>
+                        <p className="text-xs font-mono" style={{ color: 'oklch(70% 0.18 25)' }}>Delete scenario</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>Permanently remove this scenario</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Right */}
-        <div className="flex items-center gap-2">
+        {/* ── Right: actions ────────────────────────────────────────────────── */}
+        <div className="flex items-center gap-1.5 shrink-0">
+
+          {/* Secondary: Assets */}
           <button
             onClick={() => setShowAssets(v => !v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
             style={{
-              borderColor: showAssets ? 'var(--line-4)' : 'var(--line-2)',
-              color: showAssets ? 'var(--fg-1)' : 'var(--fg-2)',
+              borderColor: showAssets ? 'var(--line-3)' : 'var(--line-1)',
+              color: showAssets ? 'var(--fg-1)' : 'var(--fg-3)',
+              background: showAssets ? 'var(--tint-2)' : 'transparent',
             }}
           >
             <Library size={12} />
             Assets
             {clips.length > 0 && (
               <span
-                className="px-1.5 py-px rounded-full font-mono text-[9px]"
-                style={{ background: 'var(--tint-3)', color: 'var(--fg-2)' }}
+                className="px-1 py-px rounded-full font-mono text-[8px] leading-none"
+                style={{ background: 'var(--tint-3)', color: 'var(--fg-3)' }}
               >
                 {clips.length}
               </span>
             )}
           </button>
 
+          {/* Secondary: Validate */}
           <button
             onClick={() => setShowValidation(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
             style={validateBtnStyle}
           >
-            {errorCount > 0 ? (
-              <><AlertTriangle size={12} /> {validateBtnLabel}</>
-            ) : warningCount > 0 ? (
-              <><AlertTriangle size={12} /> {validateBtnLabel}</>
-            ) : (
-              <><CheckCircle2 size={12} /> {validateBtnLabel}</>
-            )}
+            {errorCount > 0 || warningCount > 0
+              ? <AlertTriangle size={12} />
+              : <CheckCircle2 size={12} />}
+            {validateBtnLabel}
           </button>
 
-          <button
-            onClick={handleSave}
-            disabled={isSaving || !isDirty}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)] disabled:opacity-40"
-            style={{
-              borderColor: isDirty && !isSaving ? 'var(--line-4)' : 'var(--line-1)',
-              color: isDirty && !isSaving ? 'var(--fg-1)' : 'var(--fg-3)',
-            }}
-            title={isSaving ? 'Saving…' : isDirty ? 'Save now (⌘S)' : 'All changes saved'}
-          >
-            {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-            {isSaving ? 'Saving…' : isDirty ? 'Save now' : 'Saved'}
-          </button>
+          {/* Utility divider */}
+          <div className="w-px h-4 mx-0.5" style={{ background: 'var(--line-2)' }} />
 
+          {/* Utility: Theme */}
           <ThemeToggle />
 
-          {/* ── Preview split button ──────────────────────────────────────── */}
+          {/* Utility divider */}
+          <div className="w-px h-4 mx-0.5" style={{ background: 'var(--line-2)' }} />
+
+          {/* Primary: Preview split button */}
           <div className="relative">
             <div
               className="flex items-stretch rounded-xl overflow-hidden border"
@@ -804,8 +892,9 @@ function EditorUI({
               <div style={{ width: 1, background: 'var(--line-2)' }} />
               <button
                 onClick={() => setShowPreviewMenu(v => !v)}
-                className="flex items-center px-2 py-1.5 text-xs transition-all hover:bg-[var(--tint-3)]"
+                className="flex items-center px-2 py-1.5 transition-all hover:bg-[var(--tint-3)]"
                 style={{ color: 'var(--fg-3)' }}
+                aria-label="Preview options"
               >
                 <ChevronDown size={11} />
               </button>
@@ -829,10 +918,7 @@ function EditorUI({
                   ].map(({ icon, label, device }) => (
                     <button
                       key={device}
-                      onClick={() => {
-                        setShowPreviewMenu(false)
-                        handlePreview(device)
-                      }}
+                      onClick={() => { setShowPreviewMenu(false); handlePreview(device) }}
                       className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-mono text-left transition-colors hover:bg-[var(--tint-3)]"
                       style={{ color: 'var(--fg-1)' }}
                     >
@@ -845,85 +931,15 @@ function EditorUI({
             )}
           </div>
 
-          {/* ── Export dropdown ───────────────────────────────────────────── */}
-          <div className="relative">
-            <button
-              onClick={() => setShowExportMenu(v => !v)}
-              disabled={isExporting}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)] disabled:opacity-40"
-              style={{ borderColor: 'var(--line-2)', color: 'var(--fg-3)' }}
-            >
-              {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-              Export
-              <ChevronDown size={10} />
-            </button>
-            {showExportMenu && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setShowExportMenu(false)} />
-                <div
-                  className="absolute right-0 top-full mt-1.5 rounded-xl overflow-hidden z-40"
-                  style={{
-                    background: 'var(--bg-1)',
-                    border: '1px solid var(--line-2)',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-                    minWidth: 185,
-                  }}
-                >
-                  {[
-                    {
-                      label: 'Export .blab',
-                      description: 'Scenario data (no videos)',
-                      action: () => { setShowExportMenu(false); exportToBlab(scenario) },
-                      disabled: false,
-                    },
-                    {
-                      label: 'Export ZIP',
-                      description: 'Scenario + video files',
-                      action: async () => {
-                        setShowExportMenu(false)
-                        setIsExporting(true)
-                        try { await exportToZip(scenario) } finally { setIsExporting(false) }
-                      },
-                      disabled: false,
-                    },
-                    {
-                      label: 'Export SCORM 1.2',
-                      description: 'LMS package (must be published)',
-                      action: async () => {
-                        setShowExportMenu(false)
-                        setIsExporting(true)
-                        try { await exportScorm12(scenario) }
-                        catch (e) { alert((e as Error).message) }
-                        finally { setIsExporting(false) }
-                      },
-                      disabled: !scenario.publishedVersion,
-                    },
-                    {
-                      label: 'Export xAPI',
-                      description: 'Statement templates (.json)',
-                      action: () => { setShowExportMenu(false); exportXapiStatements(scenario) },
-                      disabled: false,
-                    },
-                  ].map(({ label, description, action, disabled }) => (
-                    <button
-                      key={label}
-                      onClick={() => { void action() }}
-                      disabled={disabled}
-                      className="w-full flex flex-col items-start px-3.5 py-2.5 text-left transition-colors hover:bg-[var(--tint-3)] disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <span className="text-xs font-mono" style={{ color: 'var(--fg-1)' }}>{label}</span>
-                      <span className="text-[10px] mt-0.5" style={{ color: 'var(--fg-4)' }}>{description}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
+          {/* Primary: Publish */}
           <button
             onClick={() => scenario.publishedVersion ? setShowRepublish(true) : setShowPublish(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-all hover:bg-[var(--tint-3)]"
-            style={{ borderColor: 'var(--line-2)', color: 'var(--fg-2)' }}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-mono transition-all hover:brightness-110"
+            style={{
+              background: 'oklch(82% 0.18 165 / 0.12)',
+              border: '1px solid oklch(82% 0.18 165 / 0.35)',
+              color: 'oklch(82% 0.18 165)',
+            }}
           >
             <Globe size={12} />
             {scenario.publishedVersion ? 'Republish' : 'Publish'}
