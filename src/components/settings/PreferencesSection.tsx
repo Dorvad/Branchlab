@@ -4,6 +4,7 @@ import { SettingsSection } from './SettingsSection'
 import { SettingRow } from './SettingRow'
 import { SegmentedControl } from './SegmentedControl'
 import { SaveBar } from './SaveBar'
+import { resetOnboarding } from '@/lib/onboarding'
 import type {
   UserPreferences, SaveState,
   ThemePreference, InterfaceDensity, MotionPreference,
@@ -153,6 +154,32 @@ export function PreferencesSection({ data, onSave }: Props) {
       </SettingsSection>
 
       <SaveBar saveState={saveState} onSave={handleSave} onReset={handleReset} />
+
+      <SettingsSection sectionKey="getting-started" title="Getting Started" subtitle="Onboarding checklist shown inside the scenario editor.">
+        <SettingRow label="Reset onboarding" hint="Shows the Getting Started checklist again the next time you open a scenario.">
+          <OnboardingResetButton />
+        </SettingRow>
+      </SettingsSection>
     </>
+  )
+}
+
+function OnboardingResetButton() {
+  const [done, setDone] = useState(false)
+  return (
+    <button
+      type="button"
+      disabled={done}
+      onClick={() => { resetOnboarding(); setDone(true); setTimeout(() => setDone(false), 2000) }}
+      className="px-3 py-1.5 rounded-lg text-xs font-mono transition-all"
+      style={{
+        color: done ? 'oklch(82% 0.18 165)' : 'var(--fg-2)',
+        border: `1px solid ${done ? 'oklch(82% 0.18 165 / 0.4)' : 'var(--line-2)'}`,
+        background: done ? 'oklch(82% 0.18 165 / 0.08)' : 'transparent',
+        opacity: done ? 0.8 : 1,
+      }}
+    >
+      {done ? 'Checklist reset ✓' : 'Reset onboarding'}
+    </button>
   )
 }

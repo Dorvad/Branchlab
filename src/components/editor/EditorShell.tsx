@@ -28,6 +28,8 @@ import { AddYouTubeModal } from './AddYouTubeModal'
 import { exportToBlab } from '@/lib/blab-format'
 import { exportToZip } from '@/lib/zip-export'
 import { exportScorm12, exportXapiStatements } from '@/lib/scorm-export'
+import { getOnboardingState, dismissOnboarding, markScenarioPreviewed, hasPreviewedScenario } from '@/lib/onboarding'
+import { OnboardingChecklist } from './OnboardingChecklist'
 import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, YouTubeAsset, PexelsAsset, CoverrAsset, PixabayAsset, PublishConfig } from '@/types'
 
 interface EditorShellProps {
@@ -201,6 +203,15 @@ function EditorUI({
   const [showPreviewMenu, setShowPreviewMenu] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [showChecklist, setShowChecklist] = useState(() => !getOnboardingState().dismissed)
+  const [hasPreviewed, setHasPreviewed] = useState(() => hasPreviewedScenario(scenario.id))
+
+  const handlePreview = async (device: string) => {
+    if (isDirty) await handleSave()
+    markScenarioPreviewed(scenario.id)
+    setHasPreviewed(true)
+    window.open(`/preview/${scenario.id}?device=${device}`, '_blank', 'noopener,noreferrer')
+  }
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Refs so the autosave timeout always reads the latest state without stale closures
   const scenarioRef = useRef(scenario)
@@ -783,10 +794,7 @@ function EditorUI({
               style={{ borderColor: 'var(--line-2)' }}
             >
               <button
-                onClick={async () => {
-                  if (isDirty) await handleSave()
-                  window.open(`/preview/${scenario.id}?device=mobile`, '_blank', 'noopener,noreferrer')
-                }}
+                onClick={() => handlePreview('mobile')}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono transition-all hover:bg-[var(--tint-3)]"
                 style={{ color: 'var(--fg-1)' }}
               >
@@ -821,10 +829,9 @@ function EditorUI({
                   ].map(({ icon, label, device }) => (
                     <button
                       key={device}
-                      onClick={async () => {
+                      onClick={() => {
                         setShowPreviewMenu(false)
-                        if (isDirty) await handleSave()
-                        window.open(`/preview/${scenario.id}?device=${device}`, '_blank', 'noopener,noreferrer')
+                        handlePreview(device)
                       }}
                       className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-mono text-left transition-colors hover:bg-[var(--tint-3)]"
                       style={{ color: 'var(--fg-1)' }}
@@ -1119,6 +1126,20 @@ function EditorUI({
             onSave={asset => { addYouTubeAsset(asset); setShowAddYoutube(false) }}
             onClose={() => setShowAddYoutube(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── Onboarding checklist ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showChecklist && (
+          <div className="fixed bottom-[50px] right-4 z-20 pointer-events-auto">
+            <OnboardingChecklist
+              scenario={scenario}
+              derivedEdges={derivedEdges}
+              hasPreviewed={hasPreviewed}
+              onDismiss={() => { dismissOnboarding(); setShowChecklist(false) }}
+            />
+          </div>
         )}
       </AnimatePresence>
     </div>
