@@ -24,6 +24,7 @@ import {
 import { getAllScenarios, saveScenario, deleteScenario } from '@/lib/persistence/scenarios'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
+import { isSupabaseMode } from '@/lib/persistence/mode'
 import { fetchClips, uploadClip, deleteClip, formatFileSize, formatDuration, ACCEPTED_EXTENSIONS, LARGE_FILE_WARNING_BYTES } from '@/lib/supabase/clips'
 import { exportToBlab, importFromBlab, blabToScenario } from '@/lib/blab-format'
 import { exportToZip, importFromZip } from '@/lib/zip-export'
@@ -68,6 +69,11 @@ export default function DashboardPage() {
 
   // Auth guard — runs once on mount
   useEffect(() => {
+    if (!isSupabaseMode()) {
+      // Local mode: no auth required — use a placeholder so scenario loading proceeds
+      setUser({ id: 'local', email: 'local@branchlab' } as unknown as User)
+      return
+    }
     const sb = getSupabaseClient()
     sb.auth.getUser().then(res => {
       const u = res.data?.user

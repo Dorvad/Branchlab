@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Download, Check, Loader2, Play } from 'lucide-react'
+import { Download, Check, Loader2, Play, Film, Image as ImageIcon } from 'lucide-react'
 import { videoThumbnail } from '@/lib/pixabay/client'
 import type { PixabayImage, PixabayVideo } from '@/lib/pixabay/types'
 
@@ -15,6 +15,7 @@ interface PixabayResultCardProps {
 
 export function PixabayResultCard({ item, type, isSaving, isSaved, onSave }: PixabayResultCardProps) {
   const [hovered, setHovered] = useState(false)
+  const [imgFailed, setImgFailed] = useState(false)
 
   const thumbnailUrl = type === 'video'
     ? videoThumbnail(item as PixabayVideo)
@@ -37,12 +38,24 @@ export function PixabayResultCard({ item, type, isSaving, isSaved, onSave }: Pix
       onMouseLeave={() => setHovered(false)}
     >
       <div className="relative aspect-video overflow-hidden" style={{ background: 'var(--bg-1)' }}>
-        <img
-          src={thumbnailUrl}
-          alt=""
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
+        {imgFailed ? (
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ background: 'var(--tint-2)' }}
+          >
+            {type === 'video'
+              ? <Film size={20} style={{ color: 'var(--fg-4)' }} />
+              : <ImageIcon size={20} style={{ color: 'var(--fg-4)' }} />}
+          </div>
+        ) : (
+          <img
+            src={thumbnailUrl}
+            alt=""
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => setImgFailed(true)}
+          />
+        )}
 
         {/* Duration for videos */}
         {duration != null && (

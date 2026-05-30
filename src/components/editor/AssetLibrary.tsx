@@ -748,10 +748,15 @@ function SavedStockRow({
   onRemove: () => void
   attachLabel: string
 }) {
+  const [imgFailed, setImgFailed] = useState(false)
   return (
     <div className="flex items-center gap-2 px-2.5 py-2">
       <div className="relative shrink-0 w-10 h-7 rounded overflow-hidden" style={{ background: 'var(--bg-1)' }}>
-        <img src={thumbnail} alt="" className="w-full h-full object-cover" />
+        {imgFailed
+          ? <div className="w-full h-full flex items-center justify-center" style={{ background: 'var(--tint-2)' }}>
+              <Film size={10} style={{ color: 'var(--fg-4)' }} />
+            </div>
+          : <img src={thumbnail} alt="" className="w-full h-full object-cover" onError={() => setImgFailed(true)} />}
         {type === 'image' && (
           <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
             <Image size={8} style={{ color: '#fff' }} />
