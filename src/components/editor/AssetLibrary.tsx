@@ -1,7 +1,11 @@
 'use client'
 
 import { useRef, useState, useCallback, useId, useMemo } from 'react'
-import { X, Upload, Film, Trash2, Link2, Info, Search, Check, RefreshCw, Youtube, Folder, Pencil, FolderPlus, ChevronDown, ChevronRight, Globe, Image } from 'lucide-react'
+import {
+  X, Upload, Film, Trash2, Link2, Info, Search, Check, RefreshCw,
+  Youtube, Folder, Pencil, FolderPlus, ChevronDown, ChevronRight,
+  Globe, Image, ChevronUp,
+} from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   formatFileSize, formatDuration,
@@ -33,7 +37,7 @@ function persistFolders(map: Record<string, string>): void {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type LibraryTab = 'my-library' | 'stock'
+type LibraryTab = 'upload' | 'link' | 'stock'
 type StockProvider = 'pexels' | 'coverr' | 'pixabay'
 
 interface AssetLibraryProps {
@@ -124,38 +128,28 @@ export function AssetLibrary({
 }: AssetLibraryProps) {
   const fileInputId = useId()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [activeTab, setActiveTab] = useState<LibraryTab>('my-library')
+  const [activeTab, setActiveTab] = useState<LibraryTab>('upload')
   const [stockProvider, setStockProvider] = useState<StockProvider>('pexels')
+  const [savedExpanded, setSavedExpanded] = useState(true)
   const [isDragging, setIsDragging] = useState(false)
   const [uploads, setUploads] = useState<UploadItem[]>([])
-  const [search, setSearch] = useState('')
+  const [clipSearch, setClipSearch] = useState('')
+  const [ytSearch, setYtSearch] = useState('')
   const [folders, setFolders] = useState<Record<string, string>>(loadFolders)
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
 
   void LARGE_FILE_WARNING_BYTES
 
-  const q = search.toLowerCase().trim()
-  const filteredClips = q ? clips.filter(c => c.name.toLowerCase().includes(q)) : clips
-  const filteredYoutube = q
+  const cq = clipSearch.toLowerCase().trim()
+  const yq = ytSearch.toLowerCase().trim()
+
+  const filteredClips = cq ? clips.filter(c => c.name.toLowerCase().includes(cq)) : clips
+  const filteredYoutube = yq
     ? youtubeAssets.filter(a =>
-        a.youtubeVideoId.toLowerCase().includes(q) ||
-        (a.title ?? '').toLowerCase().includes(q)
+        a.youtubeVideoId.toLowerCase().includes(yq) ||
+        (a.title ?? '').toLowerCase().includes(yq)
       )
     : youtubeAssets
-  const filteredPexels = q
-    ? pexelsAssets.filter(a =>
-        a.title.toLowerCase().includes(q) ||
-        a.photographer.toLowerCase().includes(q)
-      )
-    : pexelsAssets
-  const filteredCoverr = q
-    ? coverrAssets.filter(a => a.title.toLowerCase().includes(q))
-    : coverrAssets
-  const filteredPixabay = q
-    ? pixabayAssets.filter(a => a.title.toLowerCase().includes(q) || a.user.toLowerCase().includes(q))
-    : pixabayAssets
-
-  const totalAssets = clips.length + youtubeAssets.length + pexelsAssets.length + coverrAssets.length + pixabayAssets.length
 
   const folderNames = useMemo(() => [...new Set(Object.values(folders))].sort(), [folders])
 
@@ -233,7 +227,7 @@ export function AssetLibrary({
     setTimeout(() => {
       setUploads(prev => prev.filter(u => u.status === 'failed'))
     }, 2000)
-  }, [onAddClip])
+  }, [onAddClip, scenarioId])
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -281,12 +275,36 @@ export function AssetLibrary({
     (clipsByFolder.groups[name]?.length ?? 0) + (youtubeByFolder.groups[name]?.length ?? 0) > 0
 
   const visibleFolders = folderNames.filter(folderHasAssets)
-  const hasUngrouped = clipsByFolder.ungrouped.length > 0 || youtubeByFolder.ungrouped.length > 0
+  const hasUngroupedClips = clipsByFolder.ungrouped.length > 0
+  const hasUngroupedYoutube = youtubeByFolder.ungrouped.length > 0
 
-  // Saved IDs sets for Stock tab (to show checkmarks on already-saved items)
+  // Saved IDs sets for Stock tab checkmarks
   const savedPexelsIds  = useMemo(() => new Set(pexelsAssets.map(a => a.pexelsId)),   [pexelsAssets])
   const savedCoverrIds  = useMemo(() => new Set(coverrAssets.map(a => a.coverrId)),   [coverrAssets])
   const savedPixabayIds = useMemo(() => new Set(pixabayAssets.map(a => a.pixabayId)), [pixabayAssets])
+
+  const attachBanner = canAttach && selectedNodeTitle ? (
+    <div className="flex items-center gap-2 px-3 py-2 mx-3 mt-3 rounded-xl shrink-0" style={{ background: 'oklch(82% 0.18 165 / 0.06)', border: '1px solid oklch(82% 0.18 165 / 0.2)' }}>
+      <Link2 size={10} style={{ color: 'oklch(82% 0.18 165)', flexShrink: 0 }} />
+      <p className="text-[10px] leading-snug" style={{ color: 'oklch(82% 0.18 165)' }}>
+        {(nodeClipId || nodeYoutubeAssetId || nodePexelsAssetId) ? 'Replace clip on' : 'Attach to'}{' '}
+        <span className="font-medium">&quot;{selectedNodeTitle}&quot;</span>
+      </p>
+    </div>
+  ) : null
+
+  const selectNodeHint = !canAttach && (clips.length > 0 || youtubeAssets.length > 0) ? (
+    <div className="flex items-center gap-2 px-3 py-2 mx-3 mt-3 rounded-xl shrink-0" style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}>
+      <Info size={10} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
+      <p className="text-[10px]" style={{ color: 'var(--fg-3)' }}>Select a node to attach clips</p>
+    </div>
+  ) : null
+
+  const TABS: { id: LibraryTab; label: string }[] = [
+    { id: 'upload', label: 'Upload' },
+    { id: 'link',   label: 'Link'   },
+    { id: 'stock',  label: 'Stock'  },
+  ]
 
   return (
     <motion.aside
@@ -312,17 +330,13 @@ export function AssetLibrary({
 
         {/* Tab bar */}
         <div className="flex shrink-0 border-b" style={{ borderColor: 'var(--line-1)' }}>
-          {([
-            { id: 'my-library' as LibraryTab, label: 'My Library', icon: <Film size={10} /> },
-            { id: 'stock' as LibraryTab, label: 'Stock', icon: <Globe size={10} /> },
-          ] as const).map(tab => (
+          {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-mono relative transition-colors"
+              className="flex-1 py-2.5 text-[11px] font-mono relative transition-colors"
               style={{ color: activeTab === tab.id ? 'var(--fg-0)' : 'var(--fg-3)' }}
             >
-              {tab.icon}
               {tab.label}
               {activeTab === tab.id && (
                 <div
@@ -334,38 +348,11 @@ export function AssetLibrary({
           ))}
         </div>
 
-        {/* Tab content */}
-        {activeTab === 'stock' ? (
-          <div className="flex flex-col flex-1 overflow-hidden">
-            {/* Provider selector */}
-            <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-2 shrink-0">
-              {(['pexels', 'coverr', 'pixabay'] as const).map(p => (
-                <button
-                  key={p}
-                  onClick={() => setStockProvider(p)}
-                  className="px-3 py-1 rounded-lg text-[10px] font-mono transition-all capitalize"
-                  style={{
-                    background: stockProvider === p ? 'oklch(82% 0.18 165 / 0.12)' : 'var(--tint-2)',
-                    border: `1px solid ${stockProvider === p ? 'oklch(82% 0.18 165 / 0.35)' : 'var(--line-1)'}`,
-                    color: stockProvider === p ? 'oklch(82% 0.18 165)' : 'var(--fg-3)',
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            <div className="flex-1 overflow-hidden">
-              {stockProvider === 'pexels' ? (
-                <PexelsPanel savedPexelsIds={savedPexelsIds} onSaveAsset={onAddPexelsAsset} />
-              ) : stockProvider === 'coverr' ? (
-                <CoverrPanel savedCoverrIds={savedCoverrIds} onSaveAsset={onAddCoverrAsset} />
-              ) : (
-                <PixabayPanel savedPixabayIds={savedPixabayIds} onSaveAsset={onAddPixabayAsset} />
-              )}
-            </div>
-          </div>
-        ) : (
+        {/* ── Upload tab ─────────────────────────────────────────────────────── */}
+        {activeTab === 'upload' && (
           <div className="flex-1 overflow-y-auto">
+            {attachBanner}
+            {selectNodeHint}
             <div className="p-3 space-y-3">
 
               {/* Drop zone */}
@@ -408,20 +395,6 @@ export function AssetLibrary({
                 </div>
               </div>
 
-              {/* Add YouTube URL */}
-              <button
-                onClick={onOpenAddYoutube}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-mono transition-all hover:brightness-110"
-                style={{
-                  background: 'rgba(255,0,0,0.06)',
-                  border: '1px solid rgba(255,0,0,0.2)',
-                  color: '#ff5555',
-                }}
-              >
-                <Youtube size={11} />
-                Add YouTube URL
-              </button>
-
               {/* Upload status rows */}
               <AnimatePresence>
                 {uploads.length > 0 && (
@@ -433,31 +406,14 @@ export function AssetLibrary({
                 )}
               </AnimatePresence>
 
-              {/* Attach context banner */}
-              {canAttach && selectedNodeTitle && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'oklch(82% 0.18 165 / 0.06)', border: '1px solid oklch(82% 0.18 165 / 0.2)' }}>
-                  <Link2 size={10} style={{ color: 'oklch(82% 0.18 165)', flexShrink: 0 }} />
-                  <p className="text-[10px] leading-snug" style={{ color: 'oklch(82% 0.18 165)' }}>
-                    {(nodeClipId || nodeYoutubeAssetId || nodePexelsAssetId) ? 'Replace clip on' : 'Attach to'}{' '}
-                    <span className="font-medium">&quot;{selectedNodeTitle}&quot;</span>
-                  </p>
-                </div>
-              )}
-              {!canAttach && totalAssets > 0 && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'var(--tint-1)', border: '1px solid var(--line-1)' }}>
-                  <Info size={10} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
-                  <p className="text-[10px]" style={{ color: 'var(--fg-3)' }}>Select a node to attach clips</p>
-                </div>
-              )}
-
               {/* Search */}
-              {totalAssets > 3 && (
+              {clips.length > 3 && (
                 <div className="relative">
                   <Search size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
                   <input
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Filter assets…"
+                    value={clipSearch}
+                    onChange={e => setClipSearch(e.target.value)}
+                    placeholder="Filter uploads…"
                     className="w-full pl-7 pr-3 py-1.5 rounded-lg text-[11px] outline-none transition-colors"
                     style={{ background: 'var(--tint-1)', border: '1px solid var(--line-2)', color: 'var(--fg-1)' }}
                   />
@@ -465,29 +421,28 @@ export function AssetLibrary({
               )}
 
               {/* Empty state */}
-              {totalAssets === 0 && uploads.length === 0 && (
+              {clips.length === 0 && uploads.length === 0 && (
                 <div className="py-8 text-center">
-                  <Film size={22} className="mx-auto mb-3 opacity-20" style={{ color: 'var(--fg-2)' }} />
-                  <p className="text-[11px] font-mono text-ink-4">No assets yet</p>
+                  <Upload size={22} className="mx-auto mb-3 opacity-20" style={{ color: 'var(--fg-2)' }} />
+                  <p className="text-[11px] font-mono text-ink-4">No uploads yet</p>
                   <p className="text-[10px] mt-1 font-mono" style={{ color: 'var(--fg-4)' }}>
-                    Upload files, add a YouTube link,<br />or browse the Stock tab
+                    Drop video files or click above
                   </p>
                 </div>
               )}
 
               {/* No search results */}
-              {q && filteredClips.length === 0 && filteredYoutube.length === 0 && filteredPexels.length === 0 && (
+              {cq && filteredClips.length === 0 && (
                 <div className="py-6 text-center">
-                  <p className="text-[11px] font-mono" style={{ color: 'var(--fg-4)' }}>No assets match &ldquo;{search}&rdquo;</p>
+                  <p className="text-[11px] font-mono" style={{ color: 'var(--fg-4)' }}>No clips match &ldquo;{clipSearch}&rdquo;</p>
                 </div>
               )}
 
-              {/* ── Folder sections ──────────────────────────────────────── */}
+              {/* Folder sections */}
               {visibleFolders.map(name => {
                 const folderClips = clipsByFolder.groups[name] ?? []
-                const folderYoutube = youtubeByFolder.groups[name] ?? []
                 const isCollapsed = collapsedFolders.has(name)
-                const count = folderClips.length + folderYoutube.length
+                const count = folderClips.length
                 return (
                   <div key={name} className="space-y-1.5">
                     <button
@@ -503,21 +458,6 @@ export function AssetLibrary({
                     </button>
                     {!isCollapsed && (
                       <div className="space-y-1.5 pl-3 border-l" style={{ borderColor: 'var(--line-1)' }}>
-                        {folderYoutube.map(asset => (
-                          <YouTubeCard
-                            key={asset.id}
-                            asset={asset}
-                            canAttach={canAttach}
-                            nodeYoutubeAssetId={nodeYoutubeAssetId}
-                            nodeClipId={nodeClipId}
-                            folderName={name}
-                            allFolderNames={folderNames}
-                            onAttach={() => onAttachYouTubeToNode(asset.id)}
-                            onRemove={() => handleRemoveYoutube(asset)}
-                            onRename={title => onRenameYouTubeAsset(asset.id, title)}
-                            onMoveToFolder={f => moveToFolder(asset.id, f)}
-                          />
-                        ))}
                         {folderClips.map(clip => (
                           <ClipCard
                             key={clip.id}
@@ -538,8 +478,8 @@ export function AssetLibrary({
                 )
               })}
 
-              {/* ── Ungrouped uploads & YouTube ──────────────────────────── */}
-              {hasUngrouped && (
+              {/* Ungrouped clips */}
+              {hasUngroupedClips && (
                 <div className="space-y-1.5">
                   {visibleFolders.length > 0 && (
                     <div className="flex items-center gap-2 py-0.5">
@@ -548,21 +488,6 @@ export function AssetLibrary({
                       <div className="h-px flex-1" style={{ background: 'var(--line-1)' }} />
                     </div>
                   )}
-                  {youtubeByFolder.ungrouped.map(asset => (
-                    <YouTubeCard
-                      key={asset.id}
-                      asset={asset}
-                      canAttach={canAttach}
-                      nodeYoutubeAssetId={nodeYoutubeAssetId}
-                      nodeClipId={nodeClipId}
-                      folderName={undefined}
-                      allFolderNames={folderNames}
-                      onAttach={() => onAttachYouTubeToNode(asset.id)}
-                      onRemove={() => handleRemoveYoutube(asset)}
-                      onRename={title => onRenameYouTubeAsset(asset.id, title)}
-                      onMoveToFolder={f => moveToFolder(asset.id, f)}
-                    />
-                  ))}
                   {clipsByFolder.ungrouped.map(clip => (
                     <ClipCard
                       key={clip.id}
@@ -579,88 +504,287 @@ export function AssetLibrary({
                   ))}
                 </div>
               )}
-
-              {/* ── Pexels Downloads section ──────────────────────────────── */}
-              {filteredPexels.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 py-0.5">
-                    <div className="h-px flex-1" style={{ background: 'var(--line-1)' }} />
-                    <span className="text-[9px] font-mono text-ink-4 uppercase tracking-wider">
-                      Pexels Downloads ({filteredPexels.length})
-                    </span>
-                    <div className="h-px flex-1" style={{ background: 'var(--line-1)' }} />
-                  </div>
-                  {filteredPexels.map(asset => (
-                    <PexelsAssetCard
-                      key={asset.id}
-                      asset={asset}
-                      canAttach={canAttach}
-                      nodeClipId={nodeClipId}
-                      nodePexelsAssetId={nodePexelsAssetId}
-                      onAttachVideo={() => onAttachPexelsVideoToNode(asset)}
-                      onAttachPhoto={() => onAttachPexelsPhotoToNode(asset)}
-                      onRemove={() => onRemovePexelsAsset(asset.id)}
-                      onRename={title => onRenamePexelsAsset(asset.id, title)}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* ── Coverr Downloads section ───────────────────────────────── */}
-              {filteredCoverr.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 py-0.5">
-                    <div className="h-px flex-1" style={{ background: 'var(--line-1)' }} />
-                    <span className="text-[9px] font-mono text-ink-4 uppercase tracking-wider">
-                      Coverr Downloads ({filteredCoverr.length})
-                    </span>
-                    <div className="h-px flex-1" style={{ background: 'var(--line-1)' }} />
-                  </div>
-                  {filteredCoverr.map(asset => (
-                    <CoverrAssetCard
-                      key={asset.id}
-                      asset={asset}
-                      canAttach={canAttach}
-                      nodeClipId={nodeClipId}
-                      onAttach={() => onAttachCoverrVideoToNode(asset)}
-                      onRemove={() => onRemoveCoverrAsset(asset.id)}
-                      onRename={title => onRenameCoverrAsset(asset.id, title)}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* ── Pixabay Downloads section ──────────────────────────────── */}
-              {filteredPixabay.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 py-0.5">
-                    <div className="h-px flex-1" style={{ background: 'var(--line-1)' }} />
-                    <span className="text-[9px] font-mono text-ink-4 uppercase tracking-wider">
-                      Pixabay Downloads ({filteredPixabay.length})
-                    </span>
-                    <div className="h-px flex-1" style={{ background: 'var(--line-1)' }} />
-                  </div>
-                  {filteredPixabay.map(asset => (
-                    <PixabayAssetCard
-                      key={asset.id}
-                      asset={asset}
-                      canAttach={canAttach}
-                      nodeClipId={nodeClipId}
-                      nodePexelsAssetId={nodePexelsAssetId}
-                      onAttachVideo={() => onAttachPixabayVideoToNode(asset)}
-                      onAttachImage={() => onAttachPixabayImageToNode(asset)}
-                      onRemove={() => onRemovePixabayAsset(asset.id)}
-                      onRename={title => onRenamePixabayAsset(asset.id, title)}
-                    />
-                  ))}
-                </div>
-              )}
-
             </div>
           </div>
         )}
+
+        {/* ── Link tab ───────────────────────────────────────────────────────── */}
+        {activeTab === 'link' && (
+          <div className="flex-1 overflow-y-auto">
+            {attachBanner}
+            {selectNodeHint}
+            <div className="p-3 space-y-3">
+
+              {/* Add YouTube URL */}
+              <button
+                onClick={onOpenAddYoutube}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-mono transition-all hover:brightness-110"
+                style={{
+                  background: 'rgba(255,0,0,0.06)',
+                  border: '1px solid rgba(255,0,0,0.2)',
+                  color: '#ff5555',
+                }}
+              >
+                <Youtube size={11} />
+                Add YouTube URL
+              </button>
+
+              {/* Search */}
+              {youtubeAssets.length > 3 && (
+                <div className="relative">
+                  <Search size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
+                  <input
+                    value={ytSearch}
+                    onChange={e => setYtSearch(e.target.value)}
+                    placeholder="Filter links…"
+                    className="w-full pl-7 pr-3 py-1.5 rounded-lg text-[11px] outline-none transition-colors"
+                    style={{ background: 'var(--tint-1)', border: '1px solid var(--line-2)', color: 'var(--fg-1)' }}
+                  />
+                </div>
+              )}
+
+              {/* Empty state */}
+              {youtubeAssets.length === 0 && (
+                <div className="py-8 text-center">
+                  <Youtube size={22} className="mx-auto mb-3 opacity-20" style={{ color: '#ff5555' }} />
+                  <p className="text-[11px] font-mono text-ink-4">No linked videos yet</p>
+                  <p className="text-[10px] mt-1 font-mono" style={{ color: 'var(--fg-4)' }}>
+                    Paste a YouTube URL above
+                  </p>
+                </div>
+              )}
+
+              {/* No search results */}
+              {yq && filteredYoutube.length === 0 && (
+                <div className="py-6 text-center">
+                  <p className="text-[11px] font-mono" style={{ color: 'var(--fg-4)' }}>No links match &ldquo;{ytSearch}&rdquo;</p>
+                </div>
+              )}
+
+              {/* YouTube folder sections */}
+              {visibleFolders.filter(n => (youtubeByFolder.groups[n]?.length ?? 0) > 0).map(name => {
+                const assets = youtubeByFolder.groups[name] ?? []
+                const isCollapsed = collapsedFolders.has(`yt-${name}`)
+                return (
+                  <div key={name} className="space-y-1.5">
+                    <button
+                      onClick={() => toggleFolderCollapse(`yt-${name}`)}
+                      className="w-full flex items-center gap-1.5 py-1 px-1 rounded-lg transition-colors hover:bg-[var(--tint-2)]"
+                    >
+                      <Folder size={11} style={{ color: 'var(--fg-3)' }} />
+                      <span className="flex-1 text-left text-[11px] font-mono text-ink-2 truncate">{name}</span>
+                      <span className="text-[9px] font-mono text-ink-4 mr-1">{assets.length}</span>
+                      {isCollapsed
+                        ? <ChevronRight size={10} style={{ color: 'var(--fg-4)' }} />
+                        : <ChevronDown size={10} style={{ color: 'var(--fg-4)' }} />}
+                    </button>
+                    {!isCollapsed && (
+                      <div className="space-y-1.5 pl-3 border-l" style={{ borderColor: 'var(--line-1)' }}>
+                        {assets.map(asset => (
+                          <YouTubeCard
+                            key={asset.id}
+                            asset={asset}
+                            canAttach={canAttach}
+                            nodeYoutubeAssetId={nodeYoutubeAssetId}
+                            nodeClipId={nodeClipId}
+                            folderName={name}
+                            allFolderNames={folderNames}
+                            onAttach={() => onAttachYouTubeToNode(asset.id)}
+                            onRemove={() => handleRemoveYoutube(asset)}
+                            onRename={title => onRenameYouTubeAsset(asset.id, title)}
+                            onMoveToFolder={f => moveToFolder(asset.id, f)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* Ungrouped YouTube */}
+              {hasUngroupedYoutube && (
+                <div className="space-y-1.5">
+                  {youtubeByFolder.ungrouped.map(asset => (
+                    <YouTubeCard
+                      key={asset.id}
+                      asset={asset}
+                      canAttach={canAttach}
+                      nodeYoutubeAssetId={nodeYoutubeAssetId}
+                      nodeClipId={nodeClipId}
+                      folderName={undefined}
+                      allFolderNames={folderNames}
+                      onAttach={() => onAttachYouTubeToNode(asset.id)}
+                      onRemove={() => handleRemoveYoutube(asset)}
+                      onRename={title => onRenameYouTubeAsset(asset.id, title)}
+                      onMoveToFolder={f => moveToFolder(asset.id, f)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Stock tab ──────────────────────────────────────────────────────── */}
+        {activeTab === 'stock' && (
+          <div className="flex flex-col flex-1 overflow-hidden">
+
+            {/* Provider selector */}
+            <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-2 shrink-0">
+              {(['pexels', 'coverr', 'pixabay'] as const).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setStockProvider(p)}
+                  className="px-3 py-1 rounded-lg text-[10px] font-mono transition-all capitalize"
+                  style={{
+                    background: stockProvider === p ? 'oklch(82% 0.18 165 / 0.12)' : 'var(--tint-2)',
+                    border: `1px solid ${stockProvider === p ? 'oklch(82% 0.18 165 / 0.35)' : 'var(--line-1)'}`,
+                    color: stockProvider === p ? 'oklch(82% 0.18 165)' : 'var(--fg-3)',
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+
+            {/* Saved items for active provider (compact) */}
+            {(() => {
+              const savedItems =
+                stockProvider === 'pexels'  ? pexelsAssets  :
+                stockProvider === 'coverr'  ? coverrAssets  :
+                pixabayAssets
+
+              if (savedItems.length === 0) return null
+
+              return (
+                <div className="shrink-0 mx-3 mb-2 rounded-xl overflow-hidden" style={{ border: '1px solid var(--line-1)', background: 'var(--tint-1)' }}>
+                  <button
+                    onClick={() => setSavedExpanded(v => !v)}
+                    className="w-full flex items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-[var(--tint-2)]"
+                  >
+                    <span className="text-[10px] font-mono flex-1" style={{ color: 'var(--fg-3)' }}>
+                      Saved ({savedItems.length})
+                    </span>
+                    {savedExpanded
+                      ? <ChevronUp size={10} style={{ color: 'var(--fg-4)' }} />
+                      : <ChevronDown size={10} style={{ color: 'var(--fg-4)' }} />}
+                  </button>
+                  {savedExpanded && (
+                    <div className="divide-y" style={{ borderColor: 'var(--line-1)' }}>
+                      {stockProvider === 'pexels' && pexelsAssets.map(asset => (
+                        <SavedStockRow
+                          key={asset.id}
+                          thumbnail={asset.thumbnailUrl}
+                          title={asset.title}
+                          type={asset.type === 'video' ? 'video' : 'image'}
+                          isAttached={asset.type === 'video' && nodePexelsAssetId === asset.id}
+                          canAttach={canAttach}
+                          onAttach={() => asset.type === 'video' ? onAttachPexelsVideoToNode(asset) : onAttachPexelsPhotoToNode(asset)}
+                          onRemove={() => onRemovePexelsAsset(asset.id)}
+                          attachLabel={asset.type === 'photo' ? 'Set thumbnail' : 'Attach'}
+                        />
+                      ))}
+                      {stockProvider === 'coverr' && coverrAssets.map(asset => (
+                        <SavedStockRow
+                          key={asset.id}
+                          thumbnail={asset.thumbnailUrl}
+                          title={asset.title}
+                          type="video"
+                          isAttached={nodeClipId === asset.id}
+                          canAttach={canAttach}
+                          onAttach={() => onAttachCoverrVideoToNode(asset)}
+                          onRemove={() => onRemoveCoverrAsset(asset.id)}
+                          attachLabel="Attach"
+                        />
+                      ))}
+                      {stockProvider === 'pixabay' && pixabayAssets.map(asset => (
+                        <SavedStockRow
+                          key={asset.id}
+                          thumbnail={asset.thumbnailUrl}
+                          title={asset.title}
+                          type={asset.type === 'video' ? 'video' : 'image'}
+                          isAttached={asset.type === 'video' && (nodeClipId === asset.id || nodePexelsAssetId === asset.id)}
+                          canAttach={canAttach}
+                          onAttach={() => asset.type === 'video' ? onAttachPixabayVideoToNode(asset) : onAttachPixabayImageToNode(asset)}
+                          onRemove={() => onRemovePixabayAsset(asset.id)}
+                          attachLabel={asset.type === 'image' ? 'Set thumbnail' : 'Attach'}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Search panel */}
+            <div className="flex-1 overflow-hidden">
+              {stockProvider === 'pexels' ? (
+                <PexelsPanel savedPexelsIds={savedPexelsIds} onSaveAsset={onAddPexelsAsset} />
+              ) : stockProvider === 'coverr' ? (
+                <CoverrPanel savedCoverrIds={savedCoverrIds} onSaveAsset={onAddCoverrAsset} />
+              ) : (
+                <PixabayPanel savedPixabayIds={savedPixabayIds} onSaveAsset={onAddPixabayAsset} />
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
     </motion.aside>
+  )
+}
+
+// ── SavedStockRow ─────────────────────────────────────────────────────────────
+
+function SavedStockRow({
+  thumbnail, title, type, isAttached, canAttach, onAttach, onRemove, attachLabel,
+}: {
+  thumbnail: string
+  title: string
+  type: 'video' | 'image'
+  isAttached: boolean
+  canAttach: boolean
+  onAttach: () => void
+  onRemove: () => void
+  attachLabel: string
+}) {
+  return (
+    <div className="flex items-center gap-2 px-2.5 py-2">
+      <div className="relative shrink-0 w-10 h-7 rounded overflow-hidden" style={{ background: 'var(--bg-1)' }}>
+        <img src={thumbnail} alt="" className="w-full h-full object-cover" />
+        {type === 'image' && (
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
+            <Image size={8} style={{ color: '#fff' }} />
+          </div>
+        )}
+      </div>
+      <p className="flex-1 text-[10px] font-mono truncate" style={{ color: 'var(--fg-2)' }} title={title}>
+        {title.length > 22 ? title.slice(0, 19) + '…' : title}
+      </p>
+      {canAttach && (
+        <button
+          onClick={onAttach}
+          className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-mono transition-all hover:brightness-110"
+          style={
+            isAttached
+              ? { background: 'oklch(82% 0.18 165 / 0.1)', border: '1px solid oklch(82% 0.18 165 / 0.3)', color: 'oklch(82% 0.18 165)' }
+              : { background: 'var(--tint-2)', border: '1px solid var(--line-2)', color: 'var(--fg-2)' }
+          }
+          title={isAttached ? 'Attached' : attachLabel}
+        >
+          {isAttached ? <Check size={9} /> : <Link2 size={9} />}
+          {isAttached ? 'Attached' : attachLabel}
+        </button>
+      )}
+      <button
+        onClick={onRemove}
+        className="shrink-0 flex items-center justify-center w-6 h-6 rounded-lg transition-colors hover:text-red-400"
+        style={{ color: 'var(--fg-4)' }}
+        title="Remove"
+      >
+        <Trash2 size={10} />
+      </button>
+    </div>
   )
 }
 
@@ -796,422 +920,6 @@ function FolderPicker({
           Remove from folder
         </button>
       )}
-    </div>
-  )
-}
-
-// ── PexelsAssetCard ───────────────────────────────────────────────────────────
-
-function PexelsAssetCard({
-  asset, canAttach, nodeClipId, nodePexelsAssetId,
-  onAttachVideo, onAttachPhoto, onRemove, onRename,
-}: {
-  asset: PexelsAsset
-  canAttach: boolean
-  nodeClipId?: string
-  nodePexelsAssetId?: string
-  onAttachVideo: () => void
-  onAttachPhoto: () => void
-  onRemove: () => void
-  onRename: (title: string) => void
-}) {
-  const isAttachedVideo = asset.type === 'video' && nodePexelsAssetId === asset.id
-  const wouldReplace = canAttach && (!!nodeClipId || !!nodePexelsAssetId) && !isAttachedVideo
-
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [renameValue, setRenameValue] = useState(asset.title)
-
-  const commitRename = () => {
-    const trimmed = renameValue.trim()
-    if (trimmed && trimmed !== asset.title) onRename(trimmed)
-    else setRenameValue(asset.title)
-    setIsRenaming(false)
-  }
-
-  const handleAttach = () => {
-    if (asset.type === 'video') onAttachVideo()
-    else onAttachPhoto()
-  }
-
-  return (
-    <div
-      className="rounded-xl overflow-hidden"
-      style={{
-        background: 'var(--tint-1)',
-        border: `1px solid ${isAttachedVideo ? 'oklch(82% 0.18 165 / 0.4)' : 'var(--line-1)'}`,
-      }}
-    >
-      {/* Thumbnail */}
-      <div className="relative h-24 overflow-hidden" style={{ background: 'var(--bg-1)' }}>
-        <img src={asset.thumbnailUrl} alt="" className="w-full h-full object-cover opacity-85" />
-        <div
-          className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[8px] tracking-wider uppercase"
-          style={{
-            background: 'rgba(0,0,0,0.72)',
-            color: asset.type === 'video' ? 'oklch(82% 0.18 165)' : 'oklch(80% 0.12 240)',
-            border: `1px solid ${asset.type === 'video' ? 'oklch(82% 0.18 165 / 0.3)' : 'oklch(80% 0.12 240 / 0.3)'}`,
-          }}
-        >
-          {asset.type === 'video' ? <Film size={8} /> : <Image size={8} />}
-          {asset.type}
-        </div>
-        {isAttachedVideo && (
-          <div className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono" style={{ background: 'oklch(82% 0.18 165)', color: '#052916' }}>
-            <Check size={8} />Attached
-          </div>
-        )}
-        {asset.duration != null && (
-          <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded font-mono text-[9px]" style={{ background: 'rgba(0,0,0,0.7)', color: 'var(--fg-1)' }}>
-            {formatDuration(asset.duration)}
-          </div>
-        )}
-      </div>
-
-      {/* Metadata */}
-      <div className="px-2.5 pt-2 pb-1.5">
-        {isRenaming ? (
-          <input
-            autoFocus
-            value={renameValue}
-            onChange={e => setRenameValue(e.target.value)}
-            className="w-full px-2 py-1 rounded-lg text-[11px] font-medium outline-none mb-1"
-            style={{ background: 'var(--tint-2)', border: '1px solid oklch(82% 0.18 165 / 0.4)', color: 'var(--fg-1)' }}
-            onBlur={commitRename}
-            onKeyDown={e => {
-              if (e.key === 'Enter') commitRename()
-              if (e.key === 'Escape') { setRenameValue(asset.title); setIsRenaming(false) }
-            }}
-          />
-        ) : (
-          <div className="flex items-start gap-1.5 mb-0.5 group">
-            <p className="flex-1 text-[11px] font-medium leading-snug break-all" style={{ color: 'var(--fg-1)' }} title={asset.title}>
-              {asset.title.length > 30 ? asset.title.slice(0, 27) + '…' : asset.title}
-            </p>
-            <button
-              onClick={() => { setRenameValue(asset.title); setIsRenaming(true) }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--tint-3)] shrink-0"
-              style={{ color: 'var(--fg-3)' }}
-              title="Rename"
-            >
-              <Pencil size={10} />
-            </button>
-          </div>
-        )}
-        <a
-          href={asset.pexelsPageUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[9px] font-mono hover:underline"
-          style={{ color: 'var(--fg-4)' }}
-        >
-          by {asset.photographer} · Pexels
-        </a>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1.5 px-2.5 pb-2.5">
-        {canAttach && !isAttachedVideo && (
-          <button
-            onClick={handleAttach}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-mono transition-all hover:brightness-110"
-            style={{
-              background: wouldReplace ? 'oklch(78% 0.18 285 / 0.1)' : 'oklch(82% 0.18 165 / 0.1)',
-              border: `1px solid ${wouldReplace ? 'oklch(78% 0.18 285 / 0.3)' : 'oklch(82% 0.18 165 / 0.25)'}`,
-              color: wouldReplace ? 'oklch(78% 0.18 285)' : 'oklch(82% 0.18 165)',
-            }}
-          >
-            {wouldReplace
-              ? <><RefreshCw size={9} />Replace</>
-              : asset.type === 'video'
-              ? <><Link2 size={9} />Attach</>
-              : <><Image size={9} />Set thumbnail</>}
-          </button>
-        )}
-        {canAttach && isAttachedVideo && (
-          <div
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-mono"
-            style={{ background: 'oklch(82% 0.18 165 / 0.06)', border: '1px solid oklch(82% 0.18 165 / 0.2)', color: 'oklch(82% 0.18 165)' }}
-          >
-            <Check size={9} />Attached
-          </div>
-        )}
-        <button
-          onClick={onRemove}
-          className="flex items-center justify-center w-7 h-7 rounded-lg transition-colors hover:text-red-400"
-          style={{ background: 'var(--tint-2)', border: '1px solid var(--line-1)', color: 'var(--fg-3)' }}
-          title="Remove"
-        >
-          <Trash2 size={11} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── PixabayAssetCard ──────────────────────────────────────────────────────────
-
-function PixabayAssetCard({
-  asset, canAttach, nodeClipId, nodePexelsAssetId,
-  onAttachVideo, onAttachImage, onRemove, onRename,
-}: {
-  asset: PixabayAsset
-  canAttach: boolean
-  nodeClipId?: string
-  nodePexelsAssetId?: string
-  onAttachVideo: () => void
-  onAttachImage: () => void
-  onRemove: () => void
-  onRename: (title: string) => void
-}) {
-  const isAttachedVideo = asset.type === 'video' && (nodeClipId === asset.id || nodePexelsAssetId === asset.id)
-  const wouldReplace = canAttach && (!!nodeClipId || !!nodePexelsAssetId) && !isAttachedVideo
-
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [renameValue, setRenameValue] = useState(asset.title)
-
-  const commitRename = () => {
-    const trimmed = renameValue.trim()
-    if (trimmed && trimmed !== asset.title) onRename(trimmed)
-    else setRenameValue(asset.title)
-    setIsRenaming(false)
-  }
-
-  const handleAttach = () => asset.type === 'video' ? onAttachVideo() : onAttachImage()
-
-  return (
-    <div
-      className="rounded-xl overflow-hidden"
-      style={{
-        background: 'var(--tint-1)',
-        border: `1px solid ${isAttachedVideo ? 'oklch(82% 0.18 165 / 0.4)' : 'var(--line-1)'}`,
-      }}
-    >
-      <div className="relative h-24 overflow-hidden" style={{ background: 'var(--bg-1)' }}>
-        <img src={asset.thumbnailUrl} alt="" className="w-full h-full object-cover opacity-85" />
-        <div
-          className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[8px] tracking-wider uppercase"
-          style={{
-            background: 'rgba(0,0,0,0.72)',
-            color: asset.type === 'video' ? 'oklch(82% 0.18 165)' : 'oklch(80% 0.12 240)',
-            border: `1px solid ${asset.type === 'video' ? 'oklch(82% 0.18 165 / 0.3)' : 'oklch(80% 0.12 240 / 0.3)'}`,
-          }}
-        >
-          {asset.type === 'video' ? <Film size={8} /> : <Image size={8} />}
-          {asset.imageType ?? asset.type}
-        </div>
-        {asset.duration != null && (
-          <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded font-mono text-[9px]" style={{ background: 'rgba(0,0,0,0.7)', color: 'var(--fg-1)' }}>
-            {formatDuration(asset.duration)}
-          </div>
-        )}
-        {isAttachedVideo && (
-          <div className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono" style={{ background: 'oklch(82% 0.18 165)', color: '#052916' }}>
-            <Check size={8} />Attached
-          </div>
-        )}
-      </div>
-
-      <div className="px-2.5 pt-2 pb-1.5">
-        {isRenaming ? (
-          <input
-            autoFocus
-            value={renameValue}
-            onChange={e => setRenameValue(e.target.value)}
-            className="w-full px-2 py-1 rounded-lg text-[11px] font-medium outline-none mb-1"
-            style={{ background: 'var(--tint-2)', border: '1px solid oklch(82% 0.18 165 / 0.4)', color: 'var(--fg-1)' }}
-            onBlur={commitRename}
-            onKeyDown={e => {
-              if (e.key === 'Enter') commitRename()
-              if (e.key === 'Escape') { setRenameValue(asset.title); setIsRenaming(false) }
-            }}
-          />
-        ) : (
-          <div className="flex items-start gap-1.5 mb-0.5 group">
-            <p className="flex-1 text-[11px] font-medium leading-snug break-all" style={{ color: 'var(--fg-1)' }} title={asset.title}>
-              {asset.title.length > 30 ? asset.title.slice(0, 27) + '…' : asset.title}
-            </p>
-            <button
-              onClick={() => { setRenameValue(asset.title); setIsRenaming(true) }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--tint-3)] shrink-0"
-              style={{ color: 'var(--fg-3)' }} title="Rename"
-            >
-              <Pencil size={10} />
-            </button>
-          </div>
-        )}
-        <a
-          href={asset.pageURL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[9px] font-mono hover:underline"
-          style={{ color: 'var(--fg-4)' }}
-        >
-          by {asset.user} · Pixabay
-        </a>
-      </div>
-
-      <div className="flex items-center gap-1.5 px-2.5 pb-2.5">
-        {canAttach && !isAttachedVideo && (
-          <button
-            onClick={handleAttach}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-mono transition-all hover:brightness-110"
-            style={{
-              background: wouldReplace ? 'oklch(78% 0.18 285 / 0.1)' : 'oklch(82% 0.18 165 / 0.1)',
-              border: `1px solid ${wouldReplace ? 'oklch(78% 0.18 285 / 0.3)' : 'oklch(82% 0.18 165 / 0.25)'}`,
-              color: wouldReplace ? 'oklch(78% 0.18 285)' : 'oklch(82% 0.18 165)',
-            }}
-          >
-            {wouldReplace
-              ? <><RefreshCw size={9} />Replace</>
-              : asset.type === 'video'
-              ? <><Link2 size={9} />Attach</>
-              : <><Image size={9} />Set thumbnail</>}
-          </button>
-        )}
-        {canAttach && isAttachedVideo && (
-          <div
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-mono"
-            style={{ background: 'oklch(82% 0.18 165 / 0.06)', border: '1px solid oklch(82% 0.18 165 / 0.2)', color: 'oklch(82% 0.18 165)' }}
-          >
-            <Check size={9} />Attached
-          </div>
-        )}
-        <button
-          onClick={onRemove}
-          className="flex items-center justify-center w-7 h-7 rounded-lg transition-colors hover:text-red-400"
-          style={{ background: 'var(--tint-2)', border: '1px solid var(--line-1)', color: 'var(--fg-3)' }}
-          title="Remove"
-        >
-          <Trash2 size={11} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── CoverrAssetCard ───────────────────────────────────────────────────────────
-
-function CoverrAssetCard({
-  asset, canAttach, nodeClipId,
-  onAttach, onRemove, onRename,
-}: {
-  asset: CoverrAsset
-  canAttach: boolean
-  nodeClipId?: string
-  onAttach: () => void
-  onRemove: () => void
-  onRename: (title: string) => void
-}) {
-  const isAttached = nodeClipId === asset.id
-  const wouldReplace = canAttach && !!nodeClipId && nodeClipId !== asset.id
-
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [renameValue, setRenameValue] = useState(asset.title)
-
-  const commitRename = () => {
-    const trimmed = renameValue.trim()
-    if (trimmed && trimmed !== asset.title) onRename(trimmed)
-    else setRenameValue(asset.title)
-    setIsRenaming(false)
-  }
-
-  return (
-    <div
-      className="rounded-xl overflow-hidden"
-      style={{
-        background: 'var(--tint-1)',
-        border: `1px solid ${isAttached ? 'oklch(82% 0.18 165 / 0.4)' : 'var(--line-1)'}`,
-      }}
-    >
-      <div className="relative h-24 overflow-hidden" style={{ background: 'var(--bg-1)' }}>
-        <img src={asset.thumbnailUrl} alt="" className="w-full h-full object-cover opacity-85" />
-        <div
-          className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded font-mono text-[8px] tracking-wider uppercase"
-          style={{ background: 'rgba(0,0,0,0.72)', color: 'var(--fg-2)', border: '1px solid var(--line-2)' }}
-        >
-          {asset.isVertical ? 'Portrait' : 'Landscape'}
-        </div>
-        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded font-mono text-[9px]" style={{ background: 'rgba(0,0,0,0.7)', color: 'var(--fg-1)' }}>
-          {formatDuration(asset.duration)}
-        </div>
-        {isAttached && (
-          <div className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono" style={{ background: 'oklch(82% 0.18 165)', color: '#052916' }}>
-            <Check size={8} />Attached
-          </div>
-        )}
-      </div>
-
-      <div className="px-2.5 pt-2 pb-1.5">
-        {isRenaming ? (
-          <input
-            autoFocus
-            value={renameValue}
-            onChange={e => setRenameValue(e.target.value)}
-            className="w-full px-2 py-1 rounded-lg text-[11px] font-medium outline-none mb-1"
-            style={{ background: 'var(--tint-2)', border: '1px solid oklch(82% 0.18 165 / 0.4)', color: 'var(--fg-1)' }}
-            onBlur={commitRename}
-            onKeyDown={e => {
-              if (e.key === 'Enter') commitRename()
-              if (e.key === 'Escape') { setRenameValue(asset.title); setIsRenaming(false) }
-            }}
-          />
-        ) : (
-          <div className="flex items-start gap-1.5 mb-0.5 group">
-            <p className="flex-1 text-[11px] font-medium leading-snug break-all" style={{ color: 'var(--fg-1)' }} title={asset.title}>
-              {asset.title.length > 30 ? asset.title.slice(0, 27) + '…' : asset.title}
-            </p>
-            <button
-              onClick={() => { setRenameValue(asset.title); setIsRenaming(true) }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--tint-3)] shrink-0"
-              style={{ color: 'var(--fg-3)' }}
-              title="Rename"
-            >
-              <Pencil size={10} />
-            </button>
-          </div>
-        )}
-        <a
-          href="https://coverr.co"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[9px] font-mono hover:underline"
-          style={{ color: 'var(--fg-4)' }}
-        >
-          Coverr
-        </a>
-      </div>
-
-      <div className="flex items-center gap-1.5 px-2.5 pb-2.5">
-        {canAttach && !isAttached && (
-          <button
-            onClick={onAttach}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-mono transition-all hover:brightness-110"
-            style={{
-              background: wouldReplace ? 'oklch(78% 0.18 285 / 0.1)' : 'oklch(82% 0.18 165 / 0.1)',
-              border: `1px solid ${wouldReplace ? 'oklch(78% 0.18 285 / 0.3)' : 'oklch(82% 0.18 165 / 0.25)'}`,
-              color: wouldReplace ? 'oklch(78% 0.18 285)' : 'oklch(82% 0.18 165)',
-            }}
-          >
-            {wouldReplace ? <><RefreshCw size={9} />Replace</> : <><Link2 size={9} />Attach</>}
-          </button>
-        )}
-        {canAttach && isAttached && (
-          <div
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-mono"
-            style={{ background: 'oklch(82% 0.18 165 / 0.06)', border: '1px solid oklch(82% 0.18 165 / 0.2)', color: 'oklch(82% 0.18 165)' }}
-          >
-            <Check size={9} />Attached
-          </div>
-        )}
-        <button
-          onClick={onRemove}
-          className="flex items-center justify-center w-7 h-7 rounded-lg transition-colors hover:text-red-400"
-          style={{ background: 'var(--tint-2)', border: '1px solid var(--line-1)', color: 'var(--fg-3)' }}
-          title="Remove"
-        >
-          <Trash2 size={11} />
-        </button>
-      </div>
     </div>
   )
 }
