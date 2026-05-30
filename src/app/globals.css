@@ -51,33 +51,43 @@
 
 /* Light theme */
 [data-theme="light"] {
-  --bg-0: #f0f2f8;
-  --bg-1: #ffffff;
-  --bg-2: #eaecf3;
-  --bg-3: #dde2ed;
-  --bg-canvas: #e0e4ef;
-  --bg-glass:   rgba(240,242,248,0.92);
-  --bg-glass-2: rgba(240,242,248,0.85);
-  --bg-thumbnail: #0b0d13; /* media areas stay dark even in light mode */
+  /* Backgrounds — crisp cool-white hierarchy */
+  --bg-0: #eef0f8;           /* page base — cool slate wash */
+  --bg-1: #ffffff;           /* primary surface — pure white */
+  --bg-2: #e6e9f5;           /* recessed surface — nested sections */
+  --bg-3: #d9dded;           /* deep surface — dropdowns, menus */
+  --bg-canvas: #e2e6f4;      /* flow canvas — distinct from panels */
+  --bg-glass:   rgba(255,255,255,0.93); /* white frost — headers, overlays */
+  --bg-glass-2: rgba(255,255,255,0.80); /* lighter white frost — status bar */
+  --bg-thumbnail: #0b0d13;   /* media areas — always dark */
 
-  --fg-0: #090c1a;
-  --fg-1: #1c2038;
-  --fg-2: #3d4462;
-  --fg-3: #6e7690;
-  --fg-4: #9aa0b8;
+  /* Foreground / text — navy-rooted hierarchy */
+  --fg-0: #0d1020;           /* primary — near-black with navy cast */
+  --fg-1: #1e2548;           /* strong secondary — deep navy */
+  --fg-2: #3c4870;           /* medium — navy slate */
+  --fg-3: #66769e;           /* subdued — muted slate */
+  --fg-4: #9ca8c4;           /* faint — very muted */
 
-  --tint-1: rgba(0,0,0,0.02);
-  --tint-2: rgba(0,0,0,0.04);
-  --tint-3: rgba(0,0,0,0.07);
+  /* Surface tints — visible without being heavy */
+  --tint-1: rgba(0,0,0,0.03);
+  --tint-2: rgba(0,0,0,0.055);
+  --tint-3: rgba(0,0,0,0.095);
 
-  --line-1: rgba(0,0,0,0.06);
-  --line-2: rgba(0,0,0,0.08);
-  --line-3: rgba(0,0,0,0.11);
-  --line-4: rgba(0,0,0,0.16);
-  --line-active: rgba(0,0,0,0.22);
+  /* Borders — sharp, defined, professional */
+  --line-1: rgba(0,0,0,0.08);
+  --line-2: rgba(0,0,0,0.12);
+  --line-3: rgba(0,0,0,0.18);
+  --line-4: rgba(0,0,0,0.27);
+  --line-active: rgba(0,0,0,0.38);
 
-  --stroke:   rgba(0,0,0,0.07);
-  --stroke-2: rgba(0,0,0,0.11);
+  /* Accent glow helpers — softened for light surfaces */
+  --glow-mint:   0 0 14px oklch(82% 0.18 165 / 0.22);
+  --glow-violet: 0 0 14px oklch(78% 0.18 285 / 0.22);
+  --glow-amber:  0 0 14px oklch(80% 0.16 60 / 0.22);
+
+  /* Legacy aliases */
+  --stroke:   rgba(0,0,0,0.09);
+  --stroke-2: rgba(0,0,0,0.16);
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
@@ -143,8 +153,8 @@ select.inspector-input option {
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--bg-0); }
-::-webkit-scrollbar-thumb { background: var(--fg-4); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--fg-3); }
+::-webkit-scrollbar-thumb { background: var(--line-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--line-4); }
 
 /* ── ReactFlow overrides ───────────────────────────────────────────────────── */
 .react-flow__background { background: var(--bg-canvas) !important; }
@@ -176,4 +186,24 @@ select.inspector-input option {
 /* Connection line while dragging */
 .react-flow__connection-path {
   stroke: oklch(82% 0.18 165 / 0.6) !important;
+}
+
+/* ── Light-mode specific overrides ────────────────────────────────────────── */
+/* ReactFlow canvas dots are tint-based and need to be more visible in light mode */
+[data-theme="light"] .react-flow__minimap {
+  background: var(--bg-1) !important;
+  border-color: var(--line-2) !important;
+}
+[data-theme="light"] .react-flow__controls {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+}
+
+/* Inspector inputs — darker border in light mode for better field definition */
+[data-theme="light"] .inspector-input {
+  background: var(--bg-0);
+  border-color: var(--line-2);
+}
+[data-theme="light"] .inspector-input:focus {
+  background: var(--bg-1);
+  border-color: oklch(82% 0.18 165 / 0.6);
 }
