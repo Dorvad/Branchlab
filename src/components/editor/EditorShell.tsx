@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, useReducer } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Library, Loader2, Monitor, Smartphone, ChevronDown, Download, Trash2, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Library, Loader2, Monitor, Smartphone, ChevronDown, Download, Trash2, MoreHorizontal, Undo2, Redo2 } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -32,24 +32,63 @@ import { getOnboardingState, dismissOnboarding, markScenarioPreviewed, hasPrevie
 import { OnboardingChecklist } from './OnboardingChecklist'
 import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, YouTubeAsset, PexelsAsset, CoverrAsset, PixabayAsset, PublishConfig } from '@/types'
 
+// ── Undo/Redo history reducer ─────────────────────────────────────────────────
+
+const MAX_HISTORY = 50
+
+interface HistoryState {
+  past: Scenario[]
+  present: Scenario
+  future: Scenario[]
+}
+
+type HistoryAction =
+  | { type: 'push'; updater: (s: Scenario) => Scenario }
+  | { type: 'replace'; scenario: Scenario }
+  | { type: 'undo' }
+  | { type: 'redo' }
+
+function historyReducer(state: HistoryState, action: HistoryAction): HistoryState {
+  switch (action.type) {
+    case 'push': {
+      const next = action.updater(state.present)
+      if (next === state.present) return state
+      return {
+        past: [...state.past.slice(-(MAX_HISTORY - 1)), state.present],
+        present: next,
+        future: [],
+      }
+    }
+    case 'replace':
+      return { ...state, present: action.scenario, future: [] }
+    case 'undo':
+      if (!state.past.length) return state
+      return {
+        past: state.past.slice(0, -1),
+        present: state.past[state.past.length - 1],
+        future: [state.present, ...state.future.slice(0, MAX_HISTORY - 1)],
+      }
+    case 'redo':
+      if (!state.future.length) return state
+      return {
+        past: [...state.past.slice(-(MAX_HISTORY - 1)), state.present],
+        present: state.future[0],
+        future: state.future.slice(1),
+      }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface EditorShellProps {
   scenarioId: string
 }
 
 export function EditorShell({ scenarioId }: EditorShellProps) {
   const router = useRouter()
-  const [scenario, setScenario] = useState<Scenario | null>(null)
+  const [initialScenario, setInitialScenario] = useState<Scenario | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
-  const [isDirty, setIsDirty] = useState(false)
-  const [savedAt, setSavedAt] = useState<Date | null>(null)
-  const [showValidation, setShowValidation] = useState(false)
-  const [showPublish, setShowPublish] = useState(false)
-  const [showRepublish, setShowRepublish] = useState(false)
-  const [showAssets, setShowAssets] = useState(false)
 
   // Auth guard + initial scenario load
   useEffect(() => {
@@ -63,8 +102,7 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
       if (!s) {
         setNotFound(true)
       } else {
-        setScenario(s)
-        setSavedAt(new Date(s.updatedAt))
+        setInitialScenario(s)
       }
       setLoading(false)
     }
@@ -108,7 +146,7 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
     )
   }
 
-  if (notFound || !scenario) {
+  if (notFound || !initialScenario) {
     return (
       <>
         {mobileWarning}
@@ -128,26 +166,7 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
   return (
     <>
       {mobileWarning}
-    <EditorUI
-      scenario={scenario}
-      setScenario={setScenario}
-      selectedNodeId={selectedNodeId}
-      setSelectedNodeId={setSelectedNodeId}
-      selectedEdgeId={selectedEdgeId}
-      setSelectedEdgeId={setSelectedEdgeId}
-      isDirty={isDirty}
-      setIsDirty={setIsDirty}
-      savedAt={savedAt}
-      setSavedAt={setSavedAt}
-      showValidation={showValidation}
-      setShowValidation={setShowValidation}
-      showPublish={showPublish}
-      setShowPublish={setShowPublish}
-      showRepublish={showRepublish}
-      setShowRepublish={setShowRepublish}
-      showAssets={showAssets}
-      setShowAssets={setShowAssets}
-    />
+      <EditorUI initialScenario={initialScenario} />
     </>
   )
 }
@@ -156,47 +175,29 @@ export function EditorShell({ scenarioId }: EditorShellProps) {
 // Separated so that hooks aren't called conditionally above the null-guard.
 
 interface EditorUIProps {
-  scenario: Scenario
-  setScenario: React.Dispatch<React.SetStateAction<Scenario | null>>
-  selectedNodeId: string | null
-  setSelectedNodeId: React.Dispatch<React.SetStateAction<string | null>>
-  selectedEdgeId: string | null
-  setSelectedEdgeId: React.Dispatch<React.SetStateAction<string | null>>
-  isDirty: boolean
-  setIsDirty: React.Dispatch<React.SetStateAction<boolean>>
-  savedAt: Date | null
-  setSavedAt: React.Dispatch<React.SetStateAction<Date | null>>
-  showValidation: boolean
-  setShowValidation: React.Dispatch<React.SetStateAction<boolean>>
-  showPublish: boolean
-  setShowPublish: React.Dispatch<React.SetStateAction<boolean>>
-  showRepublish: boolean
-  setShowRepublish: React.Dispatch<React.SetStateAction<boolean>>
-  showAssets: boolean
-  setShowAssets: React.Dispatch<React.SetStateAction<boolean>>
+  initialScenario: Scenario
 }
 
-function EditorUI({
-  scenario,
-  setScenario,
-  selectedNodeId,
-  setSelectedNodeId,
-  selectedEdgeId,
-  setSelectedEdgeId,
-  isDirty,
-  setIsDirty,
-  savedAt,
-  setSavedAt,
-  showValidation,
-  setShowValidation,
-  showPublish,
-  setShowPublish,
-  showRepublish,
-  setShowRepublish,
-  showAssets,
-  setShowAssets,
-}: EditorUIProps) {
+function EditorUI({ initialScenario }: EditorUIProps) {
   const router = useRouter()
+  const [state, dispatch] = useReducer(historyReducer, {
+    past: [],
+    present: initialScenario,
+    future: [],
+  })
+  const scenario = state.present
+  const canUndo = state.past.length > 0
+  const canRedo = state.future.length > 0
+
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
+  const [savedAt, setSavedAt] = useState<Date | null>(() => new Date(initialScenario.updatedAt))
+  const [showValidation, setShowValidation] = useState(false)
+  const [showPublish, setShowPublish] = useState(false)
+  const [showRepublish, setShowRepublish] = useState(false)
+  const [showAssets, setShowAssets] = useState(false)
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -204,7 +205,7 @@ function EditorUI({
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [showChecklist, setShowChecklist] = useState(() => !getOnboardingState().dismissed)
-  const [hasPreviewed, setHasPreviewed] = useState(() => hasPreviewedScenario(scenario.id))
+  const [hasPreviewed, setHasPreviewed] = useState(() => hasPreviewedScenario(initialScenario.id))
 
   const handlePreview = async (device: string) => {
     if (isDirty) await handleSave()
@@ -262,19 +263,19 @@ function EditorUI({
   // ── Node mutations ────────────────────────────────────────────────────────
 
   const updateNode = useCallback((nodeId: string, updates: Partial<ScenarioNode>) => {
-    setScenario(prev => prev ? ({
-      ...prev,
-      nodes: prev.nodes.map(n => n.id === nodeId ? { ...n, ...updates } : n),
-    }) : prev)
+    dispatch({ type: 'push', updater: s => ({
+      ...s,
+      nodes: s.nodes.map(n => n.id === nodeId ? { ...n, ...updates } : n),
+    }) })
     setIsDirty(true)
-  }, [setScenario, setIsDirty])
+  }, [])
 
   const updateNodePosition = useCallback((nodeId: string, position: { x: number; y: number }) => {
-    setScenario(prev => prev ? ({
-      ...prev,
-      nodes: prev.nodes.map(n => n.id === nodeId ? { ...n, position } : n),
-    }) : prev)
-  }, [setScenario])
+    dispatch({ type: 'push', updater: s => ({
+      ...s,
+      nodes: s.nodes.map(n => n.id === nodeId ? { ...n, position } : n),
+    }) })
+  }, [])
 
   const addNode = useCallback(() => {
     const maxY = scenario.nodes.length
@@ -288,15 +289,15 @@ function EditorUI({
       choices: [],
       position: { x: 260 + Math.floor(Math.random() * 200), y: maxY },
     }
-    setScenario(prev => prev ? ({ ...prev, nodes: [...prev.nodes, newNode] }) : prev)
+    dispatch({ type: 'push', updater: s => ({ ...s, nodes: [...s.nodes, newNode] }) })
     setSelectedNodeId(newNode.id)
     setIsDirty(true)
-  }, [scenario.nodes, setScenario, setSelectedNodeId, setIsDirty])
+  }, [scenario.nodes])
 
   const deleteNode = useCallback((nodeId: string) => {
-    setScenario(prev => prev ? ({
-      ...prev,
-      nodes: prev.nodes
+    dispatch({ type: 'push', updater: s => ({
+      ...s,
+      nodes: s.nodes
         .filter(n => n.id !== nodeId)
         .map(n => ({
           ...n,
@@ -304,10 +305,10 @@ function EditorUI({
             c.targetNodeId === nodeId ? { ...c, targetNodeId: '' } : c
           ),
         })),
-    }) : prev)
+    }) })
     setSelectedNodeId(id => id === nodeId ? null : id)
     setIsDirty(true)
-  }, [setScenario, setSelectedNodeId, setIsDirty])
+  }, [])
 
   const duplicateNode = useCallback((nodeId: string) => {
     const node = scenario.nodes.find(n => n.id === nodeId)
@@ -320,10 +321,10 @@ function EditorUI({
       position: { x: node.position.x + 50, y: node.position.y + 50 },
       choices: node.choices.map((c, i) => ({ ...c, id: `choice-${ts}-${i}` })),
     }
-    setScenario(prev => prev ? ({ ...prev, nodes: [...prev.nodes, newNode] }) : prev)
+    dispatch({ type: 'push', updater: s => ({ ...s, nodes: [...s.nodes, newNode] }) })
     setSelectedNodeId(newNode.id)
     setIsDirty(true)
-  }, [scenario.nodes, setScenario, setSelectedNodeId, setIsDirty])
+  }, [scenario.nodes])
 
   // ── Choice mutations ──────────────────────────────────────────────────────
 
@@ -333,41 +334,41 @@ function EditorUI({
       label: 'New choice',
       targetNodeId: '',
     }
-    setScenario(prev => prev ? ({
-      ...prev,
-      nodes: prev.nodes.map(n =>
+    dispatch({ type: 'push', updater: s => ({
+      ...s,
+      nodes: s.nodes.map(n =>
         n.id === nodeId ? { ...n, choices: [...n.choices, newChoice] } : n
       ),
-    }) : prev)
+    }) })
     setIsDirty(true)
-  }, [setScenario, setIsDirty])
+  }, [])
 
   const updateChoice = useCallback(
     (nodeId: string, choiceId: string, updates: Partial<ScenarioChoice>) => {
-      setScenario(prev => prev ? ({
-        ...prev,
-        nodes: prev.nodes.map(n =>
+      dispatch({ type: 'push', updater: s => ({
+        ...s,
+        nodes: s.nodes.map(n =>
           n.id === nodeId
             ? { ...n, choices: n.choices.map(c => c.id === choiceId ? { ...c, ...updates } : c) }
             : n
         ),
-      }) : prev)
+      }) })
       setIsDirty(true)
     },
-    [setScenario, setIsDirty]
+    []
   )
 
   const deleteChoice = useCallback((nodeId: string, choiceId: string) => {
-    setScenario(prev => prev ? ({
-      ...prev,
-      nodes: prev.nodes.map(n =>
+    dispatch({ type: 'push', updater: s => ({
+      ...s,
+      nodes: s.nodes.map(n =>
         n.id === nodeId
           ? { ...n, choices: n.choices.filter(c => c.id !== choiceId) }
           : n
       ),
-    }) : prev)
+    }) })
     setIsDirty(true)
-  }, [setScenario, setIsDirty])
+  }, [])
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
@@ -380,7 +381,7 @@ function EditorUI({
         ...scenarioRef.current,
         edges: edgesRef.current,
       })
-      setScenario(stored)
+      dispatch({ type: 'replace', scenario: stored })
       setSavedAt(new Date(stored.updatedAt))
       setIsDirty(false)
     } catch (err) {
@@ -390,7 +391,7 @@ function EditorUI({
     }
   // isSaving intentionally omitted — we guard with the ref pattern instead
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setScenario, setSavedAt, setIsDirty])
+  }, [])
 
   // ── Autosave: debounce 2.5 s after last change ────────────────────────────
   useEffect(() => {
@@ -418,43 +419,42 @@ function EditorUI({
       sourceHandle,
       targetHandle,
     }
-    setScenario(prev => prev ? ({
-      ...prev,
-      nodes: prev.nodes.map(n =>
+    dispatch({ type: 'push', updater: s => ({
+      ...s,
+      nodes: s.nodes.map(n =>
         n.id === sourceNodeId ? { ...n, choices: [...n.choices, newChoice] } : n
       ),
-    }) : prev)
+    }) })
     setSelectedNodeId(sourceNodeId)
     setIsDirty(true)
-  }, [setScenario, setSelectedNodeId, setIsDirty])
+  }, [])
 
   const reconnectEdge = useCallback((edgeId: string, newTargetNodeId: string, newTargetHandle?: string) => {
     const parts = edgeId.split('__')
     if (parts.length < 2) return
     const [sourceNodeId, choiceId] = parts
-    setScenario(prev => prev ? ({
-      ...prev,
-      nodes: prev.nodes.map(n =>
+    dispatch({ type: 'push', updater: s => ({
+      ...s,
+      nodes: s.nodes.map(n =>
         n.id === sourceNodeId
           ? { ...n, choices: n.choices.map(c => c.id === choiceId ? { ...c, targetNodeId: newTargetNodeId, targetHandle: newTargetHandle ?? c.targetHandle } : c) }
           : n
       ),
-    }) : prev)
+    }) })
     setIsDirty(true)
-  }, [setScenario, setIsDirty])
+  }, [])
 
   const toggleOutcomeMode = useCallback(() => {
-    setScenario(prev => {
-      if (!prev) return prev
-      const turningOff = prev.outcomeMode
+    dispatch({ type: 'push', updater: s => {
+      const turningOff = s.outcomeMode
       return {
-        ...prev,
-        outcomeMode: !prev.outcomeMode,
+        ...s,
+        outcomeMode: !s.outcomeMode,
         nodes: turningOff
-          ? prev.nodes.map(n => ({ ...n, outcome: undefined }))
-          : prev.nodes,
+          ? s.nodes.map(n => ({ ...n, outcome: undefined }))
+          : s.nodes,
       }
-    })
+    }})
     setIsDirty(true)
   }, [])
 
@@ -469,10 +469,10 @@ function EditorUI({
 
   const handlePublish = useCallback(async (config: PublishConfig) => {
     const updated = await publishScenario({ ...scenario, edges: derivedEdges }, config)
-    setScenario(updated)
+    dispatch({ type: 'replace', scenario: updated })
     setSavedAt(new Date(updated.updatedAt))
     setIsDirty(false)
-  }, [scenario, derivedEdges, setScenario, setSavedAt, setIsDirty])
+  }, [scenario, derivedEdges])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
@@ -509,12 +509,25 @@ function EditorUI({
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault()
         handleSave()
+        return
+      }
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'z') {
+        e.preventDefault()
+        dispatch({ type: 'undo' })
+        if (canUndo) setIsDirty(true)
+        return
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') {
+        e.preventDefault()
+        dispatch({ type: 'redo' })
+        if (canRedo) setIsDirty(true)
+        return
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNodeId, selectedEdgeId, scenario.nodes])
+  }, [selectedNodeId, selectedEdgeId, scenario.nodes, canUndo, canRedo])
 
   // ── Clip management ───────────────────────────────────────────────────────
   const [clips, setClips] = useState<Clip[]>([])
@@ -551,16 +564,15 @@ function EditorUI({
     setYouTubeAssets(prev => prev.filter(a => a.id !== id))
     deleteYouTubeAsset(id).catch(() => {})
     // Clear from any node that references this asset
-    setScenario(prev => {
-      if (!prev) return prev
-      const nodes = prev.nodes.map(n =>
+    dispatch({ type: 'push', updater: s => {
+      const nodes = s.nodes.map(n =>
         n.youtubeAsset?.id === id
           ? { ...n, youtubeAsset: undefined, youtubeStartTime: undefined, youtubeEndTime: undefined }
           : n
       )
-      if (nodes === prev.nodes) return prev
-      return { ...prev, nodes }
-    })
+      if (nodes === s.nodes) return s
+      return { ...s, nodes }
+    }})
     setIsDirty(true)
   }, [])
 
@@ -697,11 +709,11 @@ function EditorUI({
       choices: [],
       position: { x: 200 + Math.floor(Math.random() * 300), y: maxY },
     }
-    setScenario(prev => prev ? ({ ...prev, nodes: [...prev.nodes, newNode] }) : prev)
+    dispatch({ type: 'push', updater: s => ({ ...s, nodes: [...s.nodes, newNode] }) })
     setSelectedNodeId(newNode.id)
     setIsDirty(true)
     setShowValidation(false)
-  }, [scenario.nodes, setScenario, setSelectedNodeId, setIsDirty, setShowValidation])
+  }, [scenario.nodes])
 
   const addChoiceFromValidation = useCallback((nodeId: string) => {
     addChoice(nodeId)
@@ -760,7 +772,7 @@ function EditorUI({
 
           <EditableTitle
             value={scenario.title}
-            onChange={title => { setScenario(prev => prev ? { ...prev, title } : prev); setIsDirty(true) }}
+            onChange={title => { dispatch({ type: 'push', updater: s => ({ ...s, title }) }); setIsDirty(true) }}
           />
 
           <StatusPill status={scenario.status} />
@@ -862,6 +874,26 @@ function EditorUI({
               </>
             )}
           </div>
+
+          {/* Undo/Redo */}
+          <button
+            onClick={() => { dispatch({ type: 'undo' }); if (canUndo) setIsDirty(true) }}
+            disabled={!canUndo}
+            className="flex items-center justify-center w-6 h-6 rounded-lg transition-colors hover:bg-[var(--tint-3)] disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ color: 'var(--fg-4)' }}
+            title="Undo (⌘Z)"
+          >
+            <Undo2 size={13} />
+          </button>
+          <button
+            onClick={() => { dispatch({ type: 'redo' }); if (canRedo) setIsDirty(true) }}
+            disabled={!canRedo}
+            className="flex items-center justify-center w-6 h-6 rounded-lg transition-colors hover:bg-[var(--tint-3)] disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ color: 'var(--fg-4)' }}
+            title="Redo (⌘⇧Z)"
+          >
+            <Redo2 size={13} />
+          </button>
         </div>
 
         {/* ── Right: actions ────────────────────────────────────────────────── */}

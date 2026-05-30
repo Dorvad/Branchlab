@@ -199,6 +199,7 @@ interface NodeCardData {
   title: string
   nodeType: NodeType
   choiceCount: number
+  unconnectedChoiceCount: number
   errorLevel: 'error' | 'warning' | null
   hasClip: boolean
   isCheckpoint?: boolean
@@ -350,17 +351,25 @@ function ScenarioNodeCard({ data }: NodeProps) {
           <div className="flex items-center gap-1.5">
             {isEnding ? (
               <span className="text-[9px] font-mono" style={{ color: cfg.label }}>Final outcome</span>
-            ) : d.choiceCount > 0 ? (
-              Array.from({ length: Math.min(d.choiceCount, 4) }, (_, i) => (
-                <span
-                  key={i}
-                  className="w-3.5 h-3.5 rounded flex items-center justify-center text-[8px] font-mono font-medium"
-                  style={{ background: 'var(--tint-3)', color: 'var(--fg-3)', border: '1px solid var(--line-2)' }}
-                >
-                  {String.fromCharCode(65 + i)}
-                </span>
-              ))
-            ) : (
+            ) : d.choiceCount > 0 ? (() => {
+              const shown = Math.min(d.choiceCount, 4)
+              const connectedCount = d.choiceCount - d.unconnectedChoiceCount
+              return Array.from({ length: shown }, (_, i) => {
+                const isUnconnected = i >= connectedCount
+                return (
+                  <span
+                    key={i}
+                    className="w-3.5 h-3.5 rounded flex items-center justify-center text-[8px] font-mono font-medium"
+                    style={isUnconnected
+                      ? { background: 'oklch(80% 0.16 60 / 0.12)', color: 'oklch(80% 0.16 60 / 0.9)', border: '1px solid oklch(80% 0.16 60 / 0.35)' }
+                      : { background: 'var(--tint-3)', color: 'var(--fg-3)', border: '1px solid var(--line-2)' }
+                    }
+                  >
+                    {isUnconnected ? '?' : String.fromCharCode(65 + i)}
+                  </span>
+                )
+              })
+            })() : (
               <span
                 className="text-[9px] font-mono"
                 style={{ color: noChoicesWarning ? 'oklch(80% 0.16 60 / 0.7)' : 'var(--fg-4)' }}
@@ -395,6 +404,7 @@ function buildRFNodes(
       title: n.title,
       nodeType: n.type,
       choiceCount: n.choices?.length ?? 0,
+      unconnectedChoiceCount: n.choices?.filter(c => !c.targetNodeId).length ?? 0,
       errorLevel: nodeStatusMap[n.id] ?? null,
       hasClip: !!n.clip || !!n.youtubeAsset,
       thumbnailUrl: n.clip?.thumbnail ?? n.youtubeAsset?.thumbnailUrl,
