@@ -1361,7 +1361,7 @@ function EditorDeleteModal({
 function StatusPill({ status }: { status: string }) {
   const s = {
     published: { color: 'oklch(82% 0.18 165)', bg: 'oklch(82% 0.18 165 / 0.1)', border: 'oklch(82% 0.18 165 / 0.3)' },
-    draft:     { color: 'var(--fg-2)', bg: 'var(--tint-2)', border: 'var(--line-2)' },
+    draft:     { color: 'var(--fg-3)', bg: 'var(--tint-2)', border: 'var(--line-2)' },
     archived:  { color: 'var(--fg-3)', bg: 'var(--tint-1)', border: 'var(--line-1)' },
   }[status] ?? { color: 'var(--fg-2)', bg: 'var(--tint-2)', border: 'var(--line-2)' }
 

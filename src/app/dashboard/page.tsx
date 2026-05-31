@@ -1478,7 +1478,7 @@ function DashboardCard({
         {hasDraftChanges && (
           <div
             className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-full text-[9px] font-mono"
-            style={{ background: 'rgba(0,0,0,0.6)', color: 'var(--fg-2)' }}
+            style={{ background: 'rgba(0,0,0,0.55)', color: 'rgba(255,255,255,0.72)', border: '1px solid rgba(255,255,255,0.12)' }}
           >
             draft changes
           </div>
