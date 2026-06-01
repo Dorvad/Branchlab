@@ -681,6 +681,7 @@ export function AssetLibrary({
                           canAttach={canAttach}
                           onAttach={() => asset.type === 'video' ? onAttachPexelsVideoToNode(asset) : onAttachPexelsPhotoToNode(asset)}
                           onRemove={() => onRemovePexelsAsset(asset.id)}
+                          onRename={t => onRenamePexelsAsset(asset.id, t)}
                           attachLabel={asset.type === 'photo' ? 'Set thumbnail' : 'Attach'}
                         />
                       ))}
@@ -694,6 +695,7 @@ export function AssetLibrary({
                           canAttach={canAttach}
                           onAttach={() => onAttachCoverrVideoToNode(asset)}
                           onRemove={() => onRemoveCoverrAsset(asset.id)}
+                          onRename={t => onRenameCoverrAsset(asset.id, t)}
                           attachLabel="Attach"
                         />
                       ))}
@@ -707,6 +709,7 @@ export function AssetLibrary({
                           canAttach={canAttach}
                           onAttach={() => asset.type === 'video' ? onAttachPixabayVideoToNode(asset) : onAttachPixabayImageToNode(asset)}
                           onRemove={() => onRemovePixabayAsset(asset.id)}
+                          onRename={t => onRenamePixabayAsset(asset.id, t)}
                           attachLabel={asset.type === 'image' ? 'Set thumbnail' : 'Attach'}
                         />
                       ))}
@@ -737,7 +740,7 @@ export function AssetLibrary({
 // ── SavedStockRow ─────────────────────────────────────────────────────────────
 
 function SavedStockRow({
-  thumbnail, title, type, isAttached, canAttach, onAttach, onRemove, attachLabel,
+  thumbnail, title, type, isAttached, canAttach, onAttach, onRemove, onRename, attachLabel,
 }: {
   thumbnail: string
   title: string
@@ -746,11 +749,22 @@ function SavedStockRow({
   canAttach: boolean
   onAttach: () => void
   onRemove: () => void
+  onRename: (title: string) => void
   attachLabel: string
 }) {
   const [imgFailed, setImgFailed] = useState(false)
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState(title)
+
+  const commitRename = () => {
+    const trimmed = renameValue.trim()
+    if (trimmed && trimmed !== title) onRename(trimmed)
+    else setRenameValue(title)
+    setIsRenaming(false)
+  }
+
   return (
-    <div className="flex items-center gap-2 px-2.5 py-2">
+    <div className="flex items-center gap-2 px-2.5 py-2 group">
       <div className="relative shrink-0 w-10 h-7 rounded overflow-hidden" style={{ background: 'var(--bg-1)' }}>
         {imgFailed
           ? <div className="w-full h-full flex items-center justify-center" style={{ background: 'var(--tint-2)' }}>
@@ -763,9 +777,34 @@ function SavedStockRow({
           </div>
         )}
       </div>
-      <p className="flex-1 text-[10px] font-mono truncate" style={{ color: 'var(--fg-2)' }} title={title}>
-        {title.length > 22 ? title.slice(0, 19) + '…' : title}
-      </p>
+      {isRenaming ? (
+        <input
+          autoFocus
+          value={renameValue}
+          onChange={e => setRenameValue(e.target.value)}
+          className="flex-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono outline-none"
+          style={{ background: 'var(--tint-2)', border: '1px solid oklch(82% 0.18 165 / 0.4)', color: 'var(--fg-1)' }}
+          onBlur={commitRename}
+          onKeyDown={e => {
+            if (e.key === 'Enter') commitRename()
+            if (e.key === 'Escape') { setRenameValue(title); setIsRenaming(false) }
+          }}
+        />
+      ) : (
+        <div className="flex-1 flex items-center gap-1 min-w-0">
+          <p className="flex-1 text-[10px] font-mono truncate" style={{ color: 'var(--fg-2)' }} title={title}>
+            {title.length > 22 ? title.slice(0, 19) + '…' : title}
+          </p>
+          <button
+            onClick={() => { setRenameValue(title); setIsRenaming(true) }}
+            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--tint-3)]"
+            style={{ color: 'var(--fg-4)' }}
+            title="Rename"
+          >
+            <Pencil size={9} />
+          </button>
+        </div>
+      )}
       {canAttach && (
         <button
           onClick={onAttach}
