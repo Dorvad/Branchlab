@@ -233,9 +233,6 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
         edges: scenario.edges,
         start_node_id: scenario.startNodeId,
         published_at: now,
-        orientation: orientation ?? null,
-        password_protected: passwordProtected ?? false,
-        password: passwordProtected ? (password ?? null) : null,
       })
       .eq('id', prevVersion!.id)
       .select()
@@ -256,9 +253,6 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
         start_node_id: scenario.startNodeId,
         slug,
         published_at: now,
-        orientation: orientation ?? null,
-        password_protected: passwordProtected ?? false,
-        password: passwordProtected ? (password ?? null) : null,
       })
       .select()
       .single()
@@ -295,12 +289,24 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
 
 export async function getPublishedBySlug(slug: string): Promise<ScenarioVersion | null> {
   const sb = getSupabaseClient()
+  // Join with scenarios so we can pull orientation/password from the JSONB
+  // published_version field — those columns live on scenario_versions only after
+  // migration 010 runs; until then the JSONB copy is the source of truth.
   const { data, error } = await sb
     .from('scenario_versions')
-    .select('*')
+    .select('*, scenarios!inner(published_version)')
     .eq('slug', slug)
     .single()
 
   if (error) return null
-  return rowToVersion(data)
+  const version = rowToVersion(data)
+
+  // Supplement from parent scenario's JSONB if dedicated columns are absent
+  const scenarioPv = (data as any).scenarios?.published_version as ScenarioVersion | undefined
+  if (scenarioPv) {
+    if (version.orientation === undefined) version.orientation = scenarioPv.orientation
+    if (version.passwordProtected === undefined) version.passwordProtected = scenarioPv.passwordProtected
+    if (version.password === undefined) version.password = scenarioPv.password
+  }
+  return version
 }
