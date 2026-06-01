@@ -1416,6 +1416,11 @@ function DashboardCard({
   const hasDraftChanges = pub && new Date(scenario.updatedAt) > new Date(pub.publishedAt)
   const updatedDate = new Date(scenario.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   const nodeCount = scenario.nodes.length
+  const thumbnailSrc =
+    scenario.thumbnailUrl ||
+    scenario.nodes.find(n => n.clip?.thumbnail)?.clip?.thumbnail ||
+    scenario.nodes.find(n => n.youtubeAsset?.thumbnailUrl)?.youtubeAsset?.thumbnailUrl ||
+    null
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -1452,19 +1457,23 @@ function DashboardCard({
     >
       {/* Thumbnail */}
       <Link href={`/editor/${scenario.id}`} className="relative block overflow-hidden rounded-t-2xl" style={{ aspectRatio: '16/10' }}>
-        <div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{
-            background: 'repeating-linear-gradient(135deg, var(--tint-1) 0 6px, transparent 6px 12px), var(--bg-2)',
-          }}
-        >
-          <svg width="40" height="40" viewBox="0 0 44 44" fill="none" className="opacity-10">
-            <circle cx="10" cy="22" r="5" fill="currentColor" />
-            <circle cx="34" cy="10" r="4" fill="currentColor" />
-            <circle cx="34" cy="34" r="4" fill="currentColor" />
-            <path d="M14 22 L30 12 M14 22 L30 32" stroke="currentColor" strokeWidth="1.5" />
-          </svg>
-        </div>
+        {thumbnailSrc ? (
+          <img src={thumbnailSrc} alt={scenario.title} className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{
+              background: 'repeating-linear-gradient(135deg, var(--tint-1) 0 6px, transparent 6px 12px), var(--bg-2)',
+            }}
+          >
+            <svg width="40" height="40" viewBox="0 0 44 44" fill="none" className="opacity-10">
+              <circle cx="10" cy="22" r="5" fill="currentColor" />
+              <circle cx="34" cy="10" r="4" fill="currentColor" />
+              <circle cx="34" cy="34" r="4" fill="currentColor" />
+              <path d="M14 22 L30 12 M14 22 L30 32" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+          </div>
+        )}
 
         {/* Status badge */}
         <div

@@ -83,33 +83,33 @@
 /* Light theme */
 [data-theme="light"] {
   /* Backgrounds — crisp cool-white hierarchy */
-  --bg-0: #eef0f8;           /* page base — cool slate wash */
+  --bg-0: #e8ecf5;           /* page base — more distinct slate wash */
   --bg-1: #ffffff;           /* primary surface — pure white */
-  --bg-2: #e6e9f5;           /* recessed surface — nested sections */
-  --bg-3: #d9dded;           /* deep surface — dropdowns, menus */
-  --bg-canvas: #e2e6f4;      /* flow canvas — distinct from panels */
+  --bg-2: #dce0f0;           /* recessed surface — clearly distinct from bg-1 */
+  --bg-3: #cdd3e6;           /* deep surface — dropdowns, menus */
+  --bg-canvas: #d8ddee;      /* flow canvas — distinct from panels */
   --bg-glass:   rgba(255,255,255,0.93); /* white frost — headers, overlays */
   --bg-glass-2: rgba(255,255,255,0.80); /* lighter white frost — status bar */
   --bg-thumbnail: #0b0d13;   /* media areas — always dark */
 
   /* Foreground / text — navy-rooted hierarchy */
-  --fg-0: #0d1020;           /* primary — near-black with navy cast */
-  --fg-1: #1e2548;           /* strong secondary — deep navy */
-  --fg-2: #3c4870;           /* medium — navy slate */
-  --fg-3: #66769e;           /* subdued — muted slate */
-  --fg-4: #9ca8c4;           /* faint — very muted */
+  --fg-0: #080d1a;           /* primary — near-black with navy cast */
+  --fg-1: #1a2240;           /* strong secondary — deep navy */
+  --fg-2: #2e3a60;           /* medium — navy slate */
+  --fg-3: #4a5880;           /* subdued — readable muted slate */
+  --fg-4: #7080a8;           /* faint — still legible on white */
 
   /* Surface tints — visible without being heavy */
-  --tint-1: rgba(0,0,0,0.03);
-  --tint-2: rgba(0,0,0,0.055);
-  --tint-3: rgba(0,0,0,0.095);
+  --tint-1: rgba(0,0,0,0.04);
+  --tint-2: rgba(0,0,0,0.07);
+  --tint-3: rgba(0,0,0,0.11);
 
   /* Borders — sharp, defined, professional */
-  --line-1: rgba(0,0,0,0.08);
-  --line-2: rgba(0,0,0,0.12);
-  --line-3: rgba(0,0,0,0.18);
-  --line-4: rgba(0,0,0,0.27);
-  --line-active: rgba(0,0,0,0.38);
+  --line-1: rgba(0,0,0,0.10);
+  --line-2: rgba(0,0,0,0.16);
+  --line-3: rgba(0,0,0,0.24);
+  --line-4: rgba(0,0,0,0.35);
+  --line-active: rgba(0,0,0,0.50);
 
   /* Accent glow helpers — softened for light surfaces */
   --glow-mint:   0 0 14px oklch(82% 0.18 165 / 0.22);
@@ -122,8 +122,8 @@
   --shadow-modal: 0 24px 60px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.08);
 
   /* Legacy aliases */
-  --stroke:   rgba(0,0,0,0.09);
-  --stroke-2: rgba(0,0,0,0.16);
+  --stroke:   rgba(0,0,0,0.12);
+  --stroke-2: rgba(0,0,0,0.20);
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
