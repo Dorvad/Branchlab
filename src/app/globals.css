@@ -35,14 +35,45 @@
   --line-4: rgba(255,255,255,0.18);
   --line-active: rgba(255,255,255,0.25);
 
-  /* Accent glow helpers */
-  --neon-mint:   oklch(82% 0.18 165);
-  --neon-violet: oklch(78% 0.18 285);
-  --neon-amber:  oklch(80% 0.16 60);
-  --neon-danger: oklch(70% 0.18 25);
+  /* Accent neon palette
+     mint   = primary actions, active paths, correct outcomes
+     violet = feedback / secondary states
+     amber  = endings, outcomes, warnings
+     danger = errors, incorrect outcomes                        */
+  --neon-mint:   oklch(82% 0.18 165);   /* ≈ #2ee0b0 */
+  --neon-violet: oklch(78% 0.18 285);   /* ≈ #a875f0 */
+  --neon-amber:  oklch(80% 0.16 60);    /* ≈ #f5b05a */
+  --neon-danger: oklch(70% 0.18 25);    /* ≈ #e8654f */
+
+  /* Solid hex equivalents (logo nodes, non-oklch contexts) */
+  --mint-solid:   #2ee0b0;
+  --violet-solid: #a875f0;
+  --amber-solid:  #f5b05a;
+
+  /* Ink color for text rendered on mint fill */
+  --on-mint: #052916;
+
+  /* Accent glow helpers — the signature neon bloom */
   --glow-mint:   0 0 24px oklch(82% 0.18 165 / 0.4);
   --glow-violet: 0 0 24px oklch(78% 0.18 285 / 0.4);
   --glow-amber:  0 0 24px oklch(80% 0.16 60 / 0.4);
+
+  /* Elevation / shadow scale */
+  --shadow-card:  0 2px 12px rgba(0,0,0,0.35);
+  --shadow-float: 0 10px 32px rgba(0,0,0,0.6);
+  --shadow-modal: 0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
+
+  /* Corner-radius scale */
+  --r-sm:   8px;     /* inputs, small chips */
+  --r-md:   10px;    /* node cards, panels */
+  --r-lg:   12px;    /* buttons, list rows */
+  --r-xl:   16px;    /* primary buttons, choice cards */
+  --r-2xl:  20px;    /* scenario cards, large surfaces */
+  --r-full: 9999px;  /* pills, dots, avatars */
+
+  /* Type families */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-note: 'Caveat', cursive; /* concept / wireframe annotations only — never production chrome */
 
   /* Legacy aliases used in older inline styles */
   --stroke:   rgba(255,255,255,0.07);
@@ -85,6 +116,11 @@
   --glow-violet: 0 0 14px oklch(78% 0.18 285 / 0.22);
   --glow-amber:  0 0 14px oklch(80% 0.16 60 / 0.22);
 
+  /* Elevation — lighter shadows + no white ring in light mode */
+  --shadow-card:  0 1px 6px rgba(0,0,0,0.10);
+  --shadow-float: 0 6px 24px rgba(0,0,0,0.14);
+  --shadow-modal: 0 24px 60px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.08);
+
   /* Legacy aliases */
   --stroke:   rgba(0,0,0,0.09);
   --stroke-2: rgba(0,0,0,0.16);
@@ -120,7 +156,7 @@ html, body {
   font-family: inherit;
 }
 .inspector-input:focus {
-  border-color: var(--line-4);
+  border-color: oklch(82% 0.18 165 / 0.6);
   background: var(--tint-2);
 }
 .inspector-input::placeholder {
@@ -206,4 +242,95 @@ select.inspector-input option {
 [data-theme="light"] .inspector-input:focus {
   background: var(--bg-1);
   border-color: oklch(82% 0.18 165 / 0.6);
+}
+
+/* ── Semantic type scale (.bl-* classes) ─────────────────────────────────── */
+/* These mirror the design system's type ramp exactly.
+   Use in marketing, player headlines, and any surface that needs
+   explicit type hierarchy beyond Tailwind utility classes.          */
+
+.bl-display {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: clamp(32px, 6vw, 64px);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  color: var(--fg-0);
+}
+.bl-h1 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--fg-0);
+}
+.bl-h2 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--fg-0);
+}
+.bl-h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--fg-0);
+}
+.bl-body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--fg-2);
+}
+.bl-body-sm {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-2);
+}
+
+/* Monospace label — the signature metadata / status voice.
+   Uppercase + wide tracking: eyebrows, statuses, stats, node-type badges. */
+.bl-label {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.bl-label-sm {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 1.4;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+
+/* Inline mono — slugs, URLs, durations, keyboard hints (not uppercased) */
+.bl-mono {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0;
+  color: var(--fg-2);
+}
+
+/* Handwritten annotation — concept / wireframe contexts only */
+.bl-note {
+  font-family: var(--font-note);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--neon-mint);
 }

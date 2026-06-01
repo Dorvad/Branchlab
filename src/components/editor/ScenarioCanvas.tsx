@@ -359,7 +359,7 @@ function ScenarioNodeCard({ data }: NodeProps) {
                 return (
                   <span
                     key={i}
-                    className="w-3.5 h-3.5 rounded flex items-center justify-center text-[8px] font-mono font-medium"
+                    className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-mono font-medium"
                     style={isUnconnected
                       ? { background: 'oklch(80% 0.16 60 / 0.12)', color: 'oklch(80% 0.16 60 / 0.9)', border: '1px solid oklch(80% 0.16 60 / 0.35)' }
                       : { background: 'var(--tint-3)', color: 'var(--fg-3)', border: '1px solid var(--line-2)' }

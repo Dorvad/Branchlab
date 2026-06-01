@@ -1395,9 +1395,9 @@ function ScenarioGrid({
 // ── DashboardCard ─────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
-  published: { dot: 'oklch(82% 0.18 165)', label: 'Published', text: 'oklch(82% 0.18 165)', bg: 'oklch(82% 0.18 165 / 0.10)', border: 'oklch(82% 0.18 165 / 0.3)' },
-  draft:     { dot: 'var(--fg-3)', label: 'Draft', text: 'var(--fg-3)', bg: 'var(--tint-2)', border: 'var(--line-2)' },
-  archived:  { dot: 'var(--fg-4)', label: 'Archived', text: 'var(--fg-4)', bg: 'var(--tint-1)', border: 'var(--line-1)' },
+  published: { dot: 'var(--neon-mint)', label: 'Published', text: 'var(--neon-mint)', bg: 'oklch(82% 0.18 165 / 0.08)', border: 'oklch(82% 0.18 165 / 0.3)' },
+  draft:     { dot: 'var(--fg-2)', label: 'Draft', text: 'var(--fg-2)', bg: 'var(--tint-1)', border: 'var(--line-3)' },
+  archived:  { dot: 'var(--fg-3)', label: 'Archived', text: 'var(--fg-3)', bg: 'var(--tint-1)', border: 'var(--line-2)' },
 }
 
 function DashboardCard({
