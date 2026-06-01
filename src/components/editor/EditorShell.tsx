@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef, useReducer } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Library, Loader2, Monitor, Smartphone, ChevronDown, Download, Trash2, MoreHorizontal, Undo2, Redo2 } from 'lucide-react'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Library, Loader2, Monitor, Smartphone, ChevronDown, Trash2, MoreHorizontal, Undo2, Redo2, Share2 } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -23,7 +23,7 @@ import { fetchCoverrAssets, deleteCoverrAsset as deleteCoverrAssetFn, renameCove
 import { fetchPixabayAssets, deletePixabayAsset as deletePixabayAssetFn, renamePixabayAsset as renamePixabayAssetFn } from '@/lib/persistence/pixabay-assets'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
-import { RepublishModal } from './RepublishModal'
+import { ShareModal } from './ShareModal'
 import { AddYouTubeModal } from './AddYouTubeModal'
 import { exportToBlab } from '@/lib/blab-format'
 import { exportToZip } from '@/lib/zip-export'
@@ -195,7 +195,7 @@ function EditorUI({ initialScenario }: EditorUIProps) {
   const [savedAt, setSavedAt] = useState<Date | null>(() => new Date(initialScenario.updatedAt))
   const [showValidation, setShowValidation] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
-  const [showRepublish, setShowRepublish] = useState(false)
+  const [showShare, setShowShare] = useState(false)
   const [showAssets, setShowAssets] = useState(false)
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -998,9 +998,9 @@ function EditorUI({ initialScenario }: EditorUIProps) {
             )}
           </div>
 
-          {/* Primary: Publish */}
+          {/* Primary: Publish / Share */}
           <button
-            onClick={() => scenario.publishedVersion ? setShowRepublish(true) : setShowPublish(true)}
+            onClick={() => scenario.publishedVersion ? setShowShare(true) : setShowPublish(true)}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-mono transition-all hover:brightness-110"
             style={{
               background: 'oklch(82% 0.18 165 / 0.12)',
@@ -1008,8 +1008,8 @@ function EditorUI({ initialScenario }: EditorUIProps) {
               color: 'oklch(82% 0.18 165)',
             }}
           >
-            <Globe size={12} />
-            {scenario.publishedVersion ? 'Republish' : 'Publish'}
+            {scenario.publishedVersion ? <Share2 size={12} /> : <Globe size={12} />}
+            {scenario.publishedVersion ? 'Share' : 'Publish'}
           </button>
         </div>
       </header>
@@ -1184,13 +1184,13 @@ function EditorUI({ initialScenario }: EditorUIProps) {
         />
       )}
 
-      {showRepublish && scenario.publishedVersion && (
-        <RepublishModal
+      {showShare && scenario.publishedVersion && (
+        <ShareModal
           scenario={scenario}
           isDirty={isDirty}
           validationResult={validationResult}
           onPublish={(config) => handlePublish(config)}
-          onClose={() => setShowRepublish(false)}
+          onClose={() => setShowShare(false)}
         />
       )}
 

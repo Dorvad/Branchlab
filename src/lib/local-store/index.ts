@@ -1,4 +1,4 @@
-import type { Scenario, ScenarioEdge, ScenarioVersion } from '@/types'
+import type { Scenario, ScenarioEdge, ScenarioVersion, PublishConfig } from '@/types'
 import { mockScenarios } from '@/data/mock-scenarios'
 import { mockPublishedScenarios } from '@/data/mock-scenarios'
 
@@ -265,7 +265,8 @@ export function createFromTemplate(): Scenario {
  *
  * Returns the updated draft scenario so callers can update React state.
  */
-export function publishScenario(scenario: Scenario, slug: string): Scenario {
+export function publishScenario(scenario: Scenario, config: PublishConfig): Scenario {
+  const { slug, orientation, passwordProtected, password } = config
   const now = new Date().toISOString()
   const prevVersion = scenario.publishedVersion
   const versionNumber = prevVersion ? prevVersion.version + 1 : 1
@@ -281,6 +282,9 @@ export function publishScenario(scenario: Scenario, slug: string): Scenario {
     startNodeId: scenario.startNodeId,
     publishedAt: now,
     slug,
+    orientation,
+    passwordProtected,
+    password: passwordProtected ? password : undefined,
   }
 
   // Write snapshot to published store

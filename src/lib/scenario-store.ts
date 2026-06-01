@@ -46,6 +46,9 @@ function rowToVersion(row: any): ScenarioVersion {
     startNodeId: row.start_node_id,
     publishedAt: row.published_at,
     slug: row.slug,
+    orientation: row.orientation ?? undefined,
+    passwordProtected: row.password_protected ?? undefined,
+    password: row.password ?? undefined,
   }
 }
 
@@ -230,6 +233,9 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
         edges: scenario.edges,
         start_node_id: scenario.startNodeId,
         published_at: now,
+        orientation: orientation ?? null,
+        password_protected: passwordProtected ?? false,
+        password: passwordProtected ? (password ?? null) : null,
       })
       .eq('id', prevVersion!.id)
       .select()
@@ -250,6 +256,9 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
         start_node_id: scenario.startNodeId,
         slug,
         published_at: now,
+        orientation: orientation ?? null,
+        password_protected: passwordProtected ?? false,
+        password: passwordProtected ? (password ?? null) : null,
       })
       .select()
       .single()

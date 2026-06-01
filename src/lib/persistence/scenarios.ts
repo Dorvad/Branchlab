@@ -28,8 +28,7 @@ export async function saveScenario(scenario: Scenario, orgId?: string | null): P
 
 export async function publishScenario(scenario: Scenario, config: PublishConfig): Promise<Scenario> {
   if (isSupabaseMode()) return supabaseStore.publishScenario(scenario, config)
-  // local-store takes only the slug; other config fields (orientation etc.) are ignored in local mode
-  return Promise.resolve(localStore.publishScenario(scenario, config.slug))
+  return Promise.resolve(localStore.publishScenario(scenario, config))
 }
 
 export async function isSlugAvailable(slug: string, ownScenarioId?: string): Promise<boolean> {
