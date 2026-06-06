@@ -435,29 +435,32 @@ export function ShareModal({ scenario, isDirty, validationResult, onPublish, onC
             Close
           </button>
 
-          <button
-            onClick={handleUpdate}
-            disabled={!canUpdateAndHasChanges}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono font-medium transition-all"
-            style={canUpdateAndHasChanges ? {
-              background: 'oklch(82% 0.18 165)',
-              color: '#052916',
-              boxShadow: '0 0 20px oklch(82% 0.18 165 / 0.35)',
-            } : {
-              background: 'var(--tint-2)',
-              color: 'var(--fg-4)',
-              border: '1px solid var(--line-1)',
-              cursor: !hasChanges && !settingsChanged ? 'default' : 'not-allowed',
-            }}
-          >
-            {isUpdating ? (
-              <><Loader2 size={12} className="animate-spin" /> Updating…</>
-            ) : !hasChanges && !settingsChanged ? (
-              <><CheckCircle2 size={12} /> Up to date</>
-            ) : (
-              <><Globe size={12} /> Update</>
-            )}
-          </button>
+          {(!hasChanges && !settingsChanged) ? (
+            <div className="flex items-center gap-1.5 text-xs font-mono" style={{ color: 'oklch(82% 0.18 165 / 0.75)' }}>
+              <CheckCircle2 size={13} />
+              Up to date
+            </div>
+          ) : (
+            <button
+              onClick={handleUpdate}
+              disabled={!canUpdateAndHasChanges}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono font-medium transition-all"
+              style={canUpdateAndHasChanges ? {
+                background: 'oklch(82% 0.18 165)',
+                color: '#052916',
+                boxShadow: '0 0 20px oklch(82% 0.18 165 / 0.35)',
+              } : {
+                background: 'var(--tint-2)',
+                color: 'var(--fg-4)',
+                border: '1px solid var(--line-1)',
+                cursor: 'not-allowed',
+              }}
+            >
+              {isUpdating
+                ? <><Loader2 size={12} className="animate-spin" /> Updating…</>
+                : <><Globe size={12} /> Update</>}
+            </button>
+          )}
         </div>
       </motion.div>
     </div>

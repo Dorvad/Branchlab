@@ -1493,19 +1493,16 @@ function DashboardCard({
           </div>
         )}
 
-        {/* Published play link */}
+        {/* Published play link — button to avoid nested <a> inside the outer Link */}
         {pub && (
-          <Link
-            href={`/play/${pub.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
+          <button
+            onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`/play/${pub.slug}`, '_blank', 'noopener,noreferrer') }}
             className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono opacity-0 group-hover:opacity-100 transition-opacity"
             style={{ background: 'oklch(82% 0.18 165 / 0.15)', border: '1px solid oklch(82% 0.18 165 / 0.3)', color: 'oklch(82% 0.18 165)' }}
           >
             <ExternalLink size={10} />
             Live
-          </Link>
+          </button>
         )}
 
       </Link>
