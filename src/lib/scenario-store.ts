@@ -289,24 +289,44 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
 
 export async function getPublishedBySlug(slug: string): Promise<ScenarioVersion | null> {
   const sb = getSupabaseClient()
-  // Join with scenarios so we can pull orientation/password from the JSONB
-  // published_version field — those columns live on scenario_versions only after
-  // migration 010 runs; until then the JSONB copy is the source of truth.
+
+  // Primary: look up in scenario_versions
   const { data, error } = await sb
     .from('scenario_versions')
-    .select('*, scenarios!inner(published_version)')
+    .select('*')
     .eq('slug', slug)
     .single()
 
-  if (error) return null
-  const version = rowToVersion(data)
+  if (!error && data) {
+    const version = rowToVersion(data)
 
-  // Supplement from parent scenario's JSONB if dedicated columns are absent
-  const scenarioPv = (data as any).scenarios?.published_version as ScenarioVersion | undefined
-  if (scenarioPv) {
-    if (version.orientation === undefined) version.orientation = scenarioPv.orientation
-    if (version.passwordProtected === undefined) version.passwordProtected = scenarioPv.passwordProtected
-    if (version.password === undefined) version.password = scenarioPv.password
+    // orientation/password live in scenarios.published_version JSONB until
+    // migration 010 is applied. Fetch them with a second query if absent.
+    if (version.orientation === undefined && version.passwordProtected === undefined) {
+      const { data: sd } = await sb
+        .from('scenarios')
+        .select('published_version')
+        .eq('slug', slug)
+        .maybeSingle()
+      const pv = sd?.published_version as ScenarioVersion | undefined
+      if (pv) {
+        version.orientation = pv.orientation
+        version.passwordProtected = pv.passwordProtected
+        version.password = pv.password
+      }
+    }
+
+    return version
   }
-  return version
+
+  // Fallback: if scenario_versions has no row (e.g. publish failed mid-way),
+  // try recovering from scenarios.published_version JSONB
+  const { data: sd } = await sb
+    .from('scenarios')
+    .select('published_version')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  const pv = sd?.published_version as ScenarioVersion | undefined
+  return pv ?? null
 }
