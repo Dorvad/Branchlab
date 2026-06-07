@@ -13,6 +13,7 @@ import {
   GitBranch, Clock, ExternalLink, X, Play,
   ChevronDown, Check, Upload, Pencil,
   Eye, BarChart3, Download, FolderOpen, Settings, Menu,
+  Radio,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
@@ -36,6 +37,7 @@ import type { Scenario, Clip } from '@/types'
 import type { User } from '@supabase/supabase-js'
 import { useOrg } from '@/lib/org-context'
 import { createOrg } from '@/lib/supabase/orgs'
+import { createFacilitatorSession } from '@/lib/facilitator'
 
 type Section = 'home' | 'drafts' | 'published' | 'assets'
 type SortKey = 'updated' | 'name' | 'created'
@@ -1427,10 +1429,24 @@ function DashboardCard({
   onDelete: () => void
   onRename: () => void
 }) {
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [startingFacilitator, setStartingFacilitator] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const cfg = STATUS_CONFIG[scenario.status] ?? STATUS_CONFIG.draft
   const pub = scenario.publishedVersion
+
+  const startFacilitatorSession = async () => {
+    if (!pub || startingFacilitator) return
+    setStartingFacilitator(true)
+    try {
+      const session = await createFacilitatorSession(scenario, pub)
+      router.push(`/facilitate/${session.id}`)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to start facilitator session')
+      setStartingFacilitator(false)
+    }
+  }
   const hasDraftChanges = pub && new Date(scenario.updatedAt) > new Date(pub.publishedAt)
   const updatedDate = new Date(scenario.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   const nodeCount = scenario.nodes.length
@@ -1453,6 +1469,12 @@ function DashboardCard({
     { icon: <Eye size={12} />, label: 'Preview', href: `/preview/${scenario.id}?device=mobile` },
     ...(pub ? [{ icon: <Play size={12} />, label: 'View published', href: `/play/${pub.slug}` }] : []),
     ...(pub ? [{ icon: <BarChart3 size={12} />, label: 'Analytics', href: `/dashboard/scenario/${scenario.id}/analytics` }] : []),
+    ...(pub && isSupabaseMode() ? [{
+      icon: startingFacilitator ? <Loader2 size={12} className="animate-spin" /> : <Radio size={12} />,
+      label: startingFacilitator ? 'Starting…' : 'Start facilitator session',
+      action: startFacilitatorSession,
+    }] : []),
+    ...(pub && isSupabaseMode() ? [{ icon: <Settings size={12} />, label: 'Facilitator sessions', href: `/dashboard/scenario/${scenario.id}/facilitate` }] : []),
     null, // divider
     { icon: <Pencil size={12} />, label: 'Rename', action: onRename },
     { icon: <Copy size={12} />, label: 'Duplicate', action: onDuplicate },
