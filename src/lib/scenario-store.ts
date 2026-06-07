@@ -12,7 +12,9 @@ export {
   createScenario,
   createFromTemplate,
   duplicateScenario,
+  SCENARIO_TEMPLATES,
 } from './local-store'
+export type { TemplateId, ScenarioTemplate } from './local-store'
 
 // ── Row ↔ Type mappers ────────────────────────────────────────────────────────
 

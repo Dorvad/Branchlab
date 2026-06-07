@@ -20,7 +20,9 @@ import {
   createScenario,
   createFromTemplate,
   duplicateScenario,
+  SCENARIO_TEMPLATES,
 } from '@/lib/scenario-store'
+import type { TemplateId } from '@/lib/scenario-store'
 import { getAllScenarios, saveScenario, deleteScenario } from '@/lib/persistence/scenarios'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
@@ -142,11 +144,16 @@ export default function DashboardPage() {
     })
   }
 
-  const handleCreateFromTemplate = () => {
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
+
+  const handleCreateFromTemplate = () => setTemplatePickerOpen(true)
+
+  const handleSelectTemplate = (templateId: TemplateId) => {
     setCreateError(null)
+    setTemplatePickerOpen(false)
     startTransition(async () => {
       try {
-        const s = createFromTemplate()
+        const s = createFromTemplate(templateId)
         await saveScenario(s, activeOrg?.id ?? null)
         router.push(`/editor/${s.id}`)
       } catch (e) {
@@ -432,6 +439,17 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
 
+      {/* ── Template picker modal ── */}
+      <AnimatePresence>
+        {templatePickerOpen && (
+          <TemplatePickerModal
+            isPending={isPending}
+            onSelect={handleSelectTemplate}
+            onCancel={() => setTemplatePickerOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── ZIP import progress modal ── */}
       <AnimatePresence>
         {zipImportProgress && (
@@ -600,7 +618,7 @@ function Sidebar({
                   <GitBranch size={14} className="mt-0.5 shrink-0" style={{ color: 'oklch(82% 0.18 165)' }} />
                   <div>
                     <p className="text-sm font-medium" style={{ color: 'var(--fg-0)' }}>From template</p>
-                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--fg-3)' }}>Start node, 2 paths, 1 ending</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--fg-3)' }}>Choose from 3 starting structures</p>
                   </div>
                 </button>
                 <div style={{ height: 1, background: 'var(--line-1)' }} />
@@ -2120,6 +2138,172 @@ function RenameModal({
             </button>
           </div>
         </form>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ── TemplatePickerModal ───────────────────────────────────────────────────────
+
+const TEMPLATE_GRAPH_PREVIEWS: Record<TemplateId, { nodes: { x: number; y: number; ending?: boolean }[]; edges: [number, number][] }> = {
+  'two-path': {
+    nodes: [
+      { x: 50, y: 8 },
+      { x: 14, y: 38 },
+      { x: 86, y: 38 },
+      { x: 50, y: 68, ending: true },
+    ],
+    edges: [[0, 1], [0, 2], [1, 3], [2, 3]],
+  },
+  'three-way': {
+    nodes: [
+      { x: 50, y: 6 },
+      { x: 14, y: 34 }, { x: 50, y: 34 }, { x: 86, y: 34 },
+      { x: 14, y: 68, ending: true }, { x: 50, y: 68, ending: true }, { x: 86, y: 68, ending: true },
+    ],
+    edges: [[0, 1], [0, 2], [0, 3], [1, 4], [2, 5], [3, 6]],
+  },
+  'linear-twist': {
+    nodes: [
+      { x: 50, y: 6 },
+      { x: 50, y: 32 },
+      { x: 50, y: 58 },
+      { x: 22, y: 86, ending: true },
+      { x: 78, y: 86, ending: true },
+    ],
+    edges: [[0, 1], [1, 2], [2, 3], [2, 4]],
+  },
+}
+
+function TemplateGraphPreview({ templateId }: { templateId: TemplateId }) {
+  const graph = TEMPLATE_GRAPH_PREVIEWS[templateId]
+  return (
+    <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+      {graph.edges.map(([from, to], i) => {
+        const a = graph.nodes[from]
+        const b = graph.nodes[to]
+        return (
+          <line
+            key={i}
+            x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+            stroke="var(--line-2)"
+            strokeWidth={1.4}
+          />
+        )
+      })}
+      {graph.nodes.map((n, i) => (
+        <circle
+          key={i}
+          cx={n.x} cy={n.y} r={i === 0 ? 5 : n.ending ? 4.5 : 4}
+          fill={i === 0 ? 'oklch(82% 0.18 165)' : n.ending ? 'oklch(78% 0.18 285)' : 'var(--bg-2)'}
+          stroke={i === 0 || n.ending ? 'transparent' : 'var(--line-2)'}
+          strokeWidth={1.4}
+        />
+      ))}
+    </svg>
+  )
+}
+
+function TemplatePickerModal({
+  isPending, onSelect, onCancel,
+}: {
+  isPending: boolean
+  onSelect: (templateId: TemplateId) => void
+  onCancel: () => void
+}) {
+  const [selected, setSelected] = useState<TemplateId | null>(null)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 8 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 8 }}
+        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-2xl rounded-2xl overflow-hidden"
+        style={{
+          background: 'var(--bg-1)',
+          border: '1px solid var(--line-2)',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+        }}
+      >
+        <div className="flex items-start justify-between px-6 pt-6 pb-1">
+          <div>
+            <h3 className="text-base font-semibold mb-1" style={{ color: 'var(--fg-0)' }}>Start from a template</h3>
+            <p className="text-sm" style={{ color: 'var(--fg-3)' }}>Pick a starting structure — you can edit every scene and choice afterward.</p>
+          </div>
+          <button
+            onClick={onCancel}
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--tint-3)]"
+            style={{ color: 'var(--fg-3)' }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-6">
+          {SCENARIO_TEMPLATES.map(template => {
+            const isSelected = selected === template.id
+            return (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => setSelected(template.id)}
+                disabled={isPending}
+                className="flex flex-col text-left rounded-xl overflow-hidden transition-all disabled:opacity-60"
+                style={{
+                  background: 'var(--tint-2)',
+                  border: `1.5px solid ${isSelected ? 'oklch(82% 0.18 165)' : 'var(--line-2)'}`,
+                  boxShadow: isSelected ? '0 0 0 3px oklch(82% 0.18 165 / 0.15)' : 'none',
+                }}
+              >
+                <div
+                  className="h-28 flex items-center justify-center px-6 py-3"
+                  style={{ background: 'var(--bg-2)', borderBottom: '1px solid var(--line-1)' }}
+                >
+                  <TemplateGraphPreview templateId={template.id} />
+                </div>
+                <div className="p-3.5 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium" style={{ color: 'var(--fg-0)' }}>{template.title}</p>
+                    {isSelected && <Check size={13} style={{ color: 'oklch(82% 0.18 165)' }} />}
+                  </div>
+                  <p className="text-[11px] leading-relaxed" style={{ color: 'var(--fg-3)' }}>{template.description}</p>
+                  <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--fg-4)' }}>{template.structure}</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div
+          className="flex items-center justify-end gap-2 px-6 py-4 border-t"
+          style={{ borderColor: 'var(--line-1)' }}
+        >
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-[var(--tint-3)]"
+            style={{ border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => selected && onSelect(selected)}
+            disabled={!selected || isPending}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
+            style={{ background: 'oklch(82% 0.18 165)', color: '#052916' }}
+          >
+            {isPending ? <Loader2 size={14} className="animate-spin" /> : <GitBranch size={14} />}
+            Use template
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   )
