@@ -33,7 +33,10 @@ export async function getScenarioAnalytics(scenarioId: string): Promise<Scenario
     return emptyAnalytics(scenario, null)
   }
 
-  // Load sessions for this scenario
+  // Load sessions for this scenario. Preview plays never make it into
+  // player_sessions (see api/analytics/session/start resolves no version for
+  // them), but we filter `is_preview` in JS rather than in the query so this
+  // keeps working on projects that haven't run migration 011 yet (column absent).
   const { data: sessionRows } = await sb()
     .from('player_sessions')
     .select('*')
@@ -41,7 +44,7 @@ export async function getScenarioAnalytics(scenarioId: string): Promise<Scenario
     .order('started_at', { ascending: false })
     .limit(500)
 
-  const sessions = (sessionRows ?? []) as unknown as RawSession[]
+  const sessions = ((sessionRows ?? []) as unknown as RawSession[]).filter(s => s.is_preview !== true)
 
   if (sessions.length === 0) {
     return emptyAnalytics(scenario, publishedVersion)
@@ -81,12 +84,22 @@ function aggregateAnalytics(
     eventsBySession.set(e.session_id, arr)
   }
 
-  // Completed sessions = sessions that have a 'session_completed' event
-  const completedSessionIds = new Set(
-    events.filter(e => e.event_type === 'session_completed').map(e => e.session_id)
-  )
+  // Completed sessions = sessions with a 'session_completed' event OR a
+  // completed_at stamp on the row itself (set by /api/analytics/session/complete —
+  // belt-and-suspenders in case the event insert raced or was dropped).
+  const completedSessionIds = new Set([
+    ...events.filter(e => e.event_type === 'session_completed').map(e => e.session_id),
+    ...sessions.filter(s => !!s.completed_at).map(s => s.id),
+  ])
   const completedSessions = completedSessionIds.size
   const completionRate = totalPlays > 0 ? completedSessions / totalPlays : 0
+
+  // Average score across completed sessions — null when nothing in this
+  // scenario ever recorded a score (no scoring configured).
+  const scoredSessions = sessions.filter(s => completedSessionIds.has(s.id) && s.total_score != null)
+  const averageScore = scoredSessions.length > 0 && scoredSessions.some(s => (s.total_score ?? 0) !== 0)
+    ? scoredSessions.reduce((a, s) => a + (s.total_score ?? 0), 0) / scoredSessions.length
+    : null
 
   // Average completion time (seconds between session_started and session_completed)
   const completionTimes: number[] = []
@@ -199,20 +212,27 @@ function aggregateAnalytics(
 
   // Recent sessions table
   const recentSessions = sessions.slice(0, 50).map(session => {
-    const sesEvents = eventsBySession.get(session.id) ?? []
+    const sesEvents = (eventsBySession.get(session.id) ?? [])
+      .slice()
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     const completed = completedSessionIds.has(session.id)
+
     const endEvt = sesEvents.find(e => e.event_type === 'ending_reached')
-    const endingNodeId = endEvt?.ending_node_id ?? undefined
+    // Prefer the stamped row value (authoritative — written by session/complete),
+    // fall back to the event for sessions recorded before that column existed.
+    const endingNodeId = session.ending_node_id ?? endEvt?.ending_node_id ?? undefined
     const endingTitle = endingNodeId ? (nodeMap.get(endingNodeId)?.title ?? undefined) : undefined
+
     const startEvt = sesEvents.find(e => e.event_type === 'session_started')
     const completedEvt = sesEvents.find(e => e.event_type === 'session_completed')
-    let durationSeconds: number | undefined
-    if (startEvt && completedEvt) {
+    let durationSeconds: number | undefined = session.duration_seconds ?? undefined
+    if (durationSeconds == null && startEvt && completedEvt) {
       durationSeconds = (new Date(completedEvt.created_at).getTime() - new Date(startEvt.created_at).getTime()) / 1000
-    } else if (completed) {
-      durationSeconds = (new Date(session.started_at).getTime() - new Date(session.started_at).getTime()) / 1000
     }
+
     const choiceCount = sesEvents.filter(e => e.event_type === 'choice_selected').length
+    const score = session.total_score ?? undefined
+
     return {
       sessionId: session.id,
       startedAt: session.started_at,
@@ -221,13 +241,15 @@ function aggregateAnalytics(
       endingTitle,
       durationSeconds: durationSeconds && durationSeconds > 0 ? durationSeconds : undefined,
       choiceCount,
+      score,
+      path: reconstructSessionPath(sesEvents, nodeMap, endingTitle),
     }
   })
 
   return {
     scenario,
     publishedVersion,
-    summary: { totalPlays, completedSessions, completionRate, averageCompletionSeconds, mostReachedEnding },
+    summary: { totalPlays, completedSessions, completionRate, averageCompletionSeconds, averageScore, mostReachedEnding },
     funnel,
     choices,
     endings,
@@ -236,11 +258,41 @@ function aggregateAnalytics(
   }
 }
 
+// Walks a session's events in chronological order and produces a human-readable
+// node-title / choice-label trail, e.g. "Opening → Choice A → Good Ending".
+// Uses the published snapshot (nodeMap) as the source of truth for titles so the
+// path stays meaningful even if nodes are later renamed or removed from the draft.
+function reconstructSessionPath(
+  sesEvents: RawEvent[],
+  nodeMap: Map<string, ScenarioNode>,
+  endingTitle: string | undefined,
+): string[] {
+  const path: string[] = []
+
+  const pushUnlessRepeat = (label: string | undefined) => {
+    if (!label) return
+    if (path[path.length - 1] === label) return
+    path.push(label)
+  }
+
+  for (const e of sesEvents) {
+    if (e.event_type === 'node_viewed' && e.node_id) {
+      pushUnlessRepeat(nodeMap.get(e.node_id)?.title ?? e.node_id)
+    } else if (e.event_type === 'choice_selected') {
+      pushUnlessRepeat(e.choice_label ?? undefined)
+    }
+  }
+
+  if (endingTitle) pushUnlessRepeat(endingTitle)
+
+  return path
+}
+
 function emptyAnalytics(scenario: Scenario, publishedVersion: ScenarioVersion | null): ScenarioAnalytics {
   return {
     scenario,
     publishedVersion,
-    summary: { totalPlays: 0, completedSessions: 0, completionRate: 0, averageCompletionSeconds: null, mostReachedEnding: null },
+    summary: { totalPlays: 0, completedSessions: 0, completionRate: 0, averageCompletionSeconds: null, averageScore: null, mostReachedEnding: null },
     funnel: { started: 0, firstChoice: 0, completed: 0 },
     choices: [],
     endings: [],
@@ -261,6 +313,12 @@ interface RawSession {
   user_agent: string | null
   referrer: string | null
   created_at: string
+  is_preview?: boolean | null
+  completed_at?: string | null
+  last_event_at?: string | null
+  ending_node_id?: string | null
+  total_score?: number | null
+  duration_seconds?: number | null
 }
 
 interface RawEvent {
@@ -271,8 +329,10 @@ interface RawEvent {
   event_type: string
   node_id: string | null
   choice_id: string | null
+  choice_label?: string | null
   target_node_id: string | null
   ending_node_id: string | null
+  score_delta?: number | null
   score: Record<string, number> | null
   metadata: Record<string, unknown>
   created_at: string

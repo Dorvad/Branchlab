@@ -26,7 +26,7 @@ function downloadCsv(filename: string, content: string): void {
 }
 
 export function exportSessionsCsv(data: ScenarioAnalytics): void {
-  const headers = ['Session ID', 'Started At', 'Completed', 'Ending Node ID', 'Ending Title', 'Duration (s)', 'Choices Made']
+  const headers = ['Session ID', 'Started At', 'Completed', 'Ending Node ID', 'Ending Title', 'Duration (s)', 'Choices Made', 'Score', 'Path']
   const rows = data.recentSessions.map(s => [
     s.sessionId,
     s.startedAt,
@@ -35,6 +35,8 @@ export function exportSessionsCsv(data: ScenarioAnalytics): void {
     s.endingTitle ?? '',
     s.durationSeconds != null ? String(Math.round(s.durationSeconds)) : '',
     String(s.choiceCount),
+    s.score != null ? String(s.score) : '',
+    s.path.join(' → '),
   ])
   const slug = data.publishedVersion?.slug ?? data.scenario.id
   downloadCsv(`${slug}-sessions.csv`, buildCsv(headers, rows))
@@ -47,8 +49,10 @@ interface RawEvent {
   event_type: string
   node_id: string | null
   choice_id: string | null
+  choice_label: string | null
   target_node_id: string | null
   ending_node_id: string | null
+  score_delta: number | null
   score: Record<string, number> | null
   metadata: Record<string, unknown> | null
   created_at: string
@@ -67,8 +71,8 @@ export async function exportEventsCsv(scenarioId: string, scenarioSlug?: string)
 
   const events = (data ?? []) as unknown as RawEvent[]
   const headers = [
-    'Event ID', 'Session ID', 'Event Type', 'Node ID', 'Choice ID',
-    'Target Node ID', 'Ending Node ID', 'Score JSON', 'Metadata JSON', 'Created At',
+    'Event ID', 'Session ID', 'Event Type', 'Node ID', 'Choice ID', 'Choice Label',
+    'Target Node ID', 'Ending Node ID', 'Score Delta', 'Score JSON', 'Metadata JSON', 'Created At',
   ]
   const rows = events.map(e => [
     e.id,
@@ -76,8 +80,10 @@ export async function exportEventsCsv(scenarioId: string, scenarioSlug?: string)
     e.event_type,
     e.node_id ?? '',
     e.choice_id ?? '',
+    e.choice_label ?? '',
     e.target_node_id ?? '',
     e.ending_node_id ?? '',
+    e.score_delta != null ? String(e.score_delta) : '',
     e.score ? JSON.stringify(e.score) : '',
     e.metadata ? JSON.stringify(e.metadata) : '',
     e.created_at,

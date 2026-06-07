@@ -26,7 +26,7 @@ import {
   clearCheckpointFromStorage,
 } from '@/lib/checkpoint-storage'
 
-import { createPlayerSession, trackPlayerEvent } from '@/lib/analytics/track'
+import { createPlayerSession, trackPlayerEvent, completePlayerSession } from '@/lib/analytics/track'
 
 import type { Scenario, ScenarioVersion, PlayerSessionState, PlayerPhase, ScenarioChoice } from '@/types'
 
@@ -98,7 +98,14 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const sessionStartedAt = useRef<number>(Date.now())
   const sessionInitialized = useRef(false)
   const trackedNodes = useRef<Set<string>>(new Set())
+  const trackedChoiceViews = useRef<Set<string>>(new Set())
   const sessionCompleted = useRef(false)
+  const restartCount = useRef(0)
+
+  // Helper: a node "plays a video" if it has a clip or YouTube asset attached.
+  const hasVideoContent = useCallback((node: ReturnType<typeof getNodeById>) => {
+    return !!(node && (node.clip || node.youtubeAsset))
+  }, [])
 
   // Initialize analytics session once on mount (play mode only)
   useEffect(() => {
@@ -122,6 +129,10 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
       if (startNodeId && !trackedNodes.current.has(startNodeId)) {
         trackedNodes.current.add(startNodeId)
         trackPlayerEvent({ ...base, eventType: 'node_viewed', nodeId: startNodeId })
+        const startNode = getNodeById(scenario, startNodeId)
+        if (hasVideoContent(startNode)) {
+          trackPlayerEvent({ ...base, eventType: 'video_started', nodeId: startNodeId })
+        }
       }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -147,6 +158,17 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.currentNodeId])
 
+  // ── Track choice_viewed once per node when the choice panel appears ──────────
+  useEffect(() => {
+    if (phase !== 'choices' || choices.length === 0) return
+    const nodeId = session.currentNodeId
+    if (trackedChoiceViews.current.has(nodeId)) return
+    trackedChoiceViews.current.add(nodeId)
+    const base = getAnalyticsBase()
+    if (base) trackPlayerEvent({ ...base, eventType: 'choice_viewed', nodeId })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, session.currentNodeId, choices.length])
+
   const scenarioTitle = 'title' in scenario
     ? (scenario as Scenario).title
     : 'Scenario'
@@ -162,28 +184,50 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
 
   // ── Called by VideoScene when the clip finishes ─────────────────────────────
   const handleVideoComplete = useCallback(() => {
+    const base = getAnalyticsBase()
+    if (base && currentNode && hasVideoContent(currentNode)) {
+      trackPlayerEvent({ ...base, eventType: 'video_completed', nodeId: currentNode.id })
+    }
     if (currentNode?.type === 'ending') {
       setPhase('ending')
     } else if (choices.length > 0) {
       setPhase('choices')
     }
     // If no choices (incomplete draft node), stay showing the scene
-  }, [currentNode?.type, choices.length])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentNode?.type, currentNode?.id, choices.length])
 
   // ── Called by ChoicePanel when the player picks a choice ────────────────────
   const handleChoiceSelect = useCallback((choice: ScenarioChoice) => {
     const base = getAnalyticsBase()
     if (base) {
+      const scoreDelta = choice.scoreEffects
+        ? Math.round(Object.values(choice.scoreEffects).reduce((a, b) => a + b, 0))
+        : undefined
       trackPlayerEvent({
         ...base,
         eventType: 'choice_selected',
         nodeId: session.currentNodeId,
         choiceId: choice.id,
+        choiceLabel: choice.label,
         targetNodeId: choice.targetNodeId,
+        scoreDelta,
+        score: choice.scoreEffects,
         metadata: choice.scoreEffects ? { scoreEffects: choice.scoreEffects } : {},
       })
     }
     if (choice.feedback) {
+      // Fire feedback_viewed when the overlay is actually shown to the player,
+      // not on "Continue" — that's when the feedback content is consumed.
+      if (base) {
+        trackPlayerEvent({
+          ...base,
+          eventType: 'feedback_viewed',
+          nodeId: session.currentNodeId,
+          choiceId: choice.id,
+          choiceLabel: choice.label,
+        })
+      }
       setPendingChoice(choice)
       setPhase('feedback')
     } else {
@@ -196,15 +240,6 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const handleFeedbackContinue = useCallback(() => {
     if (!pendingChoice) return
     const choice = pendingChoice
-    const base = getAnalyticsBase()
-    if (base) {
-      trackPlayerEvent({
-        ...base,
-        eventType: 'feedback_viewed',
-        nodeId: session.currentNodeId,
-        choiceId: choice.id,
-      })
-    }
     setPendingChoice(null)
     commitAndAdvance(choice)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -221,24 +256,40 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
       const nextNode = getNodeById(scenario, newSession.currentNodeId)
       if (nextNode?.type === 'ending') {
         const durationSeconds = Math.round((Date.now() - sessionStartedAt.current) / 1000)
+        const hasScore = Object.keys(newSession.score).length > 0
+        const totalScore = hasScore
+          ? Math.round(Object.values(newSession.score).reduce((a, b) => a + b, 0))
+          : undefined
         if (!sessionCompleted.current) {
           sessionCompleted.current = true
           trackPlayerEvent({
             ...base,
             eventType: 'ending_reached',
             endingNodeId: newSession.currentNodeId,
-            score: Object.keys(newSession.score).length > 0 ? newSession.score : undefined,
+            score: hasScore ? newSession.score : undefined,
+            scoreDelta: totalScore,
             metadata: { durationSeconds, path: newSession.history },
           })
           trackPlayerEvent({
             ...base,
             eventType: 'session_completed',
-            score: Object.keys(newSession.score).length > 0 ? newSession.score : undefined,
+            score: hasScore ? newSession.score : undefined,
+            scoreDelta: totalScore,
             metadata: { durationSeconds },
+          })
+          completePlayerSession({
+            sessionId: base.sessionId,
+            scenarioVersionId: base.scenarioVersionId,
+            endingNodeId: newSession.currentNodeId,
+            totalScore,
+            durationSeconds,
           })
         }
       } else {
         trackPlayerEvent({ ...base, eventType: 'node_viewed', nodeId: newSession.currentNodeId })
+        if (hasVideoContent(nextNode)) {
+          trackPlayerEvent({ ...base, eventType: 'video_started', nodeId: newSession.currentNodeId })
+        }
       }
     }
 
@@ -249,23 +300,49 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   }
 
   // ── Restart ──────────────────────────────────────────────────────────────────
-  const handleRestart = useCallback(() => {
+  //
+  // Restarting records a `session_restarted` event on the SAME analytics session
+  // rather than minting a new one. A restart is a continuation of one visitor's
+  // engagement with the scenario (most often from the ending screen), not a
+  // fresh, independent play — starting a new session row would double-count
+  // that visit in `totalPlays`/funnel numbers and fragment its path across two
+  // rows. Replaying node/choice events is fine: trackedNodes/trackedChoiceViews
+  // reset below so the new playthrough's events are recorded too, exactly as
+  // they would be for any other pass through the graph.
+  function trackRestart(fromNodeId: string) {
+    restartCount.current += 1
+    const base = getAnalyticsBase()
+    if (base) {
+      trackPlayerEvent({
+        ...base,
+        eventType: 'session_restarted',
+        nodeId: fromNodeId,
+        metadata: { restartCount: restartCount.current },
+      })
+    }
     trackedNodes.current = new Set()
+    trackedChoiceViews.current = new Set()
     sessionCompleted.current = false
+    sessionStartedAt.current = Date.now()
+  }
+
+  const handleRestart = useCallback(() => {
+    trackRestart(session.currentNodeId)
     const scenarioId = 'scenarioId' in scenario ? scenario.scenarioId : scenario.id
     clearCheckpointFromStorage(scenarioId)
     setSession(createSession(scenario))
     setPendingChoice(null)
     setPhase('watching')
-  }, [scenario])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenario, session.currentNodeId])
 
   const handleRestartFromCheckpoint = useCallback(() => {
-    trackedNodes.current = new Set()
-    sessionCompleted.current = false
+    trackRestart(session.currentNodeId)
     setSession(prev => restartFromCheckpoint(prev, scenario))
     setPendingChoice(null)
     setPhase('watching')
-  }, [scenario])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenario, session.currentNodeId])
 
   if (!currentNode) return null
 
