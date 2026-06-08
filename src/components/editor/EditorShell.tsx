@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef, useReducer } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Library, Loader2, Monitor, Smartphone, ChevronDown, Trash2, MoreHorizontal, Undo2, Redo2, Share2 } from 'lucide-react'
+import { ArrowLeft, Eye, Globe, AlertTriangle, CheckCircle2, Library, Loader2, Monitor, Smartphone, ChevronDown, Trash2, MoreHorizontal, Undo2, Redo2, Share2, Check, AlertCircle } from 'lucide-react'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -1055,25 +1055,36 @@ function EditorUI({ initialScenario }: EditorUIProps) {
           />
         </div>
 
-        {selectedNode && (
-          <NodeInspector
-            node={selectedNode}
-            allNodes={scenario.nodes}
-            clips={clips}
-            youtubeAssets={youtubeAssets}
-            onUpdateNode={updateNode}
-            onAddChoice={addChoice}
-            onUpdateChoice={updateChoice}
-            onDeleteChoice={deleteChoice}
-            onDeleteNode={deleteNode}
-            onDuplicateNode={() => duplicateNode(selectedNode.id)}
-            onOpenLibrary={() => setShowAssets(true)}
-            onClose={() => setSelectedNodeId(null)}
-            isStartNode={selectedNode.id === scenario.startNodeId}
-            outcomeMode={scenario.outcomeMode}
-            onToggleOutcomeMode={toggleOutcomeMode}
-          />
-        )}
+        <AnimatePresence>
+          {selectedNode && (
+            <motion.div
+              key={selectedNode.id}
+              initial={{ x: 32, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 32, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+              style={{ overflow: 'hidden' }}
+            >
+              <NodeInspector
+                node={selectedNode}
+                allNodes={scenario.nodes}
+                clips={clips}
+                youtubeAssets={youtubeAssets}
+                onUpdateNode={updateNode}
+                onAddChoice={addChoice}
+                onUpdateChoice={updateChoice}
+                onDeleteChoice={deleteChoice}
+                onDeleteNode={deleteNode}
+                onDuplicateNode={() => duplicateNode(selectedNode.id)}
+                onOpenLibrary={() => setShowAssets(true)}
+                onClose={() => setSelectedNodeId(null)}
+                isStartNode={selectedNode.id === scenario.startNodeId}
+                outcomeMode={scenario.outcomeMode}
+                onToggleOutcomeMode={toggleOutcomeMode}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
         <AnimatePresence>
           {showAssets && (
             <AssetLibrary
@@ -1154,25 +1165,62 @@ function EditorUI({ initialScenario }: EditorUIProps) {
         ))}
 
         {/* Save status — right-aligned */}
-        <div className="ml-auto flex items-center gap-1.5">
-          {isSaving ? (
-            <>
-              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--fg-3)' }} />
-              <span className="text-[10px] font-mono" style={{ color: 'var(--fg-3)' }}>Autosaving…</span>
-            </>
-          ) : saveError ? (
-            <span className="text-[10px] font-mono" style={{ color: 'oklch(70% 0.18 25)' }} title={saveError}>
-              Save failed
-            </span>
-          ) : isDirty ? (
-            <span className="text-[10px] font-mono" style={{ color: 'oklch(80% 0.16 60)' }}>
-              Unsaved
-            </span>
-          ) : savedAt ? (
-            <span className="text-[10px] font-mono" style={{ color: 'var(--fg-4)' }}>
-              Saved {savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          ) : null}
+        <div className="ml-auto flex items-center gap-1.5" style={{ minWidth: 120, justifyContent: 'flex-end' }}>
+          <AnimatePresence mode="wait">
+            {isSaving ? (
+              <motion.span
+                key="saving"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-1.5 text-[10px] font-mono"
+                style={{ color: 'oklch(82% 0.18 165)' }}
+              >
+                <Loader2 size={10} className="animate-spin" />
+                Saving…
+              </motion.span>
+            ) : saveError ? (
+              <motion.span
+                key="error"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-1.5 text-[10px] font-mono"
+                style={{ color: 'oklch(70% 0.18 25)' }}
+                title={saveError}
+              >
+                <AlertCircle size={10} />
+                Save failed
+              </motion.span>
+            ) : isDirty ? (
+              <motion.span
+                key="unsaved"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+                className="text-[10px] font-mono"
+                style={{ color: 'oklch(80% 0.16 60)' }}
+              >
+                Unsaved
+              </motion.span>
+            ) : savedAt ? (
+              <motion.span
+                key="saved"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="flex items-center gap-1.5 text-[10px] font-mono"
+                style={{ color: 'oklch(82% 0.18 165 / 0.7)' }}
+              >
+                <Check size={10} />
+                Saved
+              </motion.span>
+            ) : null}
+          </AnimatePresence>
         </div>
       </div>
 

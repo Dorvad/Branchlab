@@ -1,5 +1,7 @@
 'use client'
 
+import { motion } from 'framer-motion'
+
 interface PlayerProgressProps {
   step: number   // 1-indexed, number of nodes visited so far
   max?: number   // cap on visible dots
@@ -14,14 +16,16 @@ export function PlayerProgress({ step, max = 8 }: PlayerProgressProps) {
       {Array.from({ length: visible }).map((_, i) => {
         const isCurrent = i === visible - 1
         return (
-          <span
+          <motion.span
             key={i}
+            initial={{ opacity: 0, scale: 0.4 }}
+            animate={{ opacity: isCurrent ? 1 : 0.35, scale: 1 }}
+            transition={{ delay: i * 0.04, duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="rounded-full transition-all duration-500"
             style={{
               width: isCurrent ? 18 : 6,
               height: 6,
               background: 'var(--neon-mint)',
-              opacity: isCurrent ? 1 : 0.35,
               boxShadow: isCurrent ? 'var(--glow-mint)' : undefined,
             }}
           />
