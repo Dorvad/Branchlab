@@ -29,7 +29,7 @@ export async function fetchScenarioVersion(versionId: string): Promise<ScenarioV
     publishedAt: row.published_at,
     slug: row.slug,
     orientation: row.orientation ?? undefined,
-    passwordProtected: row.password_protected ?? undefined,
-    password: row.password ?? undefined,
+    visibility: row.visibility ?? undefined,
+    accessEnabled: row.access_enabled ?? undefined,
   }
 }

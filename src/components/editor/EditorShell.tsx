@@ -24,6 +24,7 @@ import { fetchPixabayAssets, deletePixabayAsset as deletePixabayAssetFn, renameP
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
 import { ShareModal } from './ShareModal'
+import { ShareSettingsModal } from './ShareSettingsModal'
 import { AddYouTubeModal } from './AddYouTubeModal'
 import { exportToBlab } from '@/lib/blab-format'
 import { exportToZip } from '@/lib/zip-export'
@@ -196,6 +197,7 @@ function EditorUI({ initialScenario }: EditorUIProps) {
   const [showValidation, setShowValidation] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
   const [showShare, setShowShare] = useState(false)
+  const [showShareSettings, setShowShareSettings] = useState(false)
   const [showAssets, setShowAssets] = useState(false)
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -1181,6 +1183,10 @@ function EditorUI({ initialScenario }: EditorUIProps) {
           validationResult={validationResult}
           onPublish={(config) => handlePublish(config)}
           onClose={() => setShowPublish(false)}
+          onOpenShareSettings={() => {
+            setShowPublish(false)
+            setShowShareSettings(true)
+          }}
         />
       )}
 
@@ -1191,6 +1197,17 @@ function EditorUI({ initialScenario }: EditorUIProps) {
           validationResult={validationResult}
           onPublish={(config) => handlePublish(config)}
           onClose={() => setShowShare(false)}
+          onOpenShareSettings={() => {
+            setShowShare(false)
+            setShowShareSettings(true)
+          }}
+        />
+      )}
+
+      {showShareSettings && scenario.publishedVersion && (
+        <ShareSettingsModal
+          scenarioId={scenario.id}
+          onClose={() => setShowShareSettings(false)}
         />
       )}
 

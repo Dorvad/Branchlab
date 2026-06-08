@@ -49,8 +49,8 @@ function rowToVersion(row: any): ScenarioVersion {
     publishedAt: row.published_at,
     slug: row.slug,
     orientation: row.orientation ?? undefined,
-    passwordProtected: row.password_protected ?? undefined,
-    password: row.password ?? undefined,
+    visibility: row.visibility ?? undefined,
+    accessEnabled: row.access_enabled ?? undefined,
   }
 }
 
@@ -210,7 +210,7 @@ export async function deleteScenario(id: string): Promise<void> {
  * Returns the updated Scenario so callers can update React state.
  */
 export async function publishScenario(scenario: Scenario, config: PublishConfig): Promise<Scenario> {
-  const { slug, orientation, passwordProtected, password } = config
+  const { slug, orientation } = config
   const userId = await requireUserId()
   const sb = getSupabaseClient()
   const now = new Date().toISOString()
@@ -266,8 +266,6 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
   const publishedVersion: ScenarioVersion = {
     ...rowToVersion(versionRow),
     orientation,
-    passwordProtected,
-    password: passwordProtected ? password : undefined,
   }
 
   // Step 2 — update the draft scenario's status
@@ -302,20 +300,16 @@ export async function getPublishedBySlug(slug: string): Promise<ScenarioVersion 
   if (!error && data) {
     const version = rowToVersion(data)
 
-    // orientation/password live in scenarios.published_version JSONB until
-    // migration 010 is applied. Fetch them with a second query if absent.
-    if (version.orientation === undefined && version.passwordProtected === undefined) {
+    // orientation lives in scenarios.published_version JSONB until migration
+    // 010 is applied. Fetch it with a second query if absent.
+    if (version.orientation === undefined) {
       const { data: sd } = await sb
         .from('scenarios')
         .select('published_version')
         .eq('slug', slug)
         .maybeSingle()
       const pv = sd?.published_version as ScenarioVersion | undefined
-      if (pv) {
-        version.orientation = pv.orientation
-        version.passwordProtected = pv.passwordProtected
-        version.password = pv.password
-      }
+      if (pv) version.orientation = pv.orientation
     }
 
     return version

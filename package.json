@@ -13,6 +13,7 @@
     "@ffmpeg/util": "^0.12.2",
     "@supabase/supabase-js": "^2.106.1",
     "@xyflow/react": "^12.4.0",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "fflate": "^0.8.3",
     "framer-motion": "^11.15.0",
@@ -23,6 +24,7 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

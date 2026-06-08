@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   X, CheckCircle2, AlertTriangle, AlertCircle,
   Globe, Copy, ExternalLink, ChevronDown, ChevronUp,
-  Loader2, Smartphone, Monitor, Lock, Unlock, Eye, EyeOff, Code2,
+  Loader2, Smartphone, Monitor, Shield, Code2,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { slugify, validateSlugFormat } from '@/lib/scenario-store'
@@ -16,18 +16,19 @@ interface PublishModalProps {
   validationResult: ValidationResult
   onPublish: (config: PublishConfig) => Promise<void>
   onClose: () => void
+  onOpenShareSettings?: () => void
 }
 
-type WizardStep = 'orientation' | 'access' | 'url' | 'success'
+type WizardStep = 'orientation' | 'url' | 'success'
 type SlugState = 'idle' | 'checking' | 'ok' | 'error'
 
-const STEPS: WizardStep[] = ['orientation', 'access', 'url']
+const STEPS: WizardStep[] = ['orientation', 'url']
 
 function stepIndex(step: WizardStep) {
   return STEPS.indexOf(step)
 }
 
-export function PublishModal({ scenario, validationResult, onPublish, onClose }: PublishModalProps) {
+export function PublishModal({ scenario, validationResult, onPublish, onClose, onOpenShareSettings }: PublishModalProps) {
   const isRepublish = !!scenario.publishedVersion
 
   // Wizard state
@@ -35,11 +36,6 @@ export function PublishModal({ scenario, validationResult, onPublish, onClose }:
   const [orientation, setOrientation] = useState<Orientation>(
     scenario.publishedVersion?.orientation ?? 'vertical'
   )
-  const [passwordProtected, setPasswordProtected] = useState(
-    scenario.publishedVersion?.passwordProtected ?? false
-  )
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
 
   // Slug state
   const [slug, setSlug] = useState(() =>
@@ -94,7 +90,6 @@ export function PublishModal({ scenario, validationResult, onPublish, onClose }:
   }, [slug, scenario.id, step])
 
   const canPublish = !hasErrors && slugState === 'ok' && !isPublishing
-    && (!passwordProtected || password.length >= 4)
 
   const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
@@ -105,7 +100,7 @@ export function PublishModal({ scenario, validationResult, onPublish, onClose }:
     setIsPublishing(true)
     setPublishError(null)
     try {
-      await onPublish({ slug, orientation, passwordProtected, password: passwordProtected ? password : undefined })
+      await onPublish({ slug, orientation })
       setPublishedSlug(slug)
       setStep('success')
     } catch (err) {
@@ -163,6 +158,7 @@ export function PublishModal({ scenario, validationResult, onPublish, onClose }:
             copied={copied}
             onCopy={handleCopy}
             onClose={onClose}
+            onOpenShareSettings={onOpenShareSettings}
           />
         ) : (
           <>
@@ -215,16 +211,6 @@ export function PublishModal({ scenario, validationResult, onPublish, onClose }:
                     <OrientationStep
                       orientation={orientation}
                       onChange={setOrientation}
-                    />
-                  )}
-                  {step === 'access' && (
-                    <AccessStep
-                      passwordProtected={passwordProtected}
-                      password={password}
-                      showPassword={showPassword}
-                      onToggleProtected={setPasswordProtected}
-                      onPasswordChange={setPassword}
-                      onToggleShow={() => setShowPassword(v => !v)}
                     />
                   )}
                   {step === 'url' && (
@@ -378,139 +364,6 @@ function OrientationStep({
           )
         })}
       </div>
-    </div>
-  )
-}
-
-// ── Step 2: Access ────────────────────────────────────────────────────────────
-
-function AccessStep({
-  passwordProtected,
-  password,
-  showPassword,
-  onToggleProtected,
-  onPasswordChange,
-  onToggleShow,
-}: {
-  passwordProtected: boolean
-  password: string
-  showPassword: boolean
-  onToggleProtected: (v: boolean) => void
-  onPasswordChange: (v: string) => void
-  onToggleShow: () => void
-}) {
-  return (
-    <div className="space-y-5">
-      <div>
-        <p className="text-[9px] font-mono tracking-[0.16em] uppercase mb-1" style={{ color: 'var(--fg-3)' }}>
-          Step 2 — Access
-        </p>
-        <p className="text-sm font-medium text-ink-0 mb-1">Who can play?</p>
-        <p className="text-xs" style={{ color: 'var(--fg-3)' }}>
-          Control who can access the published scenario.
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        {[
-          {
-            value: false,
-            icon: <Unlock size={14} />,
-            label: 'Public',
-            desc: 'Anyone with the link can play',
-          },
-          {
-            value: true,
-            icon: <Lock size={14} />,
-            label: 'Password protected',
-            desc: 'Require a code to play',
-          },
-        ].map(({ value, icon, label, desc }) => {
-          const selected = passwordProtected === value
-          return (
-            <button
-              key={String(value)}
-              onClick={() => onToggleProtected(value)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-all"
-              style={{
-                background: selected ? 'oklch(82% 0.18 165 / 0.07)' : 'var(--tint-1)',
-                border: `1px solid ${selected ? 'oklch(82% 0.18 165 / 0.4)' : 'var(--line-2)'}`,
-              }}
-            >
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                style={{
-                  background: selected ? 'oklch(82% 0.18 165 / 0.15)' : 'var(--tint-2)',
-                  color: selected ? 'oklch(82% 0.18 165)' : 'var(--fg-3)',
-                }}
-              >
-                {icon}
-              </div>
-              <div>
-                <p className="text-sm font-medium" style={{ color: selected ? 'var(--fg-0)' : 'var(--fg-1)' }}>
-                  {label}
-                </p>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--fg-3)' }}>{desc}</p>
-              </div>
-              <div className="ml-auto">
-                <div
-                  className="w-4 h-4 rounded-full border-2 flex items-center justify-center"
-                  style={{
-                    borderColor: selected ? 'oklch(82% 0.18 165)' : 'var(--line-3)',
-                    background: selected ? 'oklch(82% 0.18 165)' : 'transparent',
-                  }}
-                >
-                  {selected && <div className="w-1.5 h-1.5 rounded-full bg-[#052916]" />}
-                </div>
-              </div>
-            </button>
-          )
-        })}
-      </div>
-
-      <AnimatePresence>
-        {passwordProtected && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="space-y-2">
-              <label className="block text-[10px] font-mono tracking-widest uppercase" style={{ color: 'var(--fg-3)' }}>
-                Access code
-              </label>
-              <div
-                className="flex items-center rounded-xl overflow-hidden"
-                style={{ background: 'var(--tint-1)', border: '1px solid var(--line-2)' }}
-              >
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => onPasswordChange(e.target.value)}
-                  placeholder="Min. 4 characters"
-                  className="flex-1 bg-transparent py-2.5 px-3.5 text-sm outline-none"
-                  style={{ color: 'var(--fg-1)' }}
-                  minLength={4}
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={onToggleShow}
-                  className="px-3 transition-colors"
-                  style={{ color: 'var(--fg-3)' }}
-                >
-                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-              </div>
-              <p className="text-[10px] leading-relaxed" style={{ color: 'var(--fg-4)' }}>
-                Players will be asked for this code before they can view the scenario.
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
@@ -684,13 +537,14 @@ function UrlStep({
 // ── Success ───────────────────────────────────────────────────────────────────
 
 function SuccessStep({
-  scenario, slug, copied, onCopy, onClose,
+  scenario, slug, copied, onCopy, onClose, onOpenShareSettings,
 }: {
   scenario: Scenario
   slug: string
   copied: boolean
   onCopy: () => void
   onClose: () => void
+  onOpenShareSettings?: () => void
 }) {
   const publicUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/play/${slug}`
@@ -755,6 +609,28 @@ function SuccessStep({
         </div>
 
         <EmbedCodeBlock slug={slug} publicUrl={publicUrl} />
+
+        {onOpenShareSettings && (
+          <button
+            type="button"
+            onClick={onOpenShareSettings}
+            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition-all hover:bg-[var(--tint-3)]"
+            style={{ background: 'var(--tint-1)', border: '1px solid var(--line-2)' }}
+          >
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: 'var(--tint-2)', color: 'oklch(82% 0.18 165)' }}
+            >
+              <Shield size={13} />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-medium" style={{ color: 'var(--fg-1)' }}>Control who can access this</p>
+              <p className="text-[10px] mt-0.5 leading-relaxed" style={{ color: 'var(--fg-3)' }}>
+                By default anyone with the link can play. Open Sharing &amp; access to make it unlisted, password-protected, or private.
+              </p>
+            </div>
+          </button>
+        )}
       </div>
 
       <div

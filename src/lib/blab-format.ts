@@ -24,7 +24,8 @@ function scenarioToVersion(s: Scenario): ScenarioVersion {
     publishedAt: s.updatedAt ?? new Date().toISOString(),
     slug: s.slug ?? slugify(s.title),
     orientation: undefined,
-    passwordProtected: false,
+    visibility: 'public',
+    accessEnabled: true,
   }
 }
 

@@ -42,9 +42,9 @@ export type Orientation = 'vertical' | 'horizontal';
 export interface PublishConfig {
   slug: string
   orientation: Orientation
-  passwordProtected: boolean
-  password?: string
 }
+
+export type ScenarioVisibility = 'public' | 'unlisted' | 'password' | 'private'
 export type PlayerPhase = 'watching' | 'choices' | 'feedback' | 'transitioning' | 'ending';
 
 export interface VideoClip {
@@ -159,8 +159,8 @@ export interface ScenarioVersion {
   publishedAt: string;
   slug: string;
   orientation?: Orientation;
-  passwordProtected?: boolean;
-  password?: string;
+  visibility?: ScenarioVisibility;
+  accessEnabled?: boolean;
 }
 
 export interface Scenario {

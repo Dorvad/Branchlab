@@ -13,7 +13,7 @@ import {
   GitBranch, Clock, ExternalLink, X, Play,
   ChevronDown, Check, Upload, Pencil,
   Eye, BarChart3, Download, FolderOpen, Settings, Menu,
-  Radio,
+  Radio, Lock, Link2, EyeOff, Ban, Shield,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
@@ -38,6 +38,7 @@ import type { User } from '@supabase/supabase-js'
 import { useOrg } from '@/lib/org-context'
 import { createOrg } from '@/lib/supabase/orgs'
 import { createFacilitatorSession } from '@/lib/facilitator'
+import { ShareSettingsModal } from '@/components/editor/ShareSettingsModal'
 
 type Section = 'home' | 'drafts' | 'published' | 'assets'
 type SortKey = 'updated' | 'name' | 'created'
@@ -1420,6 +1421,15 @@ const STATUS_CONFIG = {
   archived:  { dot: 'var(--fg-3)', label: 'Archived', text: 'var(--fg-3)', bg: 'var(--tint-1)', border: 'var(--line-2)' },
 }
 
+const VISIBILITY_CONFIG = {
+  public:   { icon: <Globe size={9} />,  label: 'Public',   text: 'var(--fg-2)', bg: 'rgba(0,0,0,0.55)', border: 'rgba(255,255,255,0.12)' },
+  unlisted: { icon: <Link2 size={9} />,  label: 'Unlisted', text: 'oklch(80% 0.14 230)', bg: 'rgba(0,0,0,0.55)', border: 'oklch(80% 0.14 230 / 0.3)' },
+  password: { icon: <Lock size={9} />,   label: 'Password', text: 'oklch(80% 0.16 90)',  bg: 'rgba(0,0,0,0.55)', border: 'oklch(80% 0.16 90 / 0.3)' },
+  private:  { icon: <EyeOff size={9} />, label: 'Private',  text: 'oklch(75% 0.18 25)',  bg: 'rgba(0,0,0,0.55)', border: 'oklch(75% 0.18 25 / 0.3)' },
+} as const
+
+const DISABLED_CONFIG = { icon: <Ban size={9} />, label: 'Disabled', text: 'oklch(75% 0.18 25)', bg: 'rgba(0,0,0,0.55)', border: 'oklch(75% 0.18 25 / 0.3)' }
+
 function DashboardCard({
   scenario, index, onDuplicate, onDelete, onRename,
 }: {
@@ -1432,9 +1442,15 @@ function DashboardCard({
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [startingFacilitator, setStartingFacilitator] = useState(false)
+  const [showShareSettings, setShowShareSettings] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const cfg = STATUS_CONFIG[scenario.status] ?? STATUS_CONFIG.draft
   const pub = scenario.publishedVersion
+  const visCfg = pub
+    ? (pub.accessEnabled === false
+        ? DISABLED_CONFIG
+        : (VISIBILITY_CONFIG[(pub.visibility ?? 'public') as keyof typeof VISIBILITY_CONFIG] ?? VISIBILITY_CONFIG.public))
+    : null
 
   const startFacilitatorSession = async () => {
     if (!pub || startingFacilitator) return
@@ -1469,6 +1485,7 @@ function DashboardCard({
     { icon: <Eye size={12} />, label: 'Preview', href: `/preview/${scenario.id}?device=mobile` },
     ...(pub ? [{ icon: <Play size={12} />, label: 'View published', href: `/play/${pub.slug}` }] : []),
     ...(pub ? [{ icon: <BarChart3 size={12} />, label: 'Analytics', href: `/dashboard/scenario/${scenario.id}/analytics` }] : []),
+    ...(pub && isSupabaseMode() ? [{ icon: <Shield size={12} />, label: 'Share settings', action: () => setShowShareSettings(true) }] : []),
     ...(pub && isSupabaseMode() ? [{
       icon: startingFacilitator ? <Loader2 size={12} className="animate-spin" /> : <Radio size={12} />,
       label: startingFacilitator ? 'Starting…' : 'Start facilitator session',
@@ -1516,12 +1533,25 @@ function DashboardCard({
         )}
 
         {/* Status badge */}
-        <div
-          className="absolute top-2.5 left-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono"
-          style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.text }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
-          {cfg.label}
+        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+          <div
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono"
+            style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.text }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
+            {cfg.label}
+          </div>
+
+          {visCfg && (
+            <div
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono"
+              style={{ background: visCfg.bg, border: `1px solid ${visCfg.border}`, color: visCfg.text }}
+              title={`Visibility: ${visCfg.label}`}
+            >
+              {visCfg.icon}
+              {visCfg.label}
+            </div>
+          )}
         </div>
 
         {hasDraftChanges && (
@@ -1631,6 +1661,13 @@ function DashboardCard({
           )}
         </AnimatePresence>
       </div>
+
+      {showShareSettings && (
+        <ShareSettingsModal
+          scenarioId={scenario.id}
+          onClose={() => setShowShareSettings(false)}
+        />
+      )}
     </motion.div>
   )
 }

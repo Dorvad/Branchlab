@@ -96,6 +96,12 @@ export interface Database {
         Update: Record<string, unknown>
         Relationships: []
       }
+      scenario_share_tokens: {
+        Row: Record<string, unknown>
+        Insert: Record<string, unknown>
+        Update: Record<string, unknown>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

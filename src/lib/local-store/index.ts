@@ -484,7 +484,7 @@ export function createFromTemplate(templateId: TemplateId = 'two-path'): Scenari
  * Returns the updated draft scenario so callers can update React state.
  */
 export function publishScenario(scenario: Scenario, config: PublishConfig): Scenario {
-  const { slug, orientation, passwordProtected, password } = config
+  const { slug, orientation } = config
   const now = new Date().toISOString()
   const prevVersion = scenario.publishedVersion
   const versionNumber = prevVersion ? prevVersion.version + 1 : 1
@@ -501,8 +501,8 @@ export function publishScenario(scenario: Scenario, config: PublishConfig): Scen
     publishedAt: now,
     slug,
     orientation,
-    passwordProtected,
-    password: passwordProtected ? password : undefined,
+    visibility: 'public',
+    accessEnabled: true,
   }
 
   // Write snapshot to published store

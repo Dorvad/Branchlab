@@ -3,11 +3,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   X, Globe, Copy, ExternalLink, Loader2, Check,
-  Smartphone, Monitor, Lock, Unlock, Eye, EyeOff,
+  Smartphone, Monitor, Shield, ChevronRight,
   AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp,
   Code2, Share2,
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { validateSlugFormat } from '@/lib/scenario-store'
 import { isSlugAvailable } from '@/lib/persistence/scenarios'
 import type { Scenario, ValidationResult, PublishConfig, Orientation } from '@/types'
@@ -18,18 +18,16 @@ interface ShareModalProps {
   validationResult: ValidationResult
   onPublish: (config: PublishConfig) => Promise<void>
   onClose: () => void
+  onOpenShareSettings?: () => void
 }
 
 type SlugState = 'idle' | 'checking' | 'ok' | 'error'
 
-export function ShareModal({ scenario, isDirty, validationResult, onPublish, onClose }: ShareModalProps) {
+export function ShareModal({ scenario, isDirty, validationResult, onPublish, onClose, onOpenShareSettings }: ShareModalProps) {
   const pub = scenario.publishedVersion!
   const hasChanges = isDirty || new Date(scenario.updatedAt) > new Date(pub.publishedAt)
 
   const [orientation, setOrientation] = useState<Orientation>(pub.orientation ?? 'vertical')
-  const [passwordProtected, setPasswordProtected] = useState(pub.passwordProtected ?? false)
-  const [password, setPassword] = useState(pub.password ?? '')
-  const [showPassword, setShowPassword] = useState(false)
 
   const [slug, setSlug] = useState(pub.slug)
   const [slugState, setSlugState] = useState<SlugState>('ok')
@@ -89,13 +87,10 @@ export function ShareModal({ scenario, isDirty, validationResult, onPublish, onC
   }, [slug, scenario.id, slugChanged])
 
   const settingsChanged = orientation !== (pub.orientation ?? 'vertical')
-    || passwordProtected !== (pub.passwordProtected ?? false)
-    || (passwordProtected && password !== (pub.password ?? ''))
     || slugChanged
 
   const canUpdate = !hasErrors
     && slugState === 'ok'
-    && (!passwordProtected || password.length >= 4)
     && !isUpdating
 
   const canUpdateAndHasChanges = canUpdate && (hasChanges || settingsChanged)
@@ -105,12 +100,7 @@ export function ShareModal({ scenario, isDirty, validationResult, onPublish, onC
     setIsUpdating(true)
     setUpdateError(null)
     try {
-      await onPublish({
-        slug,
-        orientation,
-        passwordProtected,
-        password: passwordProtected ? password : undefined,
-      })
+      await onPublish({ slug, orientation })
       onClose()
     } catch (err) {
       setUpdateError(err instanceof Error ? err.message : 'Update failed — please try again')
@@ -259,67 +249,30 @@ export function ShareModal({ scenario, isDirty, validationResult, onPublish, onC
               </div>
             </div>
 
-            {/* Access / password */}
+            {/* Sharing & access */}
             <div className="space-y-2">
-              <p className="text-[10px] font-mono" style={{ color: 'var(--fg-4)' }}>Access</p>
-              <div className="flex gap-2">
-                {([
-                  { value: false, icon: <Unlock size={13} />, label: 'Public' },
-                  { value: true, icon: <Lock size={13} />, label: 'Password' },
-                ] as const).map(({ value, icon, label }) => {
-                  const selected = passwordProtected === value
-                  return (
-                    <button
-                      key={String(value)}
-                      onClick={() => setPasswordProtected(value)}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-mono transition-all"
-                      style={{
-                        background: selected ? 'oklch(82% 0.18 165 / 0.1)' : 'var(--tint-1)',
-                        border: `1px solid ${selected ? 'oklch(82% 0.18 165 / 0.4)' : 'var(--line-2)'}`,
-                        color: selected ? 'oklch(82% 0.18 165)' : 'var(--fg-2)',
-                      }}
-                    >
-                      {icon}
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
-
-              <AnimatePresence>
-                {passwordProtected && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.18 }}
-                    className="overflow-hidden"
-                  >
-                    <div
-                      className="flex items-center rounded-xl overflow-hidden mt-1"
-                      style={{ background: 'var(--tint-1)', border: '1px solid var(--line-2)' }}
-                    >
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        placeholder="Min. 4 characters"
-                        className="flex-1 bg-transparent py-2.5 px-3.5 text-sm outline-none font-mono"
-                        style={{ color: 'var(--fg-1)' }}
-                        minLength={4}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(v => !v)}
-                        className="px-3 transition-colors"
-                        style={{ color: 'var(--fg-3)' }}
-                      >
-                        {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <p className="text-[10px] font-mono" style={{ color: 'var(--fg-4)' }}>Who can access this</p>
+              <button
+                type="button"
+                onClick={onOpenShareSettings}
+                disabled={!onOpenShareSettings}
+                className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition-all hover:bg-[var(--tint-3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: 'var(--tint-1)', border: '1px solid var(--line-2)' }}
+              >
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--tint-2)', color: 'oklch(82% 0.18 165)' }}
+                >
+                  <Shield size={13} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-medium" style={{ color: 'var(--fg-1)' }}>Sharing &amp; access</p>
+                  <p className="text-[10px] mt-0.5 leading-relaxed" style={{ color: 'var(--fg-3)' }}>
+                    Public, unlisted, password-protected, or private — manage who can play this
+                  </p>
+                </div>
+                <ChevronRight size={14} style={{ color: 'var(--fg-4)' }} />
+              </button>
             </div>
 
             {/* URL slug */}
