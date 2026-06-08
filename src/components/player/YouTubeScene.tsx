@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight, Youtube, AlertTriangle } from 'lucide-react'
 import type { ScenarioNode } from '@/types'
 import { loadYouTubeIframeAPI } from '@/lib/youtube'
+import { useIsPortraitMobile } from './useIsPortraitMobile'
 
 interface YouTubeSceneProps {
   node: ScenarioNode
@@ -16,22 +17,6 @@ const TYPE_COLOR: Record<string, string> = {
   scene: '#8a90a4',
   feedback: 'oklch(78% 0.18 285)',
   ending: 'oklch(80% 0.16 60)',
-}
-
-function useIsPortraitMobile() {
-  const [is, setIs] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches
-      : false
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px) and (orientation: portrait)')
-    setIs(mq.matches)
-    const h = () => setIs(mq.matches)
-    mq.addEventListener('change', h)
-    return () => mq.removeEventListener('change', h)
-  }, [])
-  return is
 }
 
 export function YouTubeScene({ node, onComplete }: YouTubeSceneProps) {

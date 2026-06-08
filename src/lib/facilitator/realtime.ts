@@ -15,7 +15,7 @@ import { getFacilitatorSession } from './host'
 import { fetchParticipants, fetchVotes } from './participant'
 import type { FacilitatorSession, FacilitatorParticipant, FacilitatorVote } from '@/types/facilitator'
 
-const POLL_INTERVAL_MS = 4000
+const POLL_INTERVAL_MS = 30_000
 
 export interface RoomSubscriptionHandlers {
   onSession?: (session: FacilitatorSession) => void
@@ -25,6 +25,7 @@ export interface RoomSubscriptionHandlers {
 
 export function subscribeToRoom(sessionId: string, handlers: RoomSubscriptionHandlers): () => void {
   const sb = getSupabaseClient()
+  let channelStatus = 'INITIAL'
 
   const refreshSession = async () => {
     const session = await getFacilitatorSession(sessionId)
@@ -54,15 +55,17 @@ export function subscribeToRoom(sessionId: string, handlers: RoomSubscriptionHan
       { event: '*', schema: 'public', table: 'facilitator_votes', filter: `session_id=eq.${sessionId}` },
       () => { void refreshVotes() }
     )
-    .subscribe()
+    .subscribe((status: string) => { channelStatus = status })
 
-  // Initial load
+  // Initial load — always runs unconditionally on mount.
   void refreshSession()
   void refreshParticipants()
   void refreshVotes()
 
-  // Polling backstop — keeps the room live even if the websocket silently drops.
+  // Polling backstop — keeps the room live if the websocket silently drops.
+  // Skipped while Realtime is confirmed live to avoid redundant DB round-trips.
   const poll = setInterval(() => {
+    if (channelStatus === 'SUBSCRIBED') return
     void refreshSession()
     void refreshParticipants()
     void refreshVotes()

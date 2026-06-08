@@ -1,16 +1,9 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { requireUserId } from '@/lib/supabase/errors'
 import type {
   UserProfile, UserPreferences, WorkspaceSettings, AllSettings, StorageStats,
 } from './types'
 import { DEFAULT_PREFERENCES, DEFAULT_WORKSPACE } from './types'
-
-// ── Auth helper ───────────────────────────────────────────────────────────────
-
-async function requireUserId(): Promise<string> {
-  const { data: { user } } = await getSupabaseClient().auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-  return user.id
-}
 
 // ── Row mappers ───────────────────────────────────────────────────────────────
 

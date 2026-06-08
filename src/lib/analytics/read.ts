@@ -6,7 +6,19 @@ function sb() {
   return getSupabaseClient()
 }
 
+// ── Simple module-level cache (5-minute TTL) ──────────────────────────────────
+// getScenarioAnalytics is called from a client component, so we cannot use
+// next/cache. A module-level Map avoids redundant fetches within the same
+// browser session (e.g. navigating away and back).
+const analyticsCache = new Map<string, { data: ScenarioAnalytics; fetchedAt: number }>()
+const ANALYTICS_CACHE_TTL_MS = 5 * 60 * 1000
+
 export async function getScenarioAnalytics(scenarioId: string): Promise<ScenarioAnalytics> {
+  const cached = analyticsCache.get(scenarioId)
+  if (cached && Date.now() - cached.fetchedAt < ANALYTICS_CACHE_TTL_MS) {
+    return cached.data
+  }
+
   // Load scenario (owner-only via RLS)
   const { data: scenarioRow, error: scenarioErr } = await sb()
     .from('scenarios')
@@ -42,7 +54,7 @@ export async function getScenarioAnalytics(scenarioId: string): Promise<Scenario
     .select('*')
     .eq('scenario_id', scenarioId)
     .order('started_at', { ascending: false })
-    .limit(500)
+    .limit(200)
 
   const sessions = ((sessionRows ?? []) as unknown as RawSession[]).filter(s => s.is_preview !== true)
 
@@ -52,15 +64,19 @@ export async function getScenarioAnalytics(scenarioId: string): Promise<Scenario
 
   const sessionIds = sessions.map(s => s.id)
 
-  // Load events for these sessions
+  // Load events for these sessions. The .limit() is a safety cap to prevent
+  // unbounded fetches for high-traffic scenarios.
   const { data: eventRows } = await sb()
     .from('player_events')
     .select('*')
     .in('session_id', sessionIds)
+    .limit(5000)
 
   const events = (eventRows ?? []) as unknown as RawEvent[]
 
-  return aggregateAnalytics(scenario, publishedVersion, sessions, events)
+  const result = aggregateAnalytics(scenario, publishedVersion, sessions, events)
+  analyticsCache.set(scenarioId, { data: result, fetchedAt: Date.now() })
+  return result
 }
 
 // ── Aggregation ───────────────────────────────────────────────────────────────

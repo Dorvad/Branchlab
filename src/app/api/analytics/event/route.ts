@@ -38,25 +38,27 @@ export async function POST(request: Request) {
 
   const now = new Date().toISOString()
 
-  const { error } = await sb.from('player_events').insert({
-    session_id: row.id,
-    scenario_version_id: row.scenario_version_id,
-    scenario_id: row.scenario_id,
-    event_type: payload.eventType,
-    node_id: payload.nodeId ?? null,
-    choice_id: payload.choiceId ?? null,
-    choice_label: payload.choiceLabel ?? null,
-    target_node_id: payload.targetNodeId ?? null,
-    ending_node_id: payload.endingNodeId ?? null,
-    score_delta: payload.scoreDelta ?? null,
-    score: payload.score ?? null,
-    metadata: payload.eventData ?? {},
-  })
+  // Run event insert and session timestamp update concurrently — one round-trip budget.
+  const [evResult] = await Promise.all([
+    sb.from('player_events').insert({
+      session_id: row.id,
+      scenario_version_id: row.scenario_version_id,
+      scenario_id: row.scenario_id,
+      event_type: payload.eventType,
+      node_id: payload.nodeId ?? null,
+      choice_id: payload.choiceId ?? null,
+      choice_label: payload.choiceLabel ?? null,
+      target_node_id: payload.targetNodeId ?? null,
+      ending_node_id: payload.endingNodeId ?? null,
+      score_delta: payload.scoreDelta ?? null,
+      score: payload.score ?? null,
+      metadata: payload.eventData ?? {},
+    }),
+    // Keep last_event_at fresh so "active session" queries don't need to scan player_events.
+    sb.from('player_sessions').update({ last_event_at: now }).eq('id', row.id),
+  ])
 
-  if (error) return Response.json({ error: 'Failed to record event' }, { status: 500 })
-
-  // Keep last_event_at fresh so "active session" queries don't need to scan player_events.
-  await sb.from('player_sessions').update({ last_event_at: now }).eq('id', row.id)
+  if (evResult.error) return Response.json({ error: 'Failed to record event' }, { status: 500 })
 
   return Response.json({ ok: true })
 }

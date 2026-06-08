@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight } from 'lucide-react'
 import type { ScenarioNode } from '@/types'
+import { useIsPortraitMobile } from './useIsPortraitMobile'
 
 interface VideoSceneProps {
   node: ScenarioNode
@@ -39,22 +40,6 @@ const TYPE_LABEL: Record<string, string> = {
   scene: 'Scene',
   feedback: 'Feedback',
   ending: 'Ending',
-}
-
-function useIsPortraitMobile() {
-  const [is, setIs] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches
-      : false
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px) and (orientation: portrait)')
-    setIs(mq.matches)
-    const h = () => setIs(mq.matches)
-    mq.addEventListener('change', h)
-    return () => mq.removeEventListener('change', h)
-  }, [])
-  return is
 }
 
 export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSceneProps) {

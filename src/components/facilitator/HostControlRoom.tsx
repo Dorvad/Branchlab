@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft, Loader2, Users, Copy, Check, Play, Vote, Eye,
-  MessageCircle, ArrowRight, Square, ExternalLink, Download, ClipboardCopy,
+  MessageCircle, ArrowRight, Square, ExternalLink, Download, ClipboardCopy, Radio,
 } from 'lucide-react'
+import { isSupabaseMode } from '@/lib/persistence/mode'
 import { getNodeById, getAvailableChoices, isEndingNode } from '@/lib/scenario-engine'
 import {
   getFacilitatorSession,
@@ -160,6 +161,21 @@ export function HostControlRoom({ sessionId }: Props) {
   })
 
   // ── Render ───────────────────────────────────────────────────────────────────
+
+  if (!isSupabaseMode()) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 text-center px-6">
+        <Radio className="w-8 h-8 text-[var(--fg-3)]" />
+        <h2 className="text-lg font-semibold text-[var(--fg-1)]">Facilitator Mode requires Supabase</h2>
+        <p className="text-sm text-[var(--fg-3)] max-w-sm">
+          This feature is not available in local mode. Configure a Supabase project to use facilitator sessions.
+        </p>
+        <Link href="/dashboard" className="text-sm text-[var(--accent)] underline underline-offset-2">
+          Back to dashboard
+        </Link>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

@@ -11,6 +11,10 @@ import { getSupabaseServer } from '@/lib/supabase/server'
 import { parseVote } from '@/lib/facilitator/validate'
 import { rowToSession } from '@/lib/facilitator/rows'
 
+// Published scenario versions are immutable — cache their node/choice maps
+// so we don't re-fetch the full nodes JSONB on every vote.
+const nodesCache = new Map<string, Array<{ id: string; choices: Array<{ id: string }> }>>()
+
 export async function POST(request: Request) {
   let body: unknown
   try {
@@ -59,17 +63,21 @@ export async function POST(request: Request) {
 
   const participantId = (participant as { id: string }).id
 
-  // Validate the choice actually belongs to the current node in the published snapshot
-  const { data: versionRow } = await sb
-    .from('scenario_versions')
-    .select('nodes')
-    .eq('id', session.scenarioVersionId)
-    .maybeSingle()
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const nodes = (versionRow as any)?.nodes as Array<{ id: string; choices: Array<{ id: string }> }> | undefined
-  const node = nodes?.find(n => n.id === payload.nodeId)
-  const choiceValid = node?.choices.some(c => c.id === payload.choiceId)
+  // Validate the choice actually belongs to the current node in the published snapshot.
+  // Use the module-level cache — scenario versions are immutable once published.
+  let nodes = nodesCache.get(session.scenarioVersionId)
+  if (!nodes) {
+    const { data: versionRow } = await sb
+      .from('scenario_versions')
+      .select('nodes')
+      .eq('id', session.scenarioVersionId)
+      .maybeSingle()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    nodes = ((versionRow as any)?.nodes as Array<{ id: string; choices: Array<{ id: string }> }>) ?? []
+    nodesCache.set(session.scenarioVersionId, nodes)
+  }
+  const node = nodes.find(n => n.id === payload.nodeId)
+  const choiceValid = node?.choices?.some(c => c.id === payload.choiceId)
   if (!choiceValid) {
     return Response.json({ error: 'Invalid choice for this scene' }, { status: 400 })
   }

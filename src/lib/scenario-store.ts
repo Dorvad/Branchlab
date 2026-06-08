@@ -3,6 +3,7 @@
  * Replaces src/lib/local-store/index.ts with async equivalents.
  */
 import { getSupabaseClient } from './supabase/client'
+import { dbError, requireUserId } from './supabase/errors'
 import type { Scenario, ScenarioVersion, ScenarioNode, ScenarioEdge, PublishConfig } from '@/types'
 
 // ── Re-export pure utilities that have no persistence dependency ───────────────
@@ -74,25 +75,6 @@ function scenarioToRow(scenario: Scenario, userId: string, orgId?: string | null
   return row
 }
 
-// ── Error helper ──────────────────────────────────────────────────────────────
-
-// Supabase returns PostgrestError objects (not Error instances). Convert them
-// so callers always catch a real Error with a human-readable message.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function dbError(err: any): Error {
-  const msg = err?.message ?? err?.details ?? err?.hint ?? 'Database error'
-  return new Error(msg)
-}
-
-// ── Auth helper ───────────────────────────────────────────────────────────────
-
-async function requireUserId(): Promise<string> {
-  const sb = getSupabaseClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-  return user.id
-}
-
 // ── Slug utilities ─────────────────────────────────────────────────────────────
 
 /** Format-only slug validation. Returns error string or null. */
@@ -147,7 +129,7 @@ export async function getAllScenarios(orgId: string | null = null): Promise<Scen
   const userId = await requireUserId()
   const sb = getSupabaseClient()
 
-  let query = sb.from('scenarios').select('*').order('updated_at', { ascending: false })
+  let query = sb.from('scenarios').select('id,title,description,status,slug,thumbnail_url,created_at,updated_at,start_node_id,published_version,nodes').order('updated_at', { ascending: false })
 
   if (orgId) {
     query = query.eq('org_id', orgId)

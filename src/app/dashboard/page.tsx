@@ -176,12 +176,13 @@ export default function DashboardPage() {
     try {
       const copy = duplicateScenario(source)
       await saveScenario(copy, activeOrg?.id ?? null)
-      load()
+      setScenarios(prev => [copy, ...prev])
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : 'Failed to duplicate scenario')
+      load()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeOrg?.id])
+  }, [activeOrg?.id, load])
 
   const confirmDelete = useCallback((s: Scenario) => setDeleteTarget(s), [])
   const confirmRename = useCallback((s: Scenario) => setRenamingTarget(s), [])
@@ -191,26 +192,28 @@ export default function DashboardPage() {
     try {
       await saveScenario({ ...renamingTarget, title: newTitle }, activeOrg?.id ?? null)
       setRenamingTarget(null)
-      load()
+      setScenarios(prev => prev.map(s => s.id === renamingTarget?.id ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s))
     } catch (e) {
       setRenamingTarget(null)
       setCreateError(e instanceof Error ? e.message : 'Failed to rename scenario')
+      load()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renamingTarget, activeOrg?.id])
+  }, [renamingTarget, activeOrg?.id, load])
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return
     try {
       await deleteScenario(deleteTarget.id)
       setDeleteTarget(null)
-      load()
+      setScenarios(prev => prev.filter(s => s.id !== deleteTarget.id))
     } catch (e) {
       setDeleteTarget(null)
       setCreateError(e instanceof Error ? e.message : 'Failed to delete scenario')
+      load()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deleteTarget])
+  }, [deleteTarget, load])
 
   const handleClipUpload = useCallback(async (file: File) => {
     setUploadState({ fileName: file.name, status: 'uploading', progress: 0 })

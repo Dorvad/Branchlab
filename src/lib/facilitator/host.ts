@@ -4,6 +4,7 @@
 // host_user_id = auth.uid(). This mirrors how the editor saves scenarios.
 
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { dbError, requireUserId } from '@/lib/supabase/errors'
 import { generateJoinCode } from './codes'
 import { rowToSession, rowToSessionEvent } from './rows'
 import type { Scenario, ScenarioVersion } from '@/types'
@@ -13,18 +14,6 @@ import type {
   FacilitatorEventType,
   FacilitatorDecision,
 } from '@/types/facilitator'
-
-function dbError(err: unknown): Error {
-  const e = err as { message?: string; details?: string; hint?: string } | null
-  return new Error(e?.message ?? e?.details ?? e?.hint ?? 'Database error')
-}
-
-async function requireUserId(): Promise<string> {
-  const sb = getSupabaseClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-  return user.id
-}
 
 // ── Create / list / read ──────────────────────────────────────────────────────
 

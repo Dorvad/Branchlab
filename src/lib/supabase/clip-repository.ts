@@ -9,6 +9,7 @@
  */
 
 import { getSupabaseClient } from './client'
+import { requireUserId } from './errors'
 import type { Clip } from '@/types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -36,12 +37,6 @@ function storagePath(userId: string, scenarioId: string, clipId: string, filenam
 function publicUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL!
   return `${base}/storage/v1/object/public/${BUCKET}/${path}`
-}
-
-async function requireUserId(): Promise<string> {
-  const { data: { user } } = await getSupabaseClient().auth.getUser()
-  if (!user) throw new Error('Not signed in')
-  return user.id
 }
 
 // ── Upload ────────────────────────────────────────────────────────────────────
