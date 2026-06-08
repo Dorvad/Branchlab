@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { ScenarioChoice } from '@/types'
 
@@ -11,12 +11,40 @@ interface ChoicePanelProps {
 
 export function ChoicePanel({ choices, onSelect }: ChoicePanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [focusedIdx, setFocusedIdx] = useState(-1)
 
   const handleSelect = (choice: ScenarioChoice) => {
     if (selectedId) return
     setSelectedId(choice.id)
     setTimeout(() => onSelect(choice), 180)
   }
+
+  // Keyboard navigation: arrows / number keys to focus, Enter/Space to select
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (selectedId) return
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        setFocusedIdx(i => (i + 1) % choices.length)
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault()
+        setFocusedIdx(i => (i - 1 + choices.length) % choices.length)
+      } else if ((e.key === 'Enter' || e.key === ' ') && focusedIdx >= 0) {
+        e.preventDefault()
+        handleSelect(choices[focusedIdx])
+      } else {
+        const num = parseInt(e.key)
+        if (num >= 1 && num <= choices.length) {
+          e.preventDefault()
+          setFocusedIdx(num - 1)
+          handleSelect(choices[num - 1])
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [choices, selectedId, focusedIdx])
 
   // 2–4 choices → 2-column grid   |   1 or 5+ → stacked scrollable list
   const useGrid = choices.length >= 2 && choices.length <= 4
@@ -55,6 +83,7 @@ export function ChoicePanel({ choices, onSelect }: ChoicePanelProps) {
             {choices.map((choice, i) => {
               const isSelected = selectedId === choice.id
               const isDimmed = selectedId !== null && !isSelected
+              const isFocused = focusedIdx === i && !selectedId
               return (
                 <motion.button
                   key={choice.id}
@@ -74,13 +103,16 @@ export function ChoicePanel({ choices, onSelect }: ChoicePanelProps) {
                     background: isSelected
                       ? 'oklch(82% 0.18 165 / 0.18)'
                       : 'rgba(255,255,255,0.07)',
-                    border: `1px solid ${isSelected ? 'oklch(82% 0.18 165 / 0.55)' : 'rgba(255,255,255,0.14)'}`,
+                    border: `1px solid ${isSelected ? 'oklch(82% 0.18 165 / 0.55)' : isFocused ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.14)'}`,
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
                     boxShadow: isSelected
                       ? '0 2px 20px rgba(0,0,0,0.5), var(--glow-mint)'
+                      : isFocused
+                      ? '0 2px 20px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.3)'
                       : '0 2px 12px rgba(0,0,0,0.35)',
                     minHeight: 68,
+                    outline: 'none',
                   }}
                 >
                   <span
@@ -120,6 +152,7 @@ export function ChoicePanel({ choices, onSelect }: ChoicePanelProps) {
             {choices.map((choice, i) => {
               const isSelected = selectedId === choice.id
               const isDimmed = selectedId !== null && !isSelected
+              const isFocused = focusedIdx === i && !selectedId
               return (
                 <motion.button
                   key={choice.id}
@@ -141,12 +174,15 @@ export function ChoicePanel({ choices, onSelect }: ChoicePanelProps) {
                     background: isSelected
                       ? 'oklch(82% 0.18 165 / 0.18)'
                       : 'rgba(255,255,255,0.07)',
-                    border: `1px solid ${isSelected ? 'oklch(82% 0.18 165 / 0.55)' : 'rgba(255,255,255,0.14)'}`,
+                    border: `1px solid ${isSelected ? 'oklch(82% 0.18 165 / 0.55)' : isFocused ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.14)'}`,
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
                     boxShadow: isSelected
                       ? '0 2px 20px rgba(0,0,0,0.5), var(--glow-mint)'
+                      : isFocused
+                      ? '0 2px 20px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.3)'
                       : '0 2px 12px rgba(0,0,0,0.35)',
+                    outline: 'none',
                   }}
                 >
                   <span

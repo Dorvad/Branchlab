@@ -39,9 +39,12 @@ import { useOrg } from '@/lib/org-context'
 import { createOrg } from '@/lib/supabase/orgs'
 import { createFacilitatorSession } from '@/lib/facilitator'
 import { ShareSettingsModal } from '@/components/editor/ShareSettingsModal'
+import { ScenarioCardSkeleton } from '@/components/dashboard/ScenarioCardSkeleton'
 
 type Section = 'home' | 'drafts' | 'published' | 'assets'
 type SortKey = 'updated' | 'name' | 'created'
+
+const SECTION_ORDER: Record<Section, number> = { home: 0, drafts: 1, published: 2, assets: 3 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -57,7 +60,13 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  const [section, setSection] = useState<Section>('home')
+  const [section, setSectionState] = useState<Section>('home')
+  const sectionDirectionRef = useRef(1)
+  const setSection = useCallback((next: Section) => {
+    sectionDirectionRef.current = SECTION_ORDER[next] >= SECTION_ORDER[section] ? 1 : -1
+    setSectionState(next)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section])
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>('updated')
   const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null)
@@ -334,8 +343,12 @@ export default function DashboardPage() {
 
         <div className="flex-1 overflow-auto">
           {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <BranchLabLoader fullscreen={false} size={180} showCaption={false} />
+            <div className="p-6 sm:p-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <ScenarioCardSkeleton key={i} />
+                ))}
+              </div>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -351,7 +364,7 @@ export default function DashboardPage() {
           ) : (
             <AnimatePresence mode="wait">
               {section === 'assets' ? (
-                <motion.div key="assets" {...fadeProps}>
+                <motion.div key="assets" {...fadeProps(sectionDirectionRef.current)}>
                   <AssetsView
                     clips={clips}
                     uploadState={uploadState}
@@ -360,7 +373,7 @@ export default function DashboardPage() {
                   />
                 </motion.div>
               ) : section === 'drafts' ? (
-                <motion.div key="drafts" {...fadeProps}>
+                <motion.div key="drafts" {...fadeProps(sectionDirectionRef.current)}>
                   <SectionView
                     title="Drafts"
                     scenarios={filtered(drafts)}
@@ -373,7 +386,7 @@ export default function DashboardPage() {
                   />
                 </motion.div>
               ) : section === 'published' ? (
-                <motion.div key="published" {...fadeProps}>
+                <motion.div key="published" {...fadeProps(sectionDirectionRef.current)}>
                   <SectionView
                     title="Published"
                     scenarios={filtered(published)}
@@ -384,7 +397,7 @@ export default function DashboardPage() {
                   />
                 </motion.div>
               ) : (
-                <motion.div key="home" {...fadeProps}>
+                <motion.div key="home" {...fadeProps(sectionDirectionRef.current)}>
                   <HomeView
                     scenarios={scenarios}
                     drafts={filtered(drafts)}
@@ -499,12 +512,12 @@ export default function DashboardPage() {
   )
 }
 
-const fadeProps = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1 },
-  exit: { opacity: 0 },
-  transition: { duration: 0.15 },
-}
+const fadeProps = (dir: number) => ({
+  initial: { opacity: 0, x: dir * 20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: dir * -20 },
+  transition: { duration: 0.18, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+})
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 

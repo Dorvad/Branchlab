@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, Loader2, Users, Copy, Check, Play, Vote, Eye,
   MessageCircle, ArrowRight, Square, ExternalLink, Download, ClipboardCopy, Radio,
@@ -201,43 +201,65 @@ export function HostControlRoom({ sessionId }: Props) {
       <RoomHeader scenario={scenario} session={session} participantCount={participants.length} />
 
       <div className="max-w-6xl mx-auto px-6 py-6">
-        {session.status === 'waiting' && (
-          <WaitingRoom
-            session={session}
-            participants={participants}
-            startNode={getNodeById(version, version.startNodeId) ?? null}
-            onStart={handleStart}
-            busy={busy}
-          />
-        )}
-
-        {session.status === 'live' && (
-          <LiveRoom
-            session={session}
-            version={version}
-            currentNode={currentNode}
-            participants={participants}
-            tallies={tallies}
-            totalVotes={totalVotes}
-            majority={majority}
-            busy={busy}
-            onOpenVoting={handleOpenVoting}
-            onRevealResults={handleRevealResults}
-            onStartDiscussion={handleStartDiscussion}
-            onChoosePath={handleChoosePath}
-            onEndSession={handleEndSession}
-          />
-        )}
-
-        {session.status === 'ended' && (
-          <SessionSummaryView
-            session={session}
-            scenario={scenario}
-            version={version}
-            participantCount={participants.length}
-            totalVotesAllTime={votes.length}
-          />
-        )}
+        <AnimatePresence mode="wait">
+          {session.status === 'waiting' ? (
+            <motion.div
+              key="waiting"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <WaitingRoom
+                session={session}
+                participants={participants}
+                startNode={getNodeById(version, version.startNodeId) ?? null}
+                onStart={handleStart}
+                busy={busy}
+              />
+            </motion.div>
+          ) : session.status === 'live' ? (
+            <motion.div
+              key={`live-${session.phase}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <LiveRoom
+                session={session}
+                version={version}
+                currentNode={currentNode}
+                participants={participants}
+                tallies={tallies}
+                totalVotes={totalVotes}
+                majority={majority}
+                busy={busy}
+                onOpenVoting={handleOpenVoting}
+                onRevealResults={handleRevealResults}
+                onStartDiscussion={handleStartDiscussion}
+                onChoosePath={handleChoosePath}
+                onEndSession={handleEndSession}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="ended"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <SessionSummaryView
+                session={session}
+                scenario={scenario}
+                version={version}
+                participantCount={participants.length}
+                totalVotesAllTime={votes.length}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )

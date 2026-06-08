@@ -348,9 +348,19 @@ export function AssetLibrary({
           ))}
         </div>
 
+        {/* ── Tab content with cross-fade ─────────────────────────────────────── */}
+        <AnimatePresence mode="wait">
+
         {/* ── Upload tab ─────────────────────────────────────────────────────── */}
         {activeTab === 'upload' && (
-          <div className="flex-1 overflow-y-auto">
+          <motion.div
+            key="upload"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="flex-1 overflow-y-auto"
+          >
             {attachBanner}
             {selectNodeHint}
             <div className="p-3 space-y-3">
@@ -505,12 +515,19 @@ export function AssetLibrary({
                 </div>
               )}
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ── Link tab ───────────────────────────────────────────────────────── */}
         {activeTab === 'link' && (
-          <div className="flex-1 overflow-y-auto">
+          <motion.div
+            key="link"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="flex-1 overflow-y-auto"
+          >
             {attachBanner}
             {selectNodeHint}
             <div className="p-3 space-y-3">
@@ -622,12 +639,19 @@ export function AssetLibrary({
                 </div>
               )}
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ── Stock tab ──────────────────────────────────────────────────────── */}
         {activeTab === 'stock' && (
-          <div className="flex flex-col flex-1 overflow-hidden">
+          <motion.div
+            key="stock"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="flex flex-col flex-1 overflow-hidden"
+          >
 
             {/* Provider selector */}
             <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-2 shrink-0">
@@ -729,9 +753,10 @@ export function AssetLibrary({
                 <PixabayPanel savedPixabayIds={savedPixabayIds} onSaveAsset={onAddPixabayAsset} />
               )}
             </div>
-          </div>
+          </motion.div>
         )}
 
+        </AnimatePresence>
       </div>
     </motion.aside>
   )

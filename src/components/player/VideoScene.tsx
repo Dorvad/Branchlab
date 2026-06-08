@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Loader2 } from 'lucide-react'
 import type { ScenarioNode } from '@/types'
 import { useIsPortraitMobile } from './useIsPortraitMobile'
 
@@ -48,6 +48,7 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
 
   const [done, setDone] = useState(false)
   const [isLandscape, setIsLandscape] = useState(false)
+  const [buffering, setBuffering] = useState(false)
   const isPortraitMobile = useIsPortraitMobile()
 
   // ── VIDEO MODE ─────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
     setShowFallback(false)
     setNeedsInteraction(false)
     setVideoError(false)
+    setBuffering(false)
     clipStartRef.current = node.clipStartTime ?? 0
     clipEndRef.current = node.clipEndTime ?? null
 
@@ -174,7 +176,30 @@ export function VideoScene({ node, onComplete, autoAdvanceSeconds = 5 }: VideoSc
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleVideoEnded}
           onError={() => setVideoError(true)}
+          onWaiting={() => setBuffering(true)}
+          onPlaying={() => setBuffering(false)}
+          onCanPlay={() => setBuffering(false)}
         />
+
+        {/* Buffering spinner */}
+        <AnimatePresence>
+          {buffering && !done && !needsInteraction && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
+            >
+              <div
+                className="flex items-center gap-2 px-3 py-2 rounded-xl"
+                style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }}
+              >
+                <Loader2 size={14} className="animate-spin" style={{ color: 'rgba(255,255,255,0.7)' }} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Tap-to-play overlay — shown when browser blocks autoplay */}
         {needsInteraction && (
