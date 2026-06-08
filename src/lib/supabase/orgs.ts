@@ -1,21 +1,9 @@
 'use client'
 
 import { getSupabaseClient } from './client'
+import { dbError, requireUserId } from './errors'
 import { slugify } from '@/lib/local-store'
 import type { Organization, OrgWithRole, OrgMember, OrgInvite, OrgRole } from '@/types'
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function dbError(err: any): Error {
-  const msg = err?.message ?? err?.details ?? err?.hint ?? 'Database error'
-  return new Error(msg)
-}
-
-async function requireUserId(): Promise<string> {
-  const sb = getSupabaseClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-  return user.id
-}
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
@@ -44,6 +32,9 @@ function rowToMember(row: any): OrgMember {
     userId: row.user_id,
     role: row.role as OrgRole,
     joinedAt: row.joined_at,
+    // TODO: organization_members has no email column — email is only available via
+    // auth.users which requires admin/service-role access. This will always be
+    // undefined for client-side calls. Consider a server-side RPC if emails are needed.
     email: row.email ?? undefined,
   }
 }
@@ -87,7 +78,11 @@ export async function getUserOrgs(): Promise<OrgWithRole[]> {
     organizations: Record<string, unknown> | null
   }>
 
-  // Fetch member counts in a separate query (Supabase doesn't support COUNT in nested select easily)
+  // Fetch member counts in a second query. PostgREST embedded COUNT via
+  // select('...', { count: 'exact' }) requires a correctly resolved FK relationship
+  // in the generated types — the current schema types raise a SelectQueryError for
+  // the organization_members<->organizations join. Until the generated types are
+  // fixed, we keep this as a plain select and count client-side.
   const orgIds = rows.map(r => (r.organizations as Record<string, unknown>)?.id as string).filter(Boolean)
   let countMap: Record<string, number> = {}
   if (orgIds.length > 0) {
@@ -140,6 +135,18 @@ export async function createOrg(name: string): Promise<OrgWithRole> {
 }
 
 /** Updates an org's display name (admin+). */
+export async function getOrg(orgId: string): Promise<Organization | null> {
+  const sb = getSupabaseClient()
+  const { data, error } = await sb
+    .from('organizations')
+    .select('*')
+    .eq('id', orgId)
+    .maybeSingle()
+  if (error) throw dbError(error)
+  if (!data) return null
+  return rowToOrg(data)
+}
+
 export async function updateOrgName(orgId: string, name: string): Promise<void> {
   const sb = getSupabaseClient()
   const { error } = await sb
@@ -150,8 +157,10 @@ export async function updateOrgName(orgId: string, name: string): Promise<void> 
 }
 
 /**
- * Returns all members of an org with their emails.
- * Uses a Supabase RPC or falls back to member rows only (email requires admin access to auth.users).
+ * Returns all members of an org with their role and join date.
+ * NOTE: Email addresses are NOT returned — the organization_members table has no
+ * email column. Fetching emails requires admin access to auth.users, which is not
+ * available from client-side code. If emails are needed, implement a server-side RPC.
  */
 export async function getOrgMembers(orgId: string): Promise<OrgMember[]> {
   const sb = getSupabaseClient()

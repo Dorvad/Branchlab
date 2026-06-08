@@ -152,7 +152,7 @@ export function ScenarioAnalyticsPage({ scenarioId }: Props) {
         {publishedVersion && !hasData && playUrl && (
           <EmptyCard
             title="No player data yet"
-            description="Share your published scenario link to start collecting analytics."
+            description="Analytics will appear here after people start playing this published scenario."
             action={
               <div className="flex items-center gap-2">
                 <CopyLinkButton url={playUrl} label="Copy link" />
@@ -191,6 +191,13 @@ export function ScenarioAnalyticsPage({ scenarioId }: Props) {
                   value={summary.mostReachedEnding?.title ?? '—'}
                   small={summary.mostReachedEnding ? `${summary.mostReachedEnding.count} times` : undefined}
                 />
+                {summary.averageScore != null && (
+                  <StatCard
+                    label="Avg. score"
+                    value={Math.round(summary.averageScore).toString()}
+                    small="Across completed sessions"
+                  />
+                )}
               </div>
             </section>
 
@@ -305,7 +312,7 @@ export function ScenarioAnalyticsPage({ scenarioId }: Props) {
                     <table className="w-full text-xs">
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--line-1)' }}>
-                          {['Started', 'Status', 'Ending', 'Duration', 'Choices'].map(h => (
+                          {['Started', 'Status', 'Ending', 'Duration', 'Choices', 'Path'].map(h => (
                             <th
                               key={h}
                               className="px-4 py-2.5 text-left font-mono text-[10px] tracking-wider"
@@ -344,6 +351,11 @@ export function ScenarioAnalyticsPage({ scenarioId }: Props) {
                             </td>
                             <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--fg-3)' }}>
                               {s.choiceCount}
+                            </td>
+                            <td className="px-4 py-2.5 max-w-[320px]" style={{ color: 'var(--fg-3)' }}>
+                              {s.path.length > 0 ? (
+                                <span className="text-[11px] leading-relaxed">{s.path.join(' → ')}</span>
+                              ) : '—'}
                             </td>
                           </tr>
                         ))}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/marketing",
+      "destination": "https://branchlab-website.vercel.app"
+    },
+    {
+      "source": "/marketing/:path*",
+      "destination": "https://branchlab-website.vercel.app/:path*"
+    }
+  ]
+}

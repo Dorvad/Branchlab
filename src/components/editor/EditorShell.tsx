@@ -24,6 +24,7 @@ import { fetchPixabayAssets, deletePixabayAsset as deletePixabayAssetFn, renameP
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PublishModal } from './PublishModal'
 import { ShareModal } from './ShareModal'
+import { ShareSettingsModal } from './ShareSettingsModal'
 import { AddYouTubeModal } from './AddYouTubeModal'
 import { exportToBlab } from '@/lib/blab-format'
 import { exportToZip } from '@/lib/zip-export'
@@ -31,6 +32,30 @@ import { exportScorm12, exportXapiStatements } from '@/lib/scorm-export'
 import { getOnboardingState, dismissOnboarding, markScenarioPreviewed, hasPreviewedScenario } from '@/lib/onboarding'
 import { OnboardingChecklist } from './OnboardingChecklist'
 import type { Scenario, ScenarioNode, ScenarioChoice, ScenarioEdge, Clip, YouTubeAsset, PexelsAsset, CoverrAsset, PixabayAsset, PublishConfig } from '@/types'
+
+// Edges are derived from node choices — there's no separately-stored edges
+// array during editing. Pulled out as a pure function so save paths can derive
+// the same edges synchronously from the authoritative node list, instead of
+// reading a memoized/ref-cached copy that may lag a render behind.
+function deriveEdgesFromNodes(nodes: ScenarioNode[]): ScenarioEdge[] {
+  const nodeIds = new Set(nodes.map(n => n.id))
+  const edges: ScenarioEdge[] = []
+  for (const node of nodes) {
+    for (const choice of (node.choices ?? [])) {
+      if (choice.targetNodeId && nodeIds.has(choice.targetNodeId)) {
+        edges.push({
+          id: `${node.id}__${choice.id}`,
+          sourceNodeId: node.id,
+          targetNodeId: choice.targetNodeId,
+          choiceId: choice.id,
+          sourceHandle: choice.sourceHandle,
+          targetHandle: choice.targetHandle,
+        })
+      }
+    }
+  }
+  return edges
+}
 
 // ── Undo/Redo history reducer ─────────────────────────────────────────────────
 
@@ -196,6 +221,7 @@ function EditorUI({ initialScenario }: EditorUIProps) {
   const [showValidation, setShowValidation] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
   const [showShare, setShowShare] = useState(false)
+  const [showShareSettings, setShowShareSettings] = useState(false)
   const [showAssets, setShowAssets] = useState(false)
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -214,9 +240,8 @@ function EditorUI({ initialScenario }: EditorUIProps) {
     window.open(`/preview/${scenario.id}?device=${device}`, '_blank', 'noopener,noreferrer')
   }
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Refs so the autosave timeout always reads the latest state without stale closures
+  // Ref so the autosave timeout always reads the latest state without stale closures
   const scenarioRef = useRef(scenario)
-  const edgesRef = useRef<ScenarioEdge[]>([])
   useEffect(() => { scenarioRef.current = scenario }, [scenario])
 
 
@@ -226,25 +251,10 @@ function EditorUI({ initialScenario }: EditorUIProps) {
   )
 
   // Edges derived from choices — no separate edges array needed during editing
-  const derivedEdges = useMemo<ScenarioEdge[]>(() => {
-    const nodeIds = new Set(scenario.nodes.map(n => n.id))
-    const edges: ScenarioEdge[] = []
-    for (const node of scenario.nodes) {
-      for (const choice of (node.choices ?? [])) {
-        if (choice.targetNodeId && nodeIds.has(choice.targetNodeId)) {
-          edges.push({
-            id: `${node.id}__${choice.id}`,
-            sourceNodeId: node.id,
-            targetNodeId: choice.targetNodeId,
-            choiceId: choice.id,
-            sourceHandle: choice.sourceHandle,
-            targetHandle: choice.targetHandle,
-          })
-        }
-      }
-    }
-    return edges
-  }, [scenario.nodes])
+  const derivedEdges = useMemo<ScenarioEdge[]>(
+    () => deriveEdgesFromNodes(scenario.nodes),
+    [scenario.nodes]
+  )
 
   const validationResult = useMemo(
     () => validateScenario(scenario),
@@ -279,7 +289,7 @@ function EditorUI({ initialScenario }: EditorUIProps) {
 
   const addNode = useCallback(() => {
     const maxY = scenario.nodes.length
-      ? Math.max(...scenario.nodes.map(n => n.position.y)) + 180
+      ? scenario.nodes.reduce((max, n) => Math.max(max, n.position.y), -Infinity) + 180
       : 120
     const newNode: ScenarioNode = {
       id: `node-${Date.now()}`,
@@ -377,9 +387,10 @@ function EditorUI({ initialScenario }: EditorUIProps) {
     setSaveError(null)
     setIsSaving(true)
     try {
+      const latest = scenarioRef.current
       const stored = await saveScenario({
-        ...scenarioRef.current,
-        edges: edgesRef.current,
+        ...latest,
+        edges: deriveEdgesFromNodes(latest.nodes),
       })
       dispatch({ type: 'replace', scenario: stored })
       setSavedAt(new Date(stored.updatedAt))
@@ -394,10 +405,6 @@ function EditorUI({ initialScenario }: EditorUIProps) {
   }, [])
 
   // ── Autosave: debounce 2.5 s after last change ────────────────────────────
-  useEffect(() => {
-    edgesRef.current = derivedEdges
-  }, [derivedEdges])
-
   useEffect(() => {
     if (!isDirty || isSaving) return
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
@@ -621,8 +628,10 @@ function EditorUI({ initialScenario }: EditorUIProps) {
   }, [])
 
   const renamePexelsAsset = useCallback(async (id: string, title: string) => {
-    await renamePexelsAssetFn(id, title).catch(() => {})
-    setPexelsAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
+    try {
+      await renamePexelsAssetFn(id, title)
+      setPexelsAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
+    } catch { /* silently fail — the title in state won't update */ }
   }, [])
 
   const attachPexelsVideoToNode = useCallback((asset: PexelsAsset) => {
@@ -648,8 +657,10 @@ function EditorUI({ initialScenario }: EditorUIProps) {
   }, [])
 
   const renameCoverrAsset = useCallback(async (id: string, title: string) => {
-    await renameCoverrAssetFn(id, title).catch(() => {})
-    setCoverrAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
+    try {
+      await renameCoverrAssetFn(id, title)
+      setCoverrAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
+    } catch { /* silently fail — the title in state won't update */ }
   }, [])
 
   const attachCoverrVideoToNode = useCallback((asset: CoverrAsset) => {
@@ -670,8 +681,10 @@ function EditorUI({ initialScenario }: EditorUIProps) {
   }, [])
 
   const renamePixabayAsset = useCallback(async (id: string, title: string) => {
-    await renamePixabayAssetFn(id, title).catch(() => {})
-    setPixabayAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
+    try {
+      await renamePixabayAssetFn(id, title)
+      setPixabayAssets(prev => prev.map(a => a.id === id ? { ...a, title } : a))
+    } catch { /* silently fail — the title in state won't update */ }
   }, [])
 
   const attachPixabayVideoToNode = useCallback((asset: PixabayAsset) => {
@@ -699,7 +712,7 @@ function EditorUI({ initialScenario }: EditorUIProps) {
 
   const createEndingNode = useCallback(() => {
     const maxY = scenario.nodes.length
-      ? Math.max(...scenario.nodes.map(n => n.position.y)) + 200
+      ? scenario.nodes.reduce((max, n) => Math.max(max, n.position.y), -Infinity) + 200
       : 300
     const newNode: ScenarioNode = {
       id: `node-${Date.now()}`,
@@ -1181,6 +1194,10 @@ function EditorUI({ initialScenario }: EditorUIProps) {
           validationResult={validationResult}
           onPublish={(config) => handlePublish(config)}
           onClose={() => setShowPublish(false)}
+          onOpenShareSettings={() => {
+            setShowPublish(false)
+            setShowShareSettings(true)
+          }}
         />
       )}
 
@@ -1191,6 +1208,17 @@ function EditorUI({ initialScenario }: EditorUIProps) {
           validationResult={validationResult}
           onPublish={(config) => handlePublish(config)}
           onClose={() => setShowShare(false)}
+          onOpenShareSettings={() => {
+            setShowShare(false)
+            setShowShareSettings(true)
+          }}
+        />
+      )}
+
+      {showShareSettings && scenario.publishedVersion && (
+        <ShareSettingsModal
+          scenarioId={scenario.id}
+          onClose={() => setShowShareSettings(false)}
         />
       )}
 

@@ -1,13 +1,17 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import { cookies } from 'next/headers'
 import { isSupabaseMode } from '@/lib/persistence/mode'
 import { getPublishedBySlug } from '@/lib/persistence/scenarios'
+import { resolvePlayAccess, accessCookieName, versionRowToScenarioVersion } from '@/lib/sharing'
 import { PlayClient } from '@/components/player/PlayClient'
 import { ScenarioPlayer } from '@/components/player/ScenarioPlayer'
+import { PlayGateScreen } from '@/components/player/PlayGateScreen'
+import { PasswordGate } from '@/components/player/PasswordGate'
+import { PrivateGate } from '@/components/player/PrivateGate'
 
 interface PlayPageProps {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ embed?: string }>
+  searchParams: Promise<{ embed?: string; token?: string }>
 }
 
 function appUrl(): string {
@@ -21,8 +25,11 @@ export async function generateMetadata({ params }: PlayPageProps): Promise<Metad
     return { title: 'Play · BranchLab' }
   }
 
+  // Metadata must never leak gated titles — only describe public/unlisted
+  // scenarios by name; everything else gets a generic title.
   const version = await getPublishedBySlug(slug)
-  const title = version?.title ? `${version.title} · BranchLab` : 'Play · BranchLab'
+  const isOpen = version && (version.visibility ?? 'public') !== 'private' && (version.visibility ?? 'public') !== 'password'
+  const title = isOpen && version?.title ? `${version.title} · BranchLab` : 'Play · BranchLab'
   const base = appUrl()
   const canonicalUrl = base ? `${base}/play/${slug}` : undefined
   return {
@@ -47,36 +54,33 @@ export async function generateMetadata({ params }: PlayPageProps): Promise<Metad
 
 export default async function PlayPage({ params, searchParams }: PlayPageProps) {
   const { slug } = await params
-  const { embed } = await searchParams
+  const { embed, token } = await searchParams
+  const isEmbed = embed === '1'
 
   // Local mode: delegate to client component (localStorage is client-side only)
   if (!isSupabaseMode()) {
-    return <PlayClient slug={slug} embed={embed === '1'} />
+    return <PlayClient slug={slug} embed={isEmbed} />
   }
 
-  // Supabase mode: load server-side so the page is fully rendered before sending HTML
-  const version = await getPublishedBySlug(slug)
+  const cookieStore = await cookies()
+  const cookieValue = cookieStore.get(accessCookieName(slug))?.value
 
-  if (!version) {
-    return (
-      <div
-        className="flex h-screen items-center justify-center flex-col gap-4"
-        style={{ background: '#0a0b10' }}
-      >
-        <p className="text-sm font-mono" style={{ color: '#5c6273' }}>
-          No scenario published at{' '}
-          <span style={{ color: '#c9cdda' }}>/play/{slug}</span>
-        </p>
-        <Link
-          href="/"
-          className="text-xs font-mono underline underline-offset-4 transition-colors"
-          style={{ color: '#5c6273' }}
-        >
-          Go home
-        </Link>
-      </div>
-    )
+  const access = await resolvePlayAccess({ slug, cookieValue, token: token ?? null })
+
+  switch (access.status) {
+    case 'not-found':
+      return <PlayGateScreen kind="not-found" />
+    case 'disabled':
+      return <PlayGateScreen kind="disabled" />
+    case 'denied':
+      return <PlayGateScreen kind="denied" />
+    case 'private':
+      return <PrivateGate slug={slug} embed={isEmbed} />
+    case 'password-required':
+      return <PasswordGate slug={slug} />
+    case 'allowed': {
+      const version = versionRowToScenarioVersion(access.versionRow)
+      return <ScenarioPlayer scenario={version} mode="play" embed={isEmbed} />
+    }
   }
-
-  return <ScenarioPlayer scenario={version} mode="play" embed={embed === '1'} />
 }

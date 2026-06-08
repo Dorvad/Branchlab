@@ -3,6 +3,7 @@
  * Replaces src/lib/local-store/index.ts with async equivalents.
  */
 import { getSupabaseClient } from './supabase/client'
+import { dbError, requireUserId } from './supabase/errors'
 import type { Scenario, ScenarioVersion, ScenarioNode, ScenarioEdge, PublishConfig } from '@/types'
 
 // ── Re-export pure utilities that have no persistence dependency ───────────────
@@ -12,7 +13,9 @@ export {
   createScenario,
   createFromTemplate,
   duplicateScenario,
+  SCENARIO_TEMPLATES,
 } from './local-store'
+export type { TemplateId, ScenarioTemplate } from './local-store'
 
 // ── Row ↔ Type mappers ────────────────────────────────────────────────────────
 
@@ -47,8 +50,8 @@ function rowToVersion(row: any): ScenarioVersion {
     publishedAt: row.published_at,
     slug: row.slug,
     orientation: row.orientation ?? undefined,
-    passwordProtected: row.password_protected ?? undefined,
-    password: row.password ?? undefined,
+    visibility: row.visibility ?? undefined,
+    accessEnabled: row.access_enabled ?? undefined,
   }
 }
 
@@ -70,25 +73,6 @@ function scenarioToRow(scenario: Scenario, userId: string, orgId?: string | null
   // the 003_organizations migration hasn't been applied yet.
   if (orgId) row.org_id = orgId
   return row
-}
-
-// ── Error helper ──────────────────────────────────────────────────────────────
-
-// Supabase returns PostgrestError objects (not Error instances). Convert them
-// so callers always catch a real Error with a human-readable message.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function dbError(err: any): Error {
-  const msg = err?.message ?? err?.details ?? err?.hint ?? 'Database error'
-  return new Error(msg)
-}
-
-// ── Auth helper ───────────────────────────────────────────────────────────────
-
-async function requireUserId(): Promise<string> {
-  const sb = getSupabaseClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-  return user.id
 }
 
 // ── Slug utilities ─────────────────────────────────────────────────────────────
@@ -145,7 +129,7 @@ export async function getAllScenarios(orgId: string | null = null): Promise<Scen
   const userId = await requireUserId()
   const sb = getSupabaseClient()
 
-  let query = sb.from('scenarios').select('*').order('updated_at', { ascending: false })
+  let query = sb.from('scenarios').select('id,title,description,status,slug,thumbnail_url,created_at,updated_at,start_node_id,published_version,nodes').order('updated_at', { ascending: false })
 
   if (orgId) {
     query = query.eq('org_id', orgId)
@@ -167,9 +151,10 @@ export async function getScenario(id: string): Promise<Scenario | null> {
     .from('scenarios')
     .select('*')
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
-  if (error) return null
+  if (error) throw dbError(error)
+  if (!data) return null
   return rowToScenario(data)
 }
 
@@ -192,6 +177,11 @@ export async function saveScenario(scenario: Scenario, orgId?: string | null): P
 export async function deleteScenario(id: string): Promise<void> {
   await requireUserId()
   const sb = getSupabaseClient()
+  // Remove published version snapshots first — otherwise their slugs stay
+  // permanently claimed (isSlugAvailable matches on scenario_id, which can
+  // never equal a deleted scenario's id again).
+  const { error: versionsError } = await sb.from('scenario_versions').delete().eq('scenario_id', id)
+  if (versionsError) throw dbError(versionsError)
   const { error } = await sb.from('scenarios').delete().eq('id', id)
   if (error) throw dbError(error)
 }
@@ -208,7 +198,7 @@ export async function deleteScenario(id: string): Promise<void> {
  * Returns the updated Scenario so callers can update React state.
  */
 export async function publishScenario(scenario: Scenario, config: PublishConfig): Promise<Scenario> {
-  const { slug, orientation, passwordProtected, password } = config
+  const { slug, orientation } = config
   const userId = await requireUserId()
   const sb = getSupabaseClient()
   const now = new Date().toISOString()
@@ -256,6 +246,10 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
       })
       .select()
       .single()
+    // validateSlug() checked availability earlier, but two concurrent publishes
+    // to the same new slug can both pass that check — surface the resulting
+    // unique-violation as a clean message instead of a raw Postgres error.
+    if (error?.code === '23505') throw new Error('This URL is already taken')
     if (error) throw dbError(error)
     versionRow = data
   }
@@ -264,8 +258,6 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
   const publishedVersion: ScenarioVersion = {
     ...rowToVersion(versionRow),
     orientation,
-    passwordProtected,
-    password: passwordProtected ? password : undefined,
   }
 
   // Step 2 — update the draft scenario's status
@@ -300,20 +292,16 @@ export async function getPublishedBySlug(slug: string): Promise<ScenarioVersion 
   if (!error && data) {
     const version = rowToVersion(data)
 
-    // orientation/password live in scenarios.published_version JSONB until
-    // migration 010 is applied. Fetch them with a second query if absent.
-    if (version.orientation === undefined && version.passwordProtected === undefined) {
+    // orientation lives in scenarios.published_version JSONB until migration
+    // 010 is applied. Fetch it with a second query if absent.
+    if (version.orientation === undefined) {
       const { data: sd } = await sb
         .from('scenarios')
         .select('published_version')
         .eq('slug', slug)
         .maybeSingle()
       const pv = sd?.published_version as ScenarioVersion | undefined
-      if (pv) {
-        version.orientation = pv.orientation
-        version.passwordProtected = pv.passwordProtected
-        version.password = pv.password
-      }
+      if (pv) version.orientation = pv.orientation
     }
 
     return version

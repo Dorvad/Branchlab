@@ -3,10 +3,14 @@ import type { Scenario, ScenarioVersion } from './index'
 export type PlayerEventType =
   | 'session_started'
   | 'node_viewed'
+  | 'video_started'
+  | 'video_completed'
+  | 'choice_viewed'
   | 'choice_selected'
   | 'feedback_viewed'
   | 'ending_reached'
   | 'session_completed'
+  | 'session_restarted'
 
 export interface PlayerSessionRow {
   id: string
@@ -15,6 +19,12 @@ export interface PlayerSessionRow {
   slug: string
   visitorId?: string
   startedAt: string
+  isPreview?: boolean
+  completedAt?: string
+  lastEventAt?: string
+  endingNodeId?: string
+  totalScore?: number
+  durationSeconds?: number
   userAgent?: string
   referrer?: string
 }
@@ -27,8 +37,10 @@ export interface PlayerEventRow {
   eventType: PlayerEventType
   nodeId?: string
   choiceId?: string
+  choiceLabel?: string
   targetNodeId?: string
   endingNodeId?: string
+  scoreDelta?: number
   score?: Record<string, number>
   metadata?: Record<string, unknown>
   createdAt: string
@@ -42,6 +54,8 @@ export interface ScenarioAnalytics {
     completedSessions: number
     completionRate: number
     averageCompletionSeconds: number | null
+    /** Mean of `total_score` across completed sessions; null when the scenario has no scoring. */
+    averageScore: number | null
     mostReachedEnding: {
       nodeId: string
       title: string
@@ -85,5 +99,8 @@ export interface ScenarioAnalytics {
     endingTitle?: string
     durationSeconds?: number
     choiceCount: number
+    score?: number
+    /** Human-readable node-title path, e.g. "Opening → Choice A → Good Ending" */
+    path: string[]
   }>
 }

@@ -13,6 +13,7 @@ import {
   GitBranch, Clock, ExternalLink, X, Play,
   ChevronDown, Check, Upload, Pencil,
   Eye, BarChart3, Download, FolderOpen, Settings, Menu,
+  Radio, Lock, Link2, EyeOff, Ban, Shield,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { BranchLabLoader } from '@/components/BranchLabLoader'
@@ -20,7 +21,9 @@ import {
   createScenario,
   createFromTemplate,
   duplicateScenario,
+  SCENARIO_TEMPLATES,
 } from '@/lib/scenario-store'
+import type { TemplateId } from '@/lib/scenario-store'
 import { getAllScenarios, saveScenario, deleteScenario } from '@/lib/persistence/scenarios'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
@@ -34,6 +37,8 @@ import type { Scenario, Clip } from '@/types'
 import type { User } from '@supabase/supabase-js'
 import { useOrg } from '@/lib/org-context'
 import { createOrg } from '@/lib/supabase/orgs'
+import { createFacilitatorSession } from '@/lib/facilitator'
+import { ShareSettingsModal } from '@/components/editor/ShareSettingsModal'
 
 type Section = 'home' | 'drafts' | 'published' | 'assets'
 type SortKey = 'updated' | 'name' | 'created'
@@ -83,25 +88,27 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Reload scenarios whenever user authenticates or active org changes
-  useEffect(() => {
+  // Tracks which org the in-flight scenario fetch was issued for, so a slow
+  // response from a since-superseded org switch can't clobber the current view.
+  const activeFetchOrgRef = useRef<string | null>(null)
+
+  const loadScenarios = useCallback((showRefreshSpinner: boolean) => {
     if (!user) return
-    const isFirstLoad = !hasLoadedRef.current
-    if (isFirstLoad) {
-      setLoading(true)
-    } else {
-      setRefreshing(true)
-    }
+    const orgId = activeOrg?.id ?? null
+    activeFetchOrgRef.current = orgId
+    if (!hasLoadedRef.current) setLoading(true)
+    else if (showRefreshSpinner) setRefreshing(true)
     setError(null)
-    setClips([]) // reset clips so lazy-load picks up the new scope
-    getAllScenarios(activeOrg?.id ?? null)
+    getAllScenarios(orgId)
       .then(s => {
+        if (activeFetchOrgRef.current !== orgId) return // superseded by a later org switch
         setScenarios(s)
         setLoading(false)
         setRefreshing(false)
         hasLoadedRef.current = true
       })
       .catch(e => {
+        if (activeFetchOrgRef.current !== orgId) return
         setError(e.message ?? 'Failed to load')
         setLoading(false)
         setRefreshing(false)
@@ -109,20 +116,25 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, activeOrg?.id])
 
+  // Reload scenarios whenever user authenticates or active org changes
+  useEffect(() => {
+    if (!user) return
+    setClips([]) // reset clips so lazy-load picks up the new scope
+    loadScenarios(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, activeOrg?.id])
+
   // Lazy-load clips when assets tab opens
   useEffect(() => {
-    if (section === 'assets' && clips.length === 0) {
-      fetchClips(activeOrg?.id ?? null).then(setClips).catch(() => {})
-    }
+    if (section !== 'assets' || clips.length > 0) return
+    const orgId = activeOrg?.id ?? null
+    let cancelled = false
+    fetchClips(orgId).then(c => { if (!cancelled) setClips(c) }).catch(() => {})
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, clips.length, activeOrg?.id])
 
-  const load = () => {
-    setError(null)
-    getAllScenarios(activeOrg?.id ?? null)
-      .then(s => { setScenarios(s); setLoading(false) })
-      .catch(e => { setError(e.message ?? 'Failed to load'); setLoading(false) })
-  }
+  const load = useCallback(() => loadScenarios(false), [loadScenarios])
 
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -142,11 +154,16 @@ export default function DashboardPage() {
     })
   }
 
-  const handleCreateFromTemplate = () => {
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
+
+  const handleCreateFromTemplate = () => setTemplatePickerOpen(true)
+
+  const handleSelectTemplate = (templateId: TemplateId) => {
     setCreateError(null)
+    setTemplatePickerOpen(false)
     startTransition(async () => {
       try {
-        const s = createFromTemplate()
+        const s = createFromTemplate(templateId)
         await saveScenario(s, activeOrg?.id ?? null)
         router.push(`/editor/${s.id}`)
       } catch (e) {
@@ -159,12 +176,13 @@ export default function DashboardPage() {
     try {
       const copy = duplicateScenario(source)
       await saveScenario(copy, activeOrg?.id ?? null)
-      load()
+      setScenarios(prev => [copy, ...prev])
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : 'Failed to duplicate scenario')
+      load()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeOrg?.id])
+  }, [activeOrg?.id, load])
 
   const confirmDelete = useCallback((s: Scenario) => setDeleteTarget(s), [])
   const confirmRename = useCallback((s: Scenario) => setRenamingTarget(s), [])
@@ -174,26 +192,28 @@ export default function DashboardPage() {
     try {
       await saveScenario({ ...renamingTarget, title: newTitle }, activeOrg?.id ?? null)
       setRenamingTarget(null)
-      load()
+      setScenarios(prev => prev.map(s => s.id === renamingTarget?.id ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s))
     } catch (e) {
       setRenamingTarget(null)
       setCreateError(e instanceof Error ? e.message : 'Failed to rename scenario')
+      load()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renamingTarget, activeOrg?.id])
+  }, [renamingTarget, activeOrg?.id, load])
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return
     try {
       await deleteScenario(deleteTarget.id)
       setDeleteTarget(null)
-      load()
+      setScenarios(prev => prev.filter(s => s.id !== deleteTarget.id))
     } catch (e) {
       setDeleteTarget(null)
       setCreateError(e instanceof Error ? e.message : 'Failed to delete scenario')
+      load()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deleteTarget])
+  }, [deleteTarget, load])
 
   const handleClipUpload = useCallback(async (file: File) => {
     setUploadState({ fileName: file.name, status: 'uploading', progress: 0 })
@@ -432,6 +452,17 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
 
+      {/* ── Template picker modal ── */}
+      <AnimatePresence>
+        {templatePickerOpen && (
+          <TemplatePickerModal
+            isPending={isPending}
+            onSelect={handleSelectTemplate}
+            onCancel={() => setTemplatePickerOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── ZIP import progress modal ── */}
       <AnimatePresence>
         {zipImportProgress && (
@@ -600,7 +631,7 @@ function Sidebar({
                   <GitBranch size={14} className="mt-0.5 shrink-0" style={{ color: 'oklch(82% 0.18 165)' }} />
                   <div>
                     <p className="text-sm font-medium" style={{ color: 'var(--fg-0)' }}>From template</p>
-                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--fg-3)' }}>Start node, 2 paths, 1 ending</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--fg-3)' }}>Choose from 3 starting structures</p>
                   </div>
                 </button>
                 <div style={{ height: 1, background: 'var(--line-1)' }} />
@@ -1400,6 +1431,15 @@ const STATUS_CONFIG = {
   archived:  { dot: 'var(--fg-3)', label: 'Archived', text: 'var(--fg-3)', bg: 'var(--tint-1)', border: 'var(--line-2)' },
 }
 
+const VISIBILITY_CONFIG = {
+  public:   { icon: <Globe size={9} />,  label: 'Public',   text: 'var(--fg-2)', bg: 'rgba(0,0,0,0.55)', border: 'rgba(255,255,255,0.12)' },
+  unlisted: { icon: <Link2 size={9} />,  label: 'Unlisted', text: 'oklch(80% 0.14 230)', bg: 'rgba(0,0,0,0.55)', border: 'oklch(80% 0.14 230 / 0.3)' },
+  password: { icon: <Lock size={9} />,   label: 'Password', text: 'oklch(80% 0.16 90)',  bg: 'rgba(0,0,0,0.55)', border: 'oklch(80% 0.16 90 / 0.3)' },
+  private:  { icon: <EyeOff size={9} />, label: 'Private',  text: 'oklch(75% 0.18 25)',  bg: 'rgba(0,0,0,0.55)', border: 'oklch(75% 0.18 25 / 0.3)' },
+} as const
+
+const DISABLED_CONFIG = { icon: <Ban size={9} />, label: 'Disabled', text: 'oklch(75% 0.18 25)', bg: 'rgba(0,0,0,0.55)', border: 'oklch(75% 0.18 25 / 0.3)' }
+
 function DashboardCard({
   scenario, index, onDuplicate, onDelete, onRename,
 }: {
@@ -1409,10 +1449,30 @@ function DashboardCard({
   onDelete: () => void
   onRename: () => void
 }) {
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [startingFacilitator, setStartingFacilitator] = useState(false)
+  const [showShareSettings, setShowShareSettings] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const cfg = STATUS_CONFIG[scenario.status] ?? STATUS_CONFIG.draft
   const pub = scenario.publishedVersion
+  const visCfg = pub
+    ? (pub.accessEnabled === false
+        ? DISABLED_CONFIG
+        : (VISIBILITY_CONFIG[(pub.visibility ?? 'public') as keyof typeof VISIBILITY_CONFIG] ?? VISIBILITY_CONFIG.public))
+    : null
+
+  const startFacilitatorSession = async () => {
+    if (!pub || startingFacilitator) return
+    setStartingFacilitator(true)
+    try {
+      const session = await createFacilitatorSession(scenario, pub)
+      router.push(`/facilitate/${session.id}`)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to start facilitator session')
+      setStartingFacilitator(false)
+    }
+  }
   const hasDraftChanges = pub && new Date(scenario.updatedAt) > new Date(pub.publishedAt)
   const updatedDate = new Date(scenario.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   const nodeCount = scenario.nodes.length
@@ -1435,6 +1495,13 @@ function DashboardCard({
     { icon: <Eye size={12} />, label: 'Preview', href: `/preview/${scenario.id}?device=mobile` },
     ...(pub ? [{ icon: <Play size={12} />, label: 'View published', href: `/play/${pub.slug}` }] : []),
     ...(pub ? [{ icon: <BarChart3 size={12} />, label: 'Analytics', href: `/dashboard/scenario/${scenario.id}/analytics` }] : []),
+    ...(pub && isSupabaseMode() ? [{ icon: <Shield size={12} />, label: 'Share settings', action: () => setShowShareSettings(true) }] : []),
+    ...(pub && isSupabaseMode() ? [{
+      icon: startingFacilitator ? <Loader2 size={12} className="animate-spin" /> : <Radio size={12} />,
+      label: startingFacilitator ? 'Starting…' : 'Start facilitator session',
+      action: startFacilitatorSession,
+    }] : []),
+    ...(pub && isSupabaseMode() ? [{ icon: <Settings size={12} />, label: 'Facilitator sessions', href: `/dashboard/scenario/${scenario.id}/facilitate` }] : []),
     null, // divider
     { icon: <Pencil size={12} />, label: 'Rename', action: onRename },
     { icon: <Copy size={12} />, label: 'Duplicate', action: onDuplicate },
@@ -1476,12 +1543,25 @@ function DashboardCard({
         )}
 
         {/* Status badge */}
-        <div
-          className="absolute top-2.5 left-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono"
-          style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.text }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
-          {cfg.label}
+        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+          <div
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono"
+            style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.text }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
+            {cfg.label}
+          </div>
+
+          {visCfg && (
+            <div
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono"
+              style={{ background: visCfg.bg, border: `1px solid ${visCfg.border}`, color: visCfg.text }}
+              title={`Visibility: ${visCfg.label}`}
+            >
+              {visCfg.icon}
+              {visCfg.label}
+            </div>
+          )}
         </div>
 
         {hasDraftChanges && (
@@ -1591,6 +1671,13 @@ function DashboardCard({
           )}
         </AnimatePresence>
       </div>
+
+      {showShareSettings && (
+        <ShareSettingsModal
+          scenarioId={scenario.id}
+          onClose={() => setShowShareSettings(false)}
+        />
+      )}
     </motion.div>
   )
 }
@@ -2120,6 +2207,172 @@ function RenameModal({
             </button>
           </div>
         </form>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ── TemplatePickerModal ───────────────────────────────────────────────────────
+
+const TEMPLATE_GRAPH_PREVIEWS: Record<TemplateId, { nodes: { x: number; y: number; ending?: boolean }[]; edges: [number, number][] }> = {
+  'two-path': {
+    nodes: [
+      { x: 50, y: 8 },
+      { x: 14, y: 38 },
+      { x: 86, y: 38 },
+      { x: 50, y: 68, ending: true },
+    ],
+    edges: [[0, 1], [0, 2], [1, 3], [2, 3]],
+  },
+  'three-way': {
+    nodes: [
+      { x: 50, y: 6 },
+      { x: 14, y: 34 }, { x: 50, y: 34 }, { x: 86, y: 34 },
+      { x: 14, y: 68, ending: true }, { x: 50, y: 68, ending: true }, { x: 86, y: 68, ending: true },
+    ],
+    edges: [[0, 1], [0, 2], [0, 3], [1, 4], [2, 5], [3, 6]],
+  },
+  'linear-twist': {
+    nodes: [
+      { x: 50, y: 6 },
+      { x: 50, y: 32 },
+      { x: 50, y: 58 },
+      { x: 22, y: 86, ending: true },
+      { x: 78, y: 86, ending: true },
+    ],
+    edges: [[0, 1], [1, 2], [2, 3], [2, 4]],
+  },
+}
+
+function TemplateGraphPreview({ templateId }: { templateId: TemplateId }) {
+  const graph = TEMPLATE_GRAPH_PREVIEWS[templateId]
+  return (
+    <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+      {graph.edges.map(([from, to], i) => {
+        const a = graph.nodes[from]
+        const b = graph.nodes[to]
+        return (
+          <line
+            key={i}
+            x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+            stroke="var(--line-2)"
+            strokeWidth={1.4}
+          />
+        )
+      })}
+      {graph.nodes.map((n, i) => (
+        <circle
+          key={i}
+          cx={n.x} cy={n.y} r={i === 0 ? 5 : n.ending ? 4.5 : 4}
+          fill={i === 0 ? 'oklch(82% 0.18 165)' : n.ending ? 'oklch(78% 0.18 285)' : 'var(--bg-2)'}
+          stroke={i === 0 || n.ending ? 'transparent' : 'var(--line-2)'}
+          strokeWidth={1.4}
+        />
+      ))}
+    </svg>
+  )
+}
+
+function TemplatePickerModal({
+  isPending, onSelect, onCancel,
+}: {
+  isPending: boolean
+  onSelect: (templateId: TemplateId) => void
+  onCancel: () => void
+}) {
+  const [selected, setSelected] = useState<TemplateId | null>(null)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 8 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 8 }}
+        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-2xl rounded-2xl overflow-hidden"
+        style={{
+          background: 'var(--bg-1)',
+          border: '1px solid var(--line-2)',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+        }}
+      >
+        <div className="flex items-start justify-between px-6 pt-6 pb-1">
+          <div>
+            <h3 className="text-base font-semibold mb-1" style={{ color: 'var(--fg-0)' }}>Start from a template</h3>
+            <p className="text-sm" style={{ color: 'var(--fg-3)' }}>Pick a starting structure — you can edit every scene and choice afterward.</p>
+          </div>
+          <button
+            onClick={onCancel}
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-[var(--tint-3)]"
+            style={{ color: 'var(--fg-3)' }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-6">
+          {SCENARIO_TEMPLATES.map(template => {
+            const isSelected = selected === template.id
+            return (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => setSelected(template.id)}
+                disabled={isPending}
+                className="flex flex-col text-left rounded-xl overflow-hidden transition-all disabled:opacity-60"
+                style={{
+                  background: 'var(--tint-2)',
+                  border: `1.5px solid ${isSelected ? 'oklch(82% 0.18 165)' : 'var(--line-2)'}`,
+                  boxShadow: isSelected ? '0 0 0 3px oklch(82% 0.18 165 / 0.15)' : 'none',
+                }}
+              >
+                <div
+                  className="h-28 flex items-center justify-center px-6 py-3"
+                  style={{ background: 'var(--bg-2)', borderBottom: '1px solid var(--line-1)' }}
+                >
+                  <TemplateGraphPreview templateId={template.id} />
+                </div>
+                <div className="p-3.5 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium" style={{ color: 'var(--fg-0)' }}>{template.title}</p>
+                    {isSelected && <Check size={13} style={{ color: 'oklch(82% 0.18 165)' }} />}
+                  </div>
+                  <p className="text-[11px] leading-relaxed" style={{ color: 'var(--fg-3)' }}>{template.description}</p>
+                  <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--fg-4)' }}>{template.structure}</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div
+          className="flex items-center justify-end gap-2 px-6 py-4 border-t"
+          style={{ borderColor: 'var(--line-1)' }}
+        >
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-[var(--tint-3)]"
+            style={{ border: '1px solid var(--line-2)', color: 'var(--fg-2)' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => selected && onSelect(selected)}
+            disabled={!selected || isPending}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
+            style={{ background: 'oklch(82% 0.18 165)', color: '#052916' }}
+          >
+            {isPending ? <Loader2 size={14} className="animate-spin" /> : <GitBranch size={14} />}
+            Use template
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   )
