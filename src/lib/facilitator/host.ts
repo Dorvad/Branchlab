@@ -105,13 +105,17 @@ export async function logSessionEvent(
   fields: { nodeId?: string | null; choiceId?: string | null; metadata?: Record<string, unknown> } = {}
 ): Promise<void> {
   const sb = getSupabaseClient()
-  await sb.from('facilitator_session_events').insert({
+  const { error } = await sb.from('facilitator_session_events').insert({
     session_id: sessionId,
     event_type: eventType,
     node_id: fields.nodeId ?? null,
     choice_id: fields.choiceId ?? null,
     metadata: fields.metadata ?? {},
   })
+  // Don't throw — a logging failure shouldn't block the host action that
+  // triggered it, but a silent gap in the audit trail/CSV export is hard to
+  // diagnose, so at least surface it.
+  if (error) console.error('[facilitator] failed to log session event', eventType, error)
 }
 
 export async function listSessionEvents(sessionId: string): Promise<FacilitatorSessionEvent[]> {

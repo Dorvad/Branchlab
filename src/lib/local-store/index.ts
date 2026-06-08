@@ -140,6 +140,20 @@ export function deleteScenario(id: string): void {
   const drafts = readDrafts()
   delete drafts[id]
   writeDrafts(drafts)
+
+  // Also remove any published snapshots for this scenario — otherwise their
+  // slugs stay permanently claimed (isSlugAvailable matches on scenarioId,
+  // which can never equal a deleted scenario's id again) and the old published
+  // page would remain reachable forever.
+  const published = readPublished()
+  let changed = false
+  for (const [slug, version] of Object.entries(published)) {
+    if (version.scenarioId === id) {
+      delete published[slug]
+      changed = true
+    }
+  }
+  if (changed) writePublished(published)
 }
 
 /** Returns an unsaved copy with a new ID. Caller must saveScenario() it. */

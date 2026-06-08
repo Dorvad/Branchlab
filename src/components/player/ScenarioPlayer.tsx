@@ -57,6 +57,15 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
   const [phase, setPhase] = useState<PlayerPhase>('watching')
   const [pendingChoice, setPendingChoice] = useState<ScenarioChoice | null>(null)
 
+  // Tracks the pending "transitioning → watching" timer so it can be cancelled
+  // on unmount or before scheduling a new one (avoids setState after unmount).
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    return () => {
+      if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
+    }
+  }, [])
+
   // Opening instructions — only shown at the very start when enabled on the start node
   const [showInstructions, setShowInstructions] = useState<boolean>(() => {
     const sNode = getNodeById(scenario, scenario.startNodeId)
@@ -296,7 +305,11 @@ export function ScenarioPlayer({ scenario, mode = 'play', backHref, contained = 
     setSession(newSession)
     setPhase('transitioning')
     // Short gap so AnimatePresence can exit the old VideoScene before mounting new
-    setTimeout(() => setPhase('watching'), 350)
+    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
+    transitionTimerRef.current = setTimeout(() => {
+      transitionTimerRef.current = null
+      setPhase('watching')
+    }, 350)
   }
 
   // ── Restart ──────────────────────────────────────────────────────────────────

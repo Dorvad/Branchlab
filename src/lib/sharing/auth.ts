@@ -38,9 +38,12 @@ export async function authenticateRequest(request: Request): Promise<AuthedReque
  * "owner select" policy (auth.uid() = user_id) means a non-owner gets no row.
  */
 export async function requireOwnedScenario(auth: AuthedRequest, scenarioId: string) {
+  // Select only what callers need (ownership gating + the cached publish
+  // snapshot for share-settings sync) — `scenarios.nodes`/`edges` can be large
+  // branching-graph JSONB blobs that none of the sharing routes use.
   const { data, error } = await auth.sb
     .from('scenarios')
-    .select('*')
+    .select('id, user_id, published_version')
     .eq('id', scenarioId)
     .maybeSingle()
 

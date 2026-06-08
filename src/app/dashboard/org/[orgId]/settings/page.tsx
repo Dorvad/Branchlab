@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import {
-  getOrgMembers, getOrgInvites, updateOrgName,
+  getOrg, getOrgMembers, getOrgInvites, updateOrgName,
   inviteMember, revokeInvite, removeMember, updateMemberRole,
 } from '@/lib/supabase/orgs'
 import { getSupabaseClient } from '@/lib/supabase/client'
@@ -85,11 +85,13 @@ export default function OrgSettingsPage() {
     if (me) setMyRole(me.role)
   }, [members, currentUserId])
 
-  // Derive org name from members query (no separate org fetch needed for display)
   useEffect(() => {
-    // Get name from the URL param for now; a proper solution would fetch from orgs table
-    // We'll load it from the page title placeholder on mount via members endpoint
-  }, [])
+    let cancelled = false
+    getOrg(orgId).then(org => {
+      if (!cancelled && org) setOrgName(org.name)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [orgId])
 
   const handleSaveName = async () => {
     if (!nameInput.trim() || nameInput === orgName) { setEditingName(false); return }

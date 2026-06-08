@@ -88,25 +88,27 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Reload scenarios whenever user authenticates or active org changes
-  useEffect(() => {
+  // Tracks which org the in-flight scenario fetch was issued for, so a slow
+  // response from a since-superseded org switch can't clobber the current view.
+  const activeFetchOrgRef = useRef<string | null>(null)
+
+  const loadScenarios = useCallback((showRefreshSpinner: boolean) => {
     if (!user) return
-    const isFirstLoad = !hasLoadedRef.current
-    if (isFirstLoad) {
-      setLoading(true)
-    } else {
-      setRefreshing(true)
-    }
+    const orgId = activeOrg?.id ?? null
+    activeFetchOrgRef.current = orgId
+    if (!hasLoadedRef.current) setLoading(true)
+    else if (showRefreshSpinner) setRefreshing(true)
     setError(null)
-    setClips([]) // reset clips so lazy-load picks up the new scope
-    getAllScenarios(activeOrg?.id ?? null)
+    getAllScenarios(orgId)
       .then(s => {
+        if (activeFetchOrgRef.current !== orgId) return // superseded by a later org switch
         setScenarios(s)
         setLoading(false)
         setRefreshing(false)
         hasLoadedRef.current = true
       })
       .catch(e => {
+        if (activeFetchOrgRef.current !== orgId) return
         setError(e.message ?? 'Failed to load')
         setLoading(false)
         setRefreshing(false)
@@ -114,20 +116,25 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, activeOrg?.id])
 
+  // Reload scenarios whenever user authenticates or active org changes
+  useEffect(() => {
+    if (!user) return
+    setClips([]) // reset clips so lazy-load picks up the new scope
+    loadScenarios(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, activeOrg?.id])
+
   // Lazy-load clips when assets tab opens
   useEffect(() => {
-    if (section === 'assets' && clips.length === 0) {
-      fetchClips(activeOrg?.id ?? null).then(setClips).catch(() => {})
-    }
+    if (section !== 'assets' || clips.length > 0) return
+    const orgId = activeOrg?.id ?? null
+    let cancelled = false
+    fetchClips(orgId).then(c => { if (!cancelled) setClips(c) }).catch(() => {})
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, clips.length, activeOrg?.id])
 
-  const load = () => {
-    setError(null)
-    getAllScenarios(activeOrg?.id ?? null)
-      .then(s => { setScenarios(s); setLoading(false) })
-      .catch(e => { setError(e.message ?? 'Failed to load'); setLoading(false) })
-  }
+  const load = useCallback(() => loadScenarios(false), [loadScenarios])
 
   const [createError, setCreateError] = useState<string | null>(null)
 

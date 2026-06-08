@@ -169,9 +169,10 @@ export async function getScenario(id: string): Promise<Scenario | null> {
     .from('scenarios')
     .select('*')
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
-  if (error) return null
+  if (error) throw dbError(error)
+  if (!data) return null
   return rowToScenario(data)
 }
 
@@ -194,6 +195,11 @@ export async function saveScenario(scenario: Scenario, orgId?: string | null): P
 export async function deleteScenario(id: string): Promise<void> {
   await requireUserId()
   const sb = getSupabaseClient()
+  // Remove published version snapshots first — otherwise their slugs stay
+  // permanently claimed (isSlugAvailable matches on scenario_id, which can
+  // never equal a deleted scenario's id again).
+  const { error: versionsError } = await sb.from('scenario_versions').delete().eq('scenario_id', id)
+  if (versionsError) throw dbError(versionsError)
   const { error } = await sb.from('scenarios').delete().eq('id', id)
   if (error) throw dbError(error)
 }
@@ -258,6 +264,10 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
       })
       .select()
       .single()
+    // validateSlug() checked availability earlier, but two concurrent publishes
+    // to the same new slug can both pass that check — surface the resulting
+    // unique-violation as a clean message instead of a raw Postgres error.
+    if (error?.code === '23505') throw new Error('This URL is already taken')
     if (error) throw dbError(error)
     versionRow = data
   }

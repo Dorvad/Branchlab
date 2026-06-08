@@ -142,15 +142,19 @@ export async function listClips(scenarioId: string): Promise<Clip[]> {
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 /**
- * Deletes the metadata row then the storage object.
- * DB row is deleted first so a failed storage delete doesn't leave an orphaned row.
+ * Deletes the storage object then the metadata row.
+ *
+ * Storage is removed first: an orphaned DB row (storage delete failed) is
+ * still visible in the library and the user can retry deletion, whereas an
+ * orphaned storage blob (DB row deleted first, storage delete failed) is
+ * invisible and leaks bucket space with no way to find or clean it up.
  */
 export async function deleteClip(clipId: string, storagePath: string): Promise<void> {
   const sb = getSupabaseClient()
+  const { error: storageErr } = await sb.storage.from(BUCKET).remove([storagePath])
+  if (storageErr) throw new Error(storageErr.message)
   const { error: dbErr } = await sb.from('clips').delete().eq('id', clipId)
   if (dbErr) throw new Error(dbErr.message)
-  await sb.storage.from(BUCKET).remove([storagePath])
-  // storage errors are intentionally swallowed — the row is already gone
 }
 
 // ── Optional metadata update ──────────────────────────────────────────────────

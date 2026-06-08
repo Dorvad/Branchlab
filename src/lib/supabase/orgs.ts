@@ -140,6 +140,18 @@ export async function createOrg(name: string): Promise<OrgWithRole> {
 }
 
 /** Updates an org's display name (admin+). */
+export async function getOrg(orgId: string): Promise<Organization | null> {
+  const sb = getSupabaseClient()
+  const { data, error } = await sb
+    .from('organizations')
+    .select('*')
+    .eq('id', orgId)
+    .maybeSingle()
+  if (error) throw dbError(error)
+  if (!data) return null
+  return rowToOrg(data)
+}
+
 export async function updateOrgName(orgId: string, name: string): Promise<void> {
   const sb = getSupabaseClient()
   const { error } = await sb

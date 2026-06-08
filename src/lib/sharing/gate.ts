@@ -30,13 +30,13 @@ interface ResolveArgs {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function recordTokenUse(sb: ReturnType<typeof getSupabaseServiceRole>, tokenRow: any) {
-  await sb
-    .from('scenario_share_tokens')
-    .update({
-      use_count: (tokenRow.use_count ?? 0) + 1,
-      last_used_at: new Date().toISOString(),
-    })
-    .eq('id', tokenRow.id)
+  // Atomic `use_count = use_count + 1` via RPC (see migration 014) — a
+  // client-side read-modify-write (tokenRow.use_count + 1) loses increments
+  // under concurrent plays of the same share link (last writer wins).
+  // Cast: this RPC isn't in the generated `Database['public']['Functions']`
+  // types (see migration 014's comment on regenerating types).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb.rpc as any)('increment_share_token_use', { p_token_id: tokenRow.id })
 }
 
 export async function resolvePlayAccess({ slug, cookieValue, token }: ResolveArgs): Promise<PlayAccessResult> {

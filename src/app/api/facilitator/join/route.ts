@@ -66,11 +66,12 @@ export async function POST(request: Request) {
     }
     participantRow = inserted
 
-    await sb.from('facilitator_session_events').insert({
+    const { error: eventError } = await sb.from('facilitator_session_events').insert({
       session_id: session.id,
       event_type: 'participant_joined',
       metadata: { displayName: payload.displayName ?? null },
     })
+    if (eventError) console.error('[facilitator] failed to log participant_joined event', eventError)
   } else if (payload.displayName && payload.displayName !== existingRow.display_name) {
     // Allow updating a display name on rejoin (e.g. typo fix)
     const { data: updated } = await sb
