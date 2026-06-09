@@ -11,6 +11,7 @@
 // scopes to `auth.uid() = user_id` (see migration 013). The server never sees
 // or forwards private scenario content for non-owners.
 import { getSupabaseServiceRole } from '@/lib/supabase/service'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { verifyAccessCookieValue } from './access-cookie'
 import type { ScenarioVisibility } from '@/types'
 
@@ -28,8 +29,10 @@ interface ResolveArgs {
   token: string | null // ?token=... query param
 }
 
+type SbClient = ReturnType<typeof getSupabaseClient>
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function recordTokenUse(sb: ReturnType<typeof getSupabaseServiceRole>, tokenRow: any) {
+async function recordTokenUse(sb: SbClient, tokenRow: any) {
   // Atomic `use_count = use_count + 1` via RPC (see migration 014) — a
   // client-side read-modify-write (tokenRow.use_count + 1) loses increments
   // under concurrent plays of the same share link (last writer wins).
@@ -40,7 +43,16 @@ async function recordTokenUse(sb: ReturnType<typeof getSupabaseServiceRole>, tok
 }
 
 export async function resolvePlayAccess({ slug, cookieValue, token }: ResolveArgs): Promise<PlayAccessResult> {
-  const sb = getSupabaseServiceRole()
+  // Prefer the service-role client (bypasses RLS; required for password/private
+  // scenarios). If SUPABASE_SERVICE_ROLE_KEY is not configured, fall back to
+  // the anon client — RLS still allows public/unlisted reads, so the common
+  // case remains playable without the server-only key.
+  let sb: SbClient
+  try {
+    sb = getSupabaseServiceRole() as unknown as SbClient
+  } catch {
+    sb = getSupabaseClient()
+  }
 
   const { data: versionRow, error } = await sb
     .from('scenario_versions')
