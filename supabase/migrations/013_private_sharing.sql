@@ -73,8 +73,8 @@ create trigger scenario_versions_updated_at
 
 create table if not exists public.scenario_share_tokens (
   id                   uuid        primary key default gen_random_uuid(),
-  scenario_version_id  uuid        not null references public.scenario_versions(id) on delete cascade,
-  scenario_id          uuid,
+  scenario_version_id  text        not null references public.scenario_versions(id) on delete cascade,
+  scenario_id          text,
   token                text        unique not null,
   label                text,
   created_by           uuid        not null references auth.users(id) on delete cascade,
