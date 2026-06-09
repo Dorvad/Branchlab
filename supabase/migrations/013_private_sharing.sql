@@ -34,13 +34,26 @@ alter table public.scenario_versions
 
 -- Migrate any pre-existing (fake) plaintext passwords into real bcrypt hashes
 -- and mark those versions as password-protected.
-update public.scenario_versions
-set
-  visibility    = 'password',
-  password_hash = crypt(password, gen_salt('bf'))
-where password_protected is true
-  and password is not null
-  and password <> '';
+-- Wrapped in a DO block: if migration 010 was never applied (columns don't
+-- exist), this is a no-op rather than an error.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name   = 'scenario_versions'
+      and column_name  = 'password_protected'
+  ) then
+    update public.scenario_versions
+    set
+      visibility    = 'password',
+      password_hash = crypt(password, gen_salt('bf'))
+    where password_protected is true
+      and password is not null
+      and password <> '';
+  end if;
+end
+$$;
 
 alter table public.scenario_versions
   drop column if exists password_protected,
