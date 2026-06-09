@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import { isSupabaseMode } from '@/lib/persistence/mode'
 import { getPublishedBySlug } from '@/lib/persistence/scenarios'
-import { resolvePlayAccess, accessCookieName, versionRowToScenarioVersion } from '@/lib/sharing'
+import { resolvePlayAccess, accessCookieName, versionRowToScenarioVersion, type PlayAccessResult } from '@/lib/sharing'
 import { PlayClient } from '@/components/player/PlayClient'
 import { ScenarioPlayer } from '@/components/player/ScenarioPlayer'
 import { PlayGateScreen } from '@/components/player/PlayGateScreen'
@@ -25,30 +25,34 @@ export async function generateMetadata({ params }: PlayPageProps): Promise<Metad
     return { title: 'Play · BranchLab' }
   }
 
-  // Metadata must never leak gated titles — only describe public/unlisted
-  // scenarios by name; everything else gets a generic title.
-  const version = await getPublishedBySlug(slug)
-  const isOpen = version && (version.visibility ?? 'public') !== 'private' && (version.visibility ?? 'public') !== 'password'
-  const title = isOpen && version?.title ? `${version.title} · BranchLab` : 'Play · BranchLab'
-  const base = appUrl()
-  const canonicalUrl = base ? `${base}/play/${slug}` : undefined
-  return {
-    title,
-    description: 'An interactive branching video scenario.',
-    ...(canonicalUrl && {
-      alternates: { canonical: canonicalUrl },
-      openGraph: {
-        title,
-        description: 'An interactive branching video scenario.',
-        url: canonicalUrl,
-        type: 'website',
-      },
-      twitter: {
-        card: 'summary',
-        title,
-        description: 'An interactive branching video scenario.',
-      },
-    }),
+  try {
+    // Metadata must never leak gated titles — only describe public/unlisted
+    // scenarios by name; everything else gets a generic title.
+    const version = await getPublishedBySlug(slug)
+    const isOpen = version && (version.visibility ?? 'public') !== 'private' && (version.visibility ?? 'public') !== 'password'
+    const title = isOpen && version?.title ? `${version.title} · BranchLab` : 'Play · BranchLab'
+    const base = appUrl()
+    const canonicalUrl = base ? `${base}/play/${slug}` : undefined
+    return {
+      title,
+      description: 'An interactive branching video scenario.',
+      ...(canonicalUrl && {
+        alternates: { canonical: canonicalUrl },
+        openGraph: {
+          title,
+          description: 'An interactive branching video scenario.',
+          url: canonicalUrl,
+          type: 'website',
+        },
+        twitter: {
+          card: 'summary',
+          title,
+          description: 'An interactive branching video scenario.',
+        },
+      }),
+    }
+  } catch {
+    return { title: 'Play · BranchLab' }
   }
 }
 
@@ -65,7 +69,13 @@ export default async function PlayPage({ params, searchParams }: PlayPageProps) 
   const cookieStore = await cookies()
   const cookieValue = cookieStore.get(accessCookieName(slug))?.value
 
-  const access = await resolvePlayAccess({ slug, cookieValue, token: token ?? null })
+  let access: PlayAccessResult
+  try {
+    access = await resolvePlayAccess({ slug, cookieValue, token: token ?? null })
+  } catch (err) {
+    console.error('[play] resolvePlayAccess failed for slug', slug, err)
+    return <PlayGateScreen kind="not-found" />
+  }
 
   switch (access.status) {
     case 'not-found':
