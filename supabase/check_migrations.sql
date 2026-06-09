@@ -35,3 +35,11 @@ SELECT
     WHERE n.nspname = 'public'
       AND p.proname = 'increment_share_token_use'
   ) AS "014_share_token_atomic_increment";
+
+-- ── Diagnostic: verify scenario_versions.id type (must be uuid for 013 to work) ──
+SELECT
+  data_type AS "scenario_versions_id_type"
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name   = 'scenario_versions'
+  AND column_name  = 'id';

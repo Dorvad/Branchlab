@@ -70,11 +70,14 @@ create trigger scenario_versions_updated_at
   for each row execute function public.handle_updated_at();
 
 -- ── scenario_share_tokens ──────────────────────────────────────────────────────
+-- Drop any stale partial state from a previous failed migration run so that
+-- CREATE TABLE below always executes fresh with the correct column types.
+drop table if exists public.scenario_share_tokens cascade;
 
-create table if not exists public.scenario_share_tokens (
+create table public.scenario_share_tokens (
   id                   uuid        primary key default gen_random_uuid(),
-  scenario_version_id  text        not null references public.scenario_versions(id) on delete cascade,
-  scenario_id          text,
+  scenario_version_id  uuid        not null references public.scenario_versions(id) on delete cascade,
+  scenario_id          uuid,
   token                text        unique not null,
   label                text,
   created_by           uuid        not null references auth.users(id) on delete cascade,
