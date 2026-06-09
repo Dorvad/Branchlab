@@ -34,8 +34,8 @@ alter table public.scenario_versions
 
 -- Migrate any pre-existing (fake) plaintext passwords into real bcrypt hashes
 -- and mark those versions as password-protected.
--- Wrapped in a DO block: if migration 010 was never applied (columns don't
--- exist), this is a no-op rather than an error.
+-- Uses EXECUTE (dynamic SQL) so Postgres skips compile-time column validation;
+-- the UPDATE only runs if migration 010's columns actually exist.
 do $$
 begin
   if exists (
@@ -44,13 +44,15 @@ begin
       and table_name   = 'scenario_versions'
       and column_name  = 'password_protected'
   ) then
-    update public.scenario_versions
-    set
-      visibility    = 'password',
-      password_hash = crypt(password, gen_salt('bf'))
-    where password_protected is true
-      and password is not null
-      and password <> '';
+    execute $sql$
+      update public.scenario_versions
+      set
+        visibility    = 'password',
+        password_hash = crypt(password, gen_salt('bf'))
+      where password_protected is true
+        and password is not null
+        and password <> ''
+    $sql$;
   end if;
 end
 $$;
