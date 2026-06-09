@@ -368,7 +368,7 @@ function OrientationStep({
   )
 }
 
-// ── Step 3: URL ───────────────────────────────────────────────────────────────
+// ── Step 2: URL ───────────────────────────────────────────────────────────────
 
 function UrlStep({
   errors, warnings, slug, slugState, slugError, showWarnings,
@@ -394,7 +394,7 @@ function UrlStep({
     <div className="space-y-4">
       <div>
         <p className="text-[9px] font-mono tracking-[0.16em] uppercase mb-1" style={{ color: 'var(--fg-3)' }}>
-          Step 3 — URL
+          Step 2 — URL
         </p>
         <p className="text-sm font-medium text-ink-0 mb-1">Set your public URL</p>
       </div>

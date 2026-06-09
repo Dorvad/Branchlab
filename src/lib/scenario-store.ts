@@ -223,6 +223,7 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
         edges: scenario.edges,
         start_node_id: scenario.startNodeId,
         published_at: now,
+        orientation,
       })
       .eq('id', prevVersion!.id)
       .select()
@@ -243,6 +244,7 @@ export async function publishScenario(scenario: Scenario, config: PublishConfig)
         start_node_id: scenario.startNodeId,
         slug,
         published_at: now,
+        orientation,
       })
       .select()
       .single()
