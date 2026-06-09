@@ -2,6 +2,9 @@ export const runtime = 'edge'
 
 export async function GET() {
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
+  if (!base) {
+    return new Response('NEXT_PUBLIC_APP_URL is not configured', { status: 500 })
+  }
 
   const script = `(function(){
   var BASE="${base}";
